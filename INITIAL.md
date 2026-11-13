@@ -4,7 +4,7 @@
 > Where this file and the original project proposal (not published) disagree, this file wins. The proposal stays as background and rationale.
 > **Name:** the project was renamed from NetDoctor to **whyreach** on 2026-11-13 because of a trademark conflict (§10 Q5). The original proposal keeps the old name.
 >
-> **Status:** M0 and M1 done (the §2.3 vertical slice passes in the lab); next is M2 · **Updated:** 2026-11-13
+> **Status:** M0, M1 and M2 done (all 14 v0.1 rules, the MCP server, policy and `doctor`; an agent diagnoses every lab scenario through MCP alone); next is M3 · **Updated:** 2026-11-13
 > **Dev box:** Ubuntu 24.04.5, kernel 7.0, Go 1.27.0 (builds use the `toolchain go1.27.4` pinned in `go.mod`), Docker Engine 29.9.3 (API 1.56), Compose v5.7.1
 
 ---
@@ -333,8 +333,8 @@ type ContextRef struct {
 type Evidence struct {
     ID          string        // "ev-07": assigned after collection in a canonical order, so the
                               // same evidence gets the same IDs whichever collector finished first
-    Kind        Kind          // docker.version, docker.container, netns.listeners, probe.dns, probe.tcp
-                              // (from M2: docker.network, host.route, host.links, …)
+    Kind        Kind          // docker.version, docker.container, netns.listeners, probe.dns, probe.tcp,
+                              // host.addrs (M2); docker.network, host.route arrive with the v0.2 rules
     Context     ContextRef
     Subject     string        // "api:8080", "container:shop-api-1", "listeners"
     Status      Status
@@ -347,7 +347,7 @@ type Evidence struct {
 }
 
 type TCPProbe  struct { Target string; Addr netip.AddrPort; Via /* literal|hosts|dns|metadata */ string
-                        Outcome /* connected|refused|timeout|unreachable|reset|blocked|error */ string; Errno string; RTT time.Duration }
+                        Outcome /* connected|refused|timeout|unreachable|reset|closed|blocked|error */ string; Errno string; RTT time.Duration }
 type DNSProbe  struct { Name, Answered /* "api" or "api.<search 1>" */, Via /* hosts|dns */, Server string
                         Rcode /* NOERROR|NXDOMAIN|SERVFAIL|REFUSED|TIMEOUT */ string; Answers []netip.Addr
                         Upstream []string /* Docker's ExtServers comment */; Attempts []DNSAttempt }
@@ -423,7 +423,7 @@ The engine is a staged pipeline per workflow, not a generic DAG engine (YAGNI): 
 
   Cancellation propagates from the MCP or CLI context. When the deadline hits, the engine evaluates whatever evidence it has and marks the rest as `timeout`.
 - **Verdict**, decided in this order:
-  1. The TCP connect from the source succeeded, through the name or literal address the app uses → `no_problem_reproduced`, with next checks for app-level, TLS or timing problems. A connect to an address taken from Docker metadata doesn't count. Any findings that remain, such as advisories, are listed as "also found".
+  1. The TCP connect from the source succeeded, through the name or literal address the app uses → `no_problem_reproduced`, with next checks for app-level, TLS or timing problems. A connect to an address taken from Docker metadata doesn't count. Neither does a connection the peer accepts and closes within 100 ms without sending a byte (outcome `closed`, M2): docker-proxy does exactly that when the published container's port refuses, so counting it would report a dead service as reachable. Any findings that remain, such as advisories, are listed as "also found".
   2. The primary finding (§4.5) is high → `cause_identified`.
   3. The primary finding is medium → `likely_cause`.
   4. Otherwise → `inconclusive`, with gaps.
@@ -479,6 +479,11 @@ Suppression pairs from the experiments:
 | WR006 | WR003 | — |
 | WR015, WR024 | WR016 | — |
 | WR013 | WR016 | The route sends the traffic somewhere else. Expected but not reproduced yet (E9 only looked the route up); confirm in v0.2. |
+| WR010 | WR001, WR003 | A server that is still starting listens on nothing, or not yet on its final port (M2). |
+| WR019 | WR001 | Nothing on the host listens because the container's port isn't published there (M2). |
+| WR006 | WR012 | The loopback "host service" is the container's port published on 127.0.0.1 (M2). |
+| WR011, WR009 | WR005, WR016 | The name can't resolve for a reason these explain (M2). |
+| WR012, WR003 | WR001 | — (M2) |
 
 ### 4.6 Rule catalog
 
@@ -487,30 +492,30 @@ Sources for the columns:
 - **Probe?** whether the rule needs the probe container, from `docs/research/rule-experiments.md`.
 - **Release:** the build order decided in ADR 0002.
 
-**v0.1 is 14 rules:** WR001–WR012, WR019 and WR020.
+**v0.1 is 14 rules:** WR001–WR012, WR019 and WR020. All 14 are built (M1: WR008, WR007, WR004, WR002; M2: the rest), each with fixtures, a lab scenario and a page in `docs/rules/`.
 
 | ID | Pitfall | Layer | Key evidence | Probe? | Rank | Release |
 |---|---|---|---|---|---|---|
-| WR001 | Nothing is listening on the port in the destination's netns | 5 | listeners (no match) + refused | no | — | v0.1 · M2 |
+| WR001 | Nothing is listening on the port in the destination's netns | 5 | listeners (no match) + refused | no | — | v0.1 · **M2** |
 | WR002 | Service bound to loopback only (127.0.0.1 or ::1) | 5 | loopback-only listeners | no | 11 | v0.1 · **M1** |
-| WR003 | Service listens on a different port (suggest that port) | 5 | listeners | no | — | v0.1 · M2 |
+| WR003 | Service listens on a different port (suggest that port) | 5 | listeners | no | — | v0.1 · **M2** |
 | WR004 | The two containers share no network (e.g. separate Compose projects) | 3 | network membership, Compose project labels | no | 2 | v0.1 · **M1** |
-| WR005 | The name matches no container, service or alias on the source's networks (suggest the closest). Decided from metadata, **not** from the DNS rcode | 3 | network members (+ DNS view) | partly | 8 | v0.1 · M2 |
-| WR006 | The host-published port is used between containers, or a published port is reached through the host's address | 2 | port mappings + target | no | 17 | v0.1 · M2 |
+| WR005 | The name matches no container, service or alias on the source's networks (suggest the closest). Decided from metadata, **not** from the DNS rcode | 3 | network members (+ DNS view) | partly | 8 | v0.1 · **M2** |
+| WR006 | The host-published port is used between containers, or a published port is reached through the host's address | 2 | port mappings + target | no | 17 | v0.1 · **M2** |
 | WR007 | `localhost`/127.0.0.1 used inside a container to reach another container or the host. The fix differs: the service name, or `host.docker.internal` | 2 | target + source listeners + other containers' and host listeners | no | **1** | v0.1 · **M1** |
 | WR008 | The destination is not running, is restarting, or is unhealthy. Checked before any probe | 1 | state, health, RestartCount | no | not measured | v0.1 · **M1** (moved from M2: the engine's gate needs it) |
-| WR009 | Default `bridge` network: containers can't resolve each other's names | 3 | network name and driver | no | 12 | v0.1 · M2 |
-| WR010 | Startup race: the destination isn't ready yet | 1 | health `starting`, StartedAt, listeners | no | 4 | v0.1 · M2 |
-| WR011 | `host.docker.internal` doesn't resolve on Docker Engine (no `host-gateway` mapping). Never fires on Docker Desktop | 2 | ExtraHosts + platform (+ DNS) | partly | 7 | v0.1 · M2 |
-| WR012 | A host service is bound to 127.0.0.1, so containers can't reach it (Linux Engine, and WSL2 without Desktop) | 5 | host listeners + target is the host | no | 5 | v0.1 · M2 |
+| WR009 | Default `bridge` network: containers can't resolve each other's names | 3 | network name and driver | no | 12 | v0.1 · **M2** |
+| WR010 | Startup race: the destination isn't ready yet | 1 | health `starting`, StartedAt, listeners | no | 4 | v0.1 · **M2** |
+| WR011 | `host.docker.internal` doesn't resolve on Docker Engine (no `host-gateway` mapping). Never fires on Docker Desktop | 2 | ExtraHosts + platform (+ DNS) | partly | 7 | v0.1 · **M2** |
+| WR012 | A host service is bound to 127.0.0.1, so containers can't reach it (Linux Engine, and WSL2 without Desktop) | 5 | host listeners + target is the host | no | 5 | v0.1 · **M2** |
 | WR013 | A Docker subnet overlaps a VPN or LAN route | 4 | host route lookup + network subnets | no | 15 | v0.2 |
 | WR014 | IPv6/IPv4 mismatch: `localhost` resolves to `::1` first, but the listener is IPv4-only | 5 | DNS answers + listener families | yes | 18 | v0.2 |
 | WR015 | `internal: true` network, but the target is outside it | 4 | network Internal flag | no | not measured | v0.2 |
 | WR016 | Timeout means a silent drop. Last resort: suppressed when WR004, WR008, WR013, WR015 or WR024 explains the timeout | 4 | TCP timeout + route | yes | not measured | v0.2 |
 | WR017 | MTU mismatch. Advisory until a size probe confirms a stall | 6 | link MTUs | no | 16 | v0.3 |
 | WR018 | Proxy env vars intercept traffic. Reads env var **keys only**, never values | 6 | env keys | no | not measured | v0.3 |
-| WR019 | Port not published, or published on another host address (host → container) | 2 | PortBindings + container listeners | no | 6 | v0.1 · M2 |
-| WR020 | The container's upstream DNS fails: internal names resolve, external ones time out | 3 | DNS from the source + `resolv.conf` `ExtServers` | yes | 3 | v0.1 · M2 |
+| WR019 | Port not published, or published on another host address (host → container) | 2 | PortBindings + container listeners | no | 6 | v0.1 · **M2** |
+| WR020 | The container's upstream DNS fails: internal names resolve, external ones time out | 3 | DNS from the source + `resolv.conf` `ExtServers` | yes | 3 | v0.1 · **M2** |
 | WR021 | The host firewall rejects container-to-host traffic (EHOSTUNREACH to the host) | 4 | errno + host listener (+ firewall rules, needs root) | yes | 9 | v0.2 |
 | WR022 | No outbound NAT or forwarding | 4 | `ip_forward`, daemon firewall settings | yes | 10 | v0.3 |
 | WR023 | Docker Desktop: `network_mode: host` means the VM | 2 | platform + NetworkMode | no | 14 | v0.3 · M7 |
@@ -547,9 +552,13 @@ type Executor interface {
 
 **As built in M1:** the `host` and `probecontainer` executors. The executor stamps every record with its context and executor; a batch that can't run at all still returns one record per check, with the failure status, so the gap names the exact checks.
 
+**As built in M2:** the engine gets its executors wrapped by `policy` (§4.9). The probe allowlist reaches the probe through the context: the host executor applies it in-process, and the probe container receives it as `__probe --allow <prefixes>`, so it holds at dial time for every address a name resolves to. `ProbeContainer.Readiness` checks the daemon's platform, the binary and whether the image is imported, without any write, for `doctor`.
+
 ### 4.8 Collectors and probes
 
 - **`collect/host`** uses `vishvananda/netlink` for links, addresses, `RouteGet(dst)` and neighbours. It reads listeners from `/proc/net/{tcp,tcp6,udp,udp6}`, where addr:port is hex and state `0A` means LISTEN. It never shells out to `ip` or `ss`.
+  - **As built in M2:** only what the v0.1 flows need. The host's interfaces and addresses (`host.addrs`) come from the standard library's `net.Interfaces`, which asks the kernel over netlink on Linux and builds on every OS; loopback and IPv6 link-local addresses are left out. `RouteGet` and neighbours arrive with WR013 and WR024 in v0.2, and with them `vishvananda/netlink`. TCP listeners come from `probe.ReadListeners("/proc")`.
+  - **Host targets (M2):** the target is the host's network namespace when it is `localhost` from the host (or a host-network container), one of the host's addresses, a name the source's `extra_hosts` map to `host-gateway`, `host.docker.internal`, or a name that resolved to a host address. The engine then reads the host's listeners and the containers that publish the port there; a binding that covers the target address makes that container a destination on its container port. From the host, when nothing answers the port and nothing publishes it, it reads the listeners of up to 32 running containers to find the one that serves it unpublished (WR019).
 - **`collect/docker`** uses `net/http` over the unix socket:
   - A `RoundTripper` holds an **allowlist of method + path pattern**. "GET-only" alone isn't enough: `GET /containers/{id}/export` dumps an entire filesystem.
   - Default allowlist: `GET /version`, `/containers/json`, `/containers/{id}/json`, `/networks`, `/networks/{id}`.
@@ -564,6 +573,8 @@ type Executor interface {
   - It applies the search list and `ndots` as `resolv.conf(5)` describes, asks for A and AAAA in parallel, retries a timed-out query once (on the next nameserver if there is one), retries a truncated answer over TCP, and bounds a whole lookup at 4 s.
   - Search domains can identify the user's organisation, so evidence records them only as placeholders (`api.<search 1>`).
 - **`probe/tcp`** uses `net.Dialer{Timeout}` and classifies errors with `errors.Is(err, syscall.ECONNREFUSED)` and similar checks. It connects and then closes, and never sends a payload.
+  - **From M2** it keeps the connection open up to 100 ms first, reading without writing: a peer that closes it at once (EOF or a reset) is outcome `closed`, not `connected` (§4.4). A server that speaks first, or waits for the client, is `connected`.
+  - **Control lookup (M2):** when the target name matches no container, the probe batch also looks up the source's own container name. Docker's DNS answers it without leaving the host, and it shows whether internal names resolve (WR005, WR020).
 - **`probe/listeners`** reads `/proc/net/tcp{,6}` from inside the context.
 
 ### 4.9 Policy and permission tiers
@@ -588,6 +599,13 @@ type Executor interface {
 **As built in M1:** the target grammar rejects everything but one host:port, blocked addresses are refused both when given literally and at dial time (inside the probe too, for every address a name resolves to), and a name resolves to at most 4 addresses. The allowlist option, the token bucket and the audit log arrive with the `policy` package in M2, together with the MCP server whose tool arguments they guard.
 
 **Audit log:** JSON Lines at `$XDG_STATE_HOME/whyreach/audit.jsonl`. Each entry records the tool, its sanitized arguments, duration, status and side effects.
+
+**As built in M2:** the `policy` package is the only way into the engine: the CLI and the MCP server both call it, and only it builds an engine (an import test enforces this).
+- It parses every argument with the target grammar, and classifies errors by code (§4.14).
+- **Tiers:** 2b comes from `probe_containers` in the config, or from the user's approval of an MCP elicitation, which holds for the session (§4.10). The engine gets guarded executors: while tier 2b is off they answer with permission-denied records, which become a gap that says how to enable it.
+- **Allowlist:** an empty `allow` means no allowlist (only the block list). Otherwise TCP probes may go only to the listed classes and CIDRs: literal addresses are refused before sending, and the probe checks every address a name resolves to at dial time. `docker` is the subnets of Docker's networks when the probe runs. A refused check is a record with the reason, so it becomes a `policy` gap with advice. DNS queries go to the source's own resolver and aren't subject to the allowlist.
+- **Rate limit:** one token per DNS or TCP check (a TCP check to a name covers its up to 4 addresses); listener reads are free. The bucket holds `rate_per_minute` tokens and refills at that rate, per process.
+- **Audit:** every call, including refused ones and consent answers, with the client (`cli` or `mcp`), the verdict and primary rule, the diagnosis ID, whether tier 2b was in effect, and the probes sent and refused. Arguments are stripped of control characters and cut at 256 characters. The file is 0600 in a 0700 directory and rotates once at 10 MB. A failed write is logged, not fatal.
 
 ### 4.10 MCP surface (4 tools)
 
@@ -614,6 +632,11 @@ type Executor interface {
 - **Discoverable names.** Clients may defer MCP tools and find them by search, so tool names and descriptions use the words an agent would search for: network, connect, docker, diagnose.
 - `NextChecks` name these tools and include ready-to-use arguments.
 
+**As built in M2:** `whyreach mcp serve`, with go-sdk v1.8.0's typed `mcp.AddTool` handlers; ADR 0003 records the decisions.
+- **Structured content** is `report.Compact`: verdict, summary and ID first, then findings (only the primary carries its explanation), facts, gaps, next checks and side effects. It is cut to fit 6000 bytes of JSON, about 1.5k tokens, by dropping the least important parts first and saying what was omitted. The text content is the CLI's rendering, of similar size. Goldens cover both.
+- `inspect_environment` also takes `service:<name>[@<project>]`. `run_probe` returns every record its one check produced: a TCP check to a name is its lookup plus a connect per address.
+- **Probe containers by consent (§10 Q3):** when tier 2b is off and a diagnosis or probe would gain from a probe container (a settled high-confidence cause never asks), the server asks the user once per session, through the client's own elicitation dialog. Clients on protocols before 2026-07-28 get a server-initiated `elicitation/create`; newer ones get an input request in the tool result (SEP-2322) and call again with the answer, which the server accepts only with the request state it issued. An approval turns tier 2b on for the session, is audited, and re-registers the two probing tools with `readOnlyHint: false`. Clients without elicitation get the gap and the config advice.
+
 ### 4.11 CLI
 
 ```
@@ -627,7 +650,9 @@ whyreach doctor          # self-check: capabilities, permissions, Docker API ver
 whyreach mcp serve       # stdio
 ```
 
-**As built in M1:** the short form, `diagnose` (without `--report`, which arrives with reports in M4) and `version`, plus the hidden `__probe`. Text output goes to stdout, sanitized of control and bidi characters; `--json` prints the full `Diagnosis`, evidence included; logs are JSON on stderr (`WHYREACH_LOG=debug|info|warn`). `--from host` runs its probes with the host executor, but the host-side rules arrive in M2.
+**As built in M1:** the short form, `diagnose` (without `--report`, which arrives with reports in M4) and `version`, plus the hidden `__probe`. Text output goes to stdout, sanitized of control and bidi characters; `--json` prints the full `Diagnosis`, evidence included; logs are JSON on stderr (`WHYREACH_LOG=debug|info|warn`).
+
+**As built in M2:** `inspect`, `probe`, `doctor` and `mcp serve`, all through `policy`; `report` and `rules` remain for M4. `--from host` now has its own rules (WR019, and WR001–WR003 through published ports). `doctor` exits 0 when no check failed and 1 otherwise; it checks the config, the Docker API, interfaces, host and container listeners, probe-container readiness (read-only), the probe policy, privileges, whether whyreach runs in a container or WSL2, and the audit log.
 
 **Exit codes:**
 
@@ -653,6 +678,8 @@ whyreach mcp serve       # stdio
 
 **Never collected:** env var values, file contents other than `resolv.conf` and `hosts`, and packet payloads.
 
+**As built in M2 (for `save_report`):** the four files, under `$XDG_DATA_HOME/whyreach/reports/<diagnosis ID>/` (the ID begins with its UTC time; `-unredacted` is appended without redaction), so saving the same diagnosis again returns the same bundle. Redaction learns values from the structured fields (addresses, DNS names with a dot, aliases, links, registries, container and network IDs) and every address in any string, then replaces whole tokens everywhere, folding ASCII case only so byte offsets hold. The user's home directory becomes `~`. Redacted addresses are no longer addresses, so a redacted bundle decodes as plain JSON, not into whyreach's types. The CLI's `report` commands and `--report` come in M4.
+
 ### 4.13 Config
 
 `$XDG_CONFIG_HOME/whyreach/config.toml`
@@ -673,7 +700,7 @@ diagnosis = "15s"
 redact_private = false
 ```
 
-M1 reads `[permissions]` and `[timeouts]` (the deadline must be 3–60 s) and accepts the other documented keys. An unknown key is an error, so a typo can't silently leave a permission at its default. A missing file means the defaults: Docker on, probe containers off.
+M1 reads `[permissions]` and `[timeouts]` (the deadline must be 3–60 s) and accepts the other documented keys. An unknown key is an error, so a typo can't silently leave a permission at its default. A missing file means the defaults: Docker on, probe containers off. M2 also reads `[probe]` (`allow` entries must be a class, a CIDR or an address; `rate_per_minute` must be 1–600) and `[report] redact_private`.
 
 ### 4.14 Errors and logging
 
@@ -772,7 +799,7 @@ Other keys: `projects` (compose files; `compose.<x>.yaml` runs as project `<base
 - **Requirements:** no Docker, no network and no root. `go test ./...` must pass on any Linux machine.
 
 ### 6.2 Golden tests
-They cover the text, Markdown and MCP-text renderers, and the MCP `structuredContent` JSON, which is what agents actually read (ADR 0001). Regenerate the golden files with `make golden`. In M1 the text renderer and the `Diagnosis` JSON live in `internal/cli` (`testdata/*.golden`); `internal/report` joins in M4.
+They cover the text, Markdown and MCP-text renderers, and the MCP `structuredContent` JSON, which is what agents actually read (ADR 0001). Regenerate the golden files with `make golden`. Since M2 the text renderer, the compact structured form and the `Diagnosis` JSON live in `internal/report` (`testdata/*.golden`), shared by the CLI and the MCP server; `internal/mcpserver` tests the tools over in-memory transports.
 
 ### 6.3 Lab (integration)
 - **Layout:** each scenario is `test/lab/<scenario>/`, containing `compose.yaml` and `scenario.yaml`.
@@ -790,6 +817,8 @@ They cover the text, Markdown and MCP-text renderers, and the MCP `structuredCon
   - one scenario per MVP rule
   - the healthy control
   - two scenarios that must stay inconclusive, e.g. listeners unreadable plus a timeout
+- **As built in M2:** 18 scenarios, all passing with probe containers on and with the default config in about 35 s: one per v0.1 rule; `healthy` and `healthy-host-published` (the host reaching a container through docker-proxy); and two that must stay inconclusive, `inconclusive-stale-ip` (a connect to an address on the network that no container holds, WR024's case in v0.2) and `inconclusive-app-closes` (a server that accepts and closes every connection). Listeners can't be made unreadable on the dev box without root, so the second pair differs from the example above. The harness fills in `${LAB_PORT}` (a free host port, also given to Compose), `${HOST_PORT}` (with `host_listen: [loopback|docker0]`, a listener on the host) and `${UNUSED_IP}`.
+- **Agent check (`make lab-agent`, M2's exit criterion):** for each scenario, a headless Claude Code on a small model (`claude -p --model haiku`, `--strict-mcp-config`, `--tools ""` so only whyreach's four tools exist) gets a one-line problem report and must name the rule the lab expects, or none. It runs with probe containers on in the config, since a headless run can't answer a consent request.
 
 ### 6.4 Agent benchmark (the validation experiment)
 For each lab scenario, run a headless agent twice:
@@ -806,7 +835,7 @@ Record whether it found the right root cause, how many tool calls and tokens it 
 |---|---|---|
 | **M0** (≤1 wk) | `git init` and scaffold (Makefile, CI, lint, and a `make cross` compile check for macOS and Windows). Spikes: (1) the privilege matrix; (2) a probe-container proof: `resolv.conf`/`hosts` sharing, `/proc/net` in a shared netns, importing a scratch image; (3) an MCP Go SDK hello-world tool with structured output, called from Claude Code. Collect the top ~20 real failure signatures. | Spike results written up in `docs/adr/0001-execution-contexts.md`. ✅ Done 2026-11-13 |
 | **M1** (2–3 wk) | Evidence types, the allowlisted Docker client, the probe-container executor, probes, listeners read from the host (the containers' through `/proc/<pid>`, plus the host's own, which WR007 needs to choose its fix), rule layers and precedence, the slice rules WR007/WR004/WR002 plus the healthy control (ADR 0002), and WR008, which the engine checks before any probe; CLI `diagnose` | The §2.3 vertical slice passes in the lab. ✅ Done 2026-11-13 |
-| **M2** (2 wk) | MCP server (4 tools), policy, audit log, host↔container flows (`--from host`, and containers reaching host services) with the host collectors they need, the rest of the v0.1 rules in ADR 0002's order (WR020, WR010, WR012, WR019, WR011, WR005, WR009, WR006, WR003, WR001; WR008 moved to M1), `doctor` | An agent diagnoses every MVP lab scenario through MCP alone |
+| **M2** (2 wk) | MCP server (4 tools), policy, audit log, host↔container flows (`--from host`, and containers reaching host services) with the host collectors they need, the rest of the v0.1 rules in ADR 0002's order (WR020, WR010, WR012, WR019, WR011, WR005, WR009, WR006, WR003, WR001; WR008 moved to M1), `doctor` | An agent diagnoses every MVP lab scenario through MCP alone. ✅ Done 2026-11-13: `make lab-agent` passed 18 of 18 scenarios on Claude Haiku through whyreach's four tools alone, with 1 to 6 tool calls each (most need 1 or 2), 142 s and about $0.03 in all (§6.3) |
 | **M3** (1–2 wk) | netns executor (root) | The same lab passes with the netns executor and no Docker writes |
 | **M4** (1–2 wk) | Reports and redaction, `docs/rules/*`, goreleaser builds (linux amd64/arm64), checksums and attestations, a container image, MCP Registry listing | A new user installs, connects a client, and diagnoses the demo using only the docs |
 | **M5** | Benchmark (§6.4) and launch | Results published |
@@ -870,7 +899,15 @@ Record whether it found the right root cause, how many tool calls and tokens it 
 
 1. **Resolved: yes** (ADR 0001). A `docker`-group user can read a root-owned container process's `/proc/<pid>/net/tcp{,6}`, so on Linux Engine listener checks need no Docker write.
 2. **Resolved: yes** (ADR 0001). The probe and the target have identical `ResolvConfPath`, `HostsPath` and `HostnamePath`, and markers set only on the target were visible in the probe.
-3. Which MCP clients support elicitation or input-required results for tier-2b consent? The fallback is the config file. (Resolve in M2, with the MCP server.)
+3. **Resolved in M2** (ADR 0003): whyreach asks for probe-container consent through whichever path the client supports, and falls back to the config file.
+
+   | Client | Protocol | Elicitation | What happens |
+   |---|---|---|---|
+   | Claude Code 2.1.323 | 2026-07-28 (no `initialize`; capabilities travel with each request) | declared | the server returns an input request (SEP-2322); headless (`claude -p`) cancels it at once, so the diagnosis carries on without probe containers and the audit log records the answer. The interactive dialog hasn't been tried yet. |
+   | Clients before 2026-07-28 that declare elicitation | older | declared | a server-initiated `elicitation/create`, tested with the Go SDK's client |
+   | Clients without the capability | any | not declared | never asked; the gap says how to enable probe containers in the config |
+
+   Other clients (Codex, Cursor, VS Code) are untested; the server reads each client's capability, so they need no special handling.
 4. **Resolved: import our own binary** (ADR 0001). A 3.3 MB import took 78 ms and an ~18 MB import 69 ms, so Linux needs no registry image. Revisit for M7, when the macOS and Windows builds embed Linux probe binaries.
 5. **Resolved: renamed from NetDoctor to whyreach** (2026-11-13). Rule IDs changed from `NDxxx` to `WRxxx` at the same time.
    - **Why the old name had to go** (details in `docs/research/failure-signatures.md`):

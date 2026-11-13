@@ -4,10 +4,11 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 
 **Who it's for:** backend developers whose Docker runs on Linux and who run multi-service Compose stacks with an AI coding agent. Docker Desktop users on Windows and macOS come later. Details: `INITIAL.md` §2.1 and §3.7.
 
-**Status:** M0 and M1 are done.
+**Status:** M0, M1 and M2 are done.
 - M0: the repo is scaffolded (module path `github.com/SandstromPL/whyreach`); throwaway spikes are in `spikes/`, with results in `docs/adr/0001-execution-contexts.md`; the rule experiments (`spikes/experiments.sh`, results in `docs/research/rule-experiments.md`) decided the rule order in `docs/adr/0002-rule-order.md`.
-- M1, the vertical slice (`INITIAL.md` §2.3): the CLI `whyreach [--from SOURCE] HOST:PORT` diagnoses with WR008, WR007, WR004 and WR002, and `make lab` passes the slice scenarios plus the healthy control, with probe containers on and off.
-- Next is M2: the MCP server, policy and audit log, host flows, and the rest of the v0.1 rules (`INITIAL.md` §7).
+- M1, the vertical slice (`INITIAL.md` §2.3): the CLI `whyreach [--from SOURCE] HOST:PORT` diagnoses with WR008, WR007, WR004 and WR002.
+- M2: all 14 v0.1 rules; host↔container flows; `policy` (tiers, probe allowlist, rate limit, audit log); the MCP server (`whyreach mcp serve`, four tools, consent for probe containers: `docs/adr/0003-mcp-server.md`); `inspect`, `probe` and `doctor`. `make lab` passes 18 scenarios with probe containers on and off, and `make lab-agent` has a headless agent diagnose each one through the MCP tools alone.
+- Next is M3: the netns executor (root), `INITIAL.md` §7.
 
 **Source of truth:** `INITIAL.md` holds the current design: decisions, HLD, LLD, the rule catalog and the milestones. The original project proposal (not published) is background only.
 - If the two disagree, `INITIAL.md` wins.
@@ -30,6 +31,7 @@ make test       # go test ./...  (unit + rule fixtures; no Docker, no root, no n
 make lint       # golangci-lint run
 make vuln       # govulncheck ./...  (pinned version; known CVEs in code we call, stdlib included; needs network)
 make lab        # go test -tags lab -count=1 ./test/e2e/...  (needs Docker; scenarios in test/lab/)
+make lab-agent  # go test -tags lab,agent -count=1 -run TestAgent ./test/e2e/...  (Docker + claude CLI; a small model diagnoses each scenario over MCP)
 make lab-root   # sudo -E go test -tags lab,privileged -count=1 ./test/e2e/...  (netns executor, from M3)
 make golden     # go test ./internal/report/... ./internal/mcpserver/... -update
 make cross      # compile check: GOOS=darwin and GOOS=windows (amd64, arm64) go build ./...
@@ -44,13 +46,15 @@ Run a single rule's fixtures: `go test ./internal/rules -run 'TestFixtures/WR002
 cli / mcpserver → policy → engine → { rules, collect/host, collect/docker, executor → probe } → evidence → report
 ```
 
-- **`cli`, `mcpserver`:** thin adapters with no diagnostic logic. Until `policy` lands in M2, `cli` calls `engine` directly.
+- **`cli`, `mcpserver`:** thin adapters with no diagnostic logic. They reach the engine only through `policy`; `main` wires the MCP server into the CLI's `mcp serve`.
+- **`policy`:** validates arguments, decides the permission tiers (config, or the user's consent through MCP elicitation), guards the executors (probe allowlist at dial time, rate limit) and writes the audit log. It is the only package that builds an engine.
 - **`config`:** the XDG config file. Permission tiers come only from here (and, from M2, from MCP elicitation).
 - **`engine`:** a staged pipeline: resolve → collect → probe → evaluate → compose. It is the only package that orchestrates I/O.
 - **`rules`:** pure functions over `evidence.View`. No I/O, no `time.Now()`, no randomness.
 - **`executor`:** runs probes *inside a context*. The options are `host`, `probecontainer` (the default for containers) and `netns` (only when running as root). **Never `docker exec`.**
 - **`collect/docker`:** a hand-written client over the unix socket, restricted to an allowlist of method + path pattern. Probe-container lifecycle calls go through a separately constructed client with its own allowlist. There is no Docker SDK.
-- **Import direction:** core packages never import `cli` or `mcpserver`, and `rules` imports only `evidence`.
+- **Import direction:** nothing but `main` imports `cli` or `mcpserver`, `rules` imports only `evidence`, and only `policy` calls `engine.New`. `cmd/whyreach/imports_test.go` enforces it.
+- **`report`:** the text rendering, the compact structured form MCP clients read (cut to 6000 bytes of JSON), and report bundles with redaction.
 
 ## Platforms (details: INITIAL.md §3.7, §4.15)
 
@@ -110,6 +114,7 @@ The default answer to adding a tool is no. The surface stays at 4 tools: `diagno
 - Use typed In/Out structs through `mcp.AddTool`.
 - Keep annotations honest: `readOnlyHint` must be false when tier 2b is enabled.
 - Return tool errors as results with `isError: true`.
+- Probe containers by consent: ask the user once per session, only when they'd change the answer, through the client's elicitation (both protocol paths; ADR 0003). Never let an argument answer it.
 - Claude Code shows the model the `structuredContent`, not the text (ADR 0001). Keep the structured output compact (about 1.5k tokens) and lead it with the verdict and summary. Also keep a text summary of similar size for other clients, and cover both with golden tests.
 - Name and describe tools with the words agents search for: network, connect, docker, diagnose.
 

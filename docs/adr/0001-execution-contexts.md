@@ -117,3 +117,11 @@ The probe image import is a Docker write too. It is part of tier 2b, carries the
 M1 names the probe image `whyreach-probe:<version>-<digest>` instead of `whyreach-probe:<version>`, where `<digest>` is the first 12 hex digits of the binary's SHA-256. Development builds share a version string (`dev`, or a `git describe` that ends in `-dirty`), and with the plain tag a rebuilt whyreach would have reused the image of an older build and run a stale probe. The import also checks first that the daemon runs Linux on the same architecture and that the binary is a static ELF, so a dynamically linked build fails with a clear gap instead of a container that can't start.
 
 The cost: every build imports its own ~11 MB image, and whyreach never deletes images (its allowlist has no image delete). `docker image prune -a --filter label=io.whyreach.probe=1` removes the old ones (`INITIAL.md` §3.3).
+
+## Amendment (2026-11-13, M2): a connection closed at once is not "connected"
+
+From the host, a published port is answered by docker-proxy, which accepts the connection and then dials the container. When the container's port refuses (nothing listens, or only on loopback), docker-proxy closes the client's connection at once. A connect-then-close probe saw a completed handshake and reported `connected`, so a host-to-container check through a published port called a dead service reachable.
+
+**Decision:** after connecting, the TCP probe keeps the connection open for up to 100 ms and reads, never writing. A peer that closes it in that time without sending a byte (EOF or a reset) is outcome `closed`, which doesn't count as reaching the service (`INITIAL.md` §4.4). A server that waits for the client, or speaks first, is `connected`. Rules then decide from the listeners behind the published port (WR001, WR002, WR003 check the container port). The lab server now holds connections open like a real server; `serve --close` keeps the old behaviour for `inconclusive-app-closes`.
+
+The cost is up to 100 ms per successful connect; probes run in parallel.

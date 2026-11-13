@@ -233,6 +233,34 @@ func TestLab(t *testing.T) {
 }
 
 func runScenario(t *testing.T, dir string) {
+	r := bringUp(t, dir)
+	t.Run("probe-containers", func(t *testing.T) {
+		d := diagnose(t, l.withProbe, r.from, r.to)
+		check(t, d, *r.s.Expect)
+	})
+	if r.s.ExpectWithoutProbe != nil {
+		t.Run("default-config", func(t *testing.T) {
+			d := diagnose(t, l.noProbe, r.from, r.to)
+			check(t, d, *r.s.ExpectWithoutProbe)
+			if len(d.SideEffects) != 0 {
+				t.Errorf("with probe containers off, whyreach must not write to Docker: %v", d.SideEffects)
+			}
+		})
+	}
+}
+
+// running is a scenario that is up: its definition, its Compose project,
+// and the question with every ${VAR} filled in.
+type running struct {
+	s        scenario
+	project  string
+	from, to string
+}
+
+// bringUp reads a scenario, brings its projects up and waits for them; the
+// test's cleanup tears them down.
+func bringUp(t *testing.T, dir string) running {
+	t.Helper()
 	var s scenario
 	b, err := os.ReadFile(filepath.Join(dir, "scenario.yaml"))
 	if err != nil {
@@ -271,22 +299,7 @@ func runScenario(t *testing.T, dir string) {
 		}
 		return v
 	}
-	from, to := expand(s.From), expand(s.To)
-	s.To = to
-
-	t.Run("probe-containers", func(t *testing.T) {
-		d := diagnose(t, l.withProbe, from, s.To)
-		check(t, d, *s.Expect)
-	})
-	if s.ExpectWithoutProbe != nil {
-		t.Run("default-config", func(t *testing.T) {
-			d := diagnose(t, l.noProbe, from, s.To)
-			check(t, d, *s.ExpectWithoutProbe)
-			if len(d.SideEffects) != 0 {
-				t.Errorf("with probe containers off, whyreach must not write to Docker: %v", d.SideEffects)
-			}
-		})
-	}
+	return running{s: s, project: project, from: expand(s.From), to: expand(s.To)}
 }
 
 // projectFor names the project of a compose file: compose.yaml runs as the

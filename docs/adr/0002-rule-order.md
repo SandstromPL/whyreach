@@ -82,3 +82,25 @@ The full layer table is in `INITIAL.md` §4.5.
 Decision 2 put WR008 first in M2 because it gates probes. M1's engine already needed that gate (no probe from a stopped source or towards a stopped destination), so WR008 moved into M1, with its fixtures, its lab scenario (`test/lab/wr008-not-running`) and its doc page. M2's list starts with WR020.
 
 Implementing precedence also settled a detail: a finding is suppressed when **any** other finding's rule supersedes it, not only the primary's. For example, WR002 still drops WR001 when WR004 is the primary finding. Suppressed findings stay visible in the diagnosis.
+
+## Amendment (2026-11-13, M2): the rest of v0.1
+
+M2 built the other ten v0.1 rules in Decision 2's order. Precedence gained these pairs (`INITIAL.md` §4.5):
+
+| Finding | Supersedes | Why |
+|---|---|---|
+| WR010 | WR001, WR003 | A server that is still starting listens on nothing, or not yet on its final port. |
+| WR019 | WR001 | Nothing on the host listens because the container's port isn't published there. |
+| WR006 | WR003, WR012 | The destination listens on the container port; the loopback "host service" is the published port. |
+| WR011, WR009 | WR005, WR016 | The name can't resolve for a reason these explain. |
+| WR005 | WR016 | — |
+| WR012, WR003 | WR001 | — |
+
+Decisions made while building them:
+
+- **WR010 without a healthcheck** fires only (at medium) when the container started less than a minute before it was inspected and listens on nothing at all: "still starting" and "never going to listen" look the same otherwise. A container that listens on any port has started.
+- **WR005** suggests the closest name by edit distance (one edit for names up to 3 characters, two up to 8, three beyond). A dotted name with no close container name counts as an external name and is left to WR020.
+- **WR020** needs a control: when the target name matches no container, the probe also looks up the source's own name, which Docker's DNS answers without leaving the host. A timeout with the control resolved is high; SERVFAIL on a dotted name, no control, or the default bridge (no embedded DNS) is medium. NXDOMAIN, and a single-label name's SERVFAIL, are never WR020.
+- **WR019** covers four host-side cases in priority order: published on another host address, published under another host port, listening but not published (medium when several containers do), and a container name used from the host.
+- **WR012 and WR011** fire only on Linux Docker Engine, read from the `docker.version` evidence (Docker Desktop resolves `host.docker.internal` and reaches host services its own way).
+- **Two scenarios must stay inconclusive** (`INITIAL.md` §6.3): a stale address (WR024, v0.2) and a server that closes every connection. No v0.1 rule fires on either.

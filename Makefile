@@ -8,7 +8,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 CROSS_TARGETS := darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 GOVULNCHECK := golang.org/x/vuln/cmd/govulncheck@v1.9.0
 
-.PHONY: build test lint vuln lab lab-root golden cross clean
+.PHONY: build test lint vuln lab lab-agent lab-root golden cross clean
 
 ## build: static binary in bin/whyreach
 build:
@@ -29,6 +29,11 @@ vuln:
 ## lab: failure-lab scenarios in test/lab against Docker (never cached)
 lab:
 	go test -tags lab -count=1 ./test/e2e/...
+
+## lab-agent: a headless Claude Code agent diagnoses each lab scenario through
+## whyreach's MCP tools alone (needs Docker, the claude CLI and model access)
+lab-agent:
+	go test -tags lab,agent -count=1 -run TestAgent -timeout 60m -v ./test/e2e/...
 
 ## lab-root: lab scenarios that need root (netns executor, from M3)
 lab-root:

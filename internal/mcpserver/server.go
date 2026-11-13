@@ -47,6 +47,7 @@ type Server struct {
 	o   Options
 	srv *mcp.Server
 
+	logOnce  sync.Once
 	mu       sync.Mutex
 	recent   []*engine.Diagnosis // the last few, for save_report
 	asked    bool                // the user was asked for probe containers this session
@@ -103,6 +104,21 @@ func (s *Server) initialized(_ context.Context, req *mcp.InitializedRequest) {
 	s.o.Logger.Info("MCP client connected", "client", client, "protocol", ip.ProtocolVersion, "elicitation", elicitation)
 }
 
+// logClient logs who calls, once per session. From protocol 2026-07-28 on
+// there is no initialize handshake: client info and capabilities travel with
+// each request.
+func (s *Server) logClient(req *mcp.CallToolRequest) {
+	s.logOnce.Do(func() {
+		client := ""
+		if ci := req.ClientInfo(); ci != nil {
+			client = ci.Name + " " + ci.Version
+		}
+		caps := req.ClientCapabilities()
+		s.o.Logger.Info("MCP client calls", "client", client, "protocol", req.ProtocolVersion(),
+			"elicitation", caps != nil && caps.Elicitation != nil)
+	})
+}
+
 // register adds the four tools, with annotations that match the permissions
 // in effect: readOnlyHint is false whenever probe containers may run.
 func (s *Server) register() {
@@ -157,6 +173,7 @@ type DiagnoseIn struct {
 }
 
 func (s *Server) diagnose(ctx context.Context, req *mcp.CallToolRequest, in DiagnoseIn) (*mcp.CallToolResult, report.Diagnosis, error) {
+	s.logClient(req)
 	args := policy.DiagnoseArgs{From: in.From, To: in.To, Expect: in.Expect}
 	s.answered(req)
 	d, err := s.p.Diagnose(ctx, args)
@@ -186,7 +203,8 @@ type InspectIn struct {
 	Scope string `json:"scope" jsonschema:"host, container:<name or id>, service:<compose service>[@<project>] or network:<name>"`
 }
 
-func (s *Server) inspect(ctx context.Context, _ *mcp.CallToolRequest, in InspectIn) (*mcp.CallToolResult, *engine.Inspection, error) {
+func (s *Server) inspect(ctx context.Context, req *mcp.CallToolRequest, in InspectIn) (*mcp.CallToolResult, *engine.Inspection, error) {
+	s.logClient(req)
 	got, err := s.p.Inspect(ctx, in.Scope)
 	if err != nil {
 		return nil, nil, err
@@ -204,6 +222,7 @@ type ProbeIn struct {
 }
 
 func (s *Server) probe(ctx context.Context, req *mcp.CallToolRequest, in ProbeIn) (*mcp.CallToolResult, report.ProbeResult, error) {
+	s.logClient(req)
 	args := policy.ProbeArgs{Kind: in.Kind, Target: in.Target, From: in.From}
 	s.answered(req)
 	res, err := s.p.Probe(ctx, args)
@@ -238,7 +257,8 @@ type SaveIn struct {
 	Redact      *bool  `json:"redact,omitempty" jsonschema:"replace public IPs, host names and container IDs with pseudonyms (default true)"`
 }
 
-func (s *Server) save(_ context.Context, _ *mcp.CallToolRequest, in SaveIn) (*mcp.CallToolResult, report.Saved, error) {
+func (s *Server) save(_ context.Context, req *mcp.CallToolRequest, in SaveIn) (*mcp.CallToolResult, report.Saved, error) {
+	s.logClient(req)
 	start := time.Now()
 	redact := in.Redact == nil || *in.Redact
 	saved, err := s.saveReport(in.DiagnosisID, redact)

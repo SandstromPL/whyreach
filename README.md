@@ -2,7 +2,7 @@
 
 Read-only network diagnosis for Linux and Docker, built for developers and their AI coding agents. It runs as a CLI and as an MCP server.
 
-> **Status: pre-alpha.** M1, the first vertical slice, works on Linux with Docker Engine: the CLI diagnoses four failures (WR008 destination not running, WR007 `localhost` inside a container, WR004 no shared network, WR002 loopback-only bind). The MCP server comes in M2. The design is in [INITIAL.md](INITIAL.md), and the rules for contributors and coding agents are in [CLAUDE.md](CLAUDE.md).
+> **Status: pre-alpha.** M2 works on Linux with Docker Engine: the CLI and an MCP server diagnose the 14 v0.1 failures, from `localhost` used inside a container to an upstream DNS server that doesn't answer (the catalog is in [INITIAL.md §4.6](INITIAL.md), each rule documented in [docs/rules](docs/rules)). The design is in [INITIAL.md](INITIAL.md), and the rules for contributors and coding agents are in [CLAUDE.md](CLAUDE.md).
 
 When one container can't reach another, whyreach collects evidence from the right network namespaces (Docker metadata, listening sockets, DNS and TCP probes) and explains the cause, without changing anything.
 
@@ -17,6 +17,16 @@ WR002  api listens only on 127.0.0.1:8080 inside its container
 
 `--from` takes `host`, `container:<name|id>` or `service:<name>[@<project>]`; add `--json` for machine-readable output. Exit codes: 0 no problem reproduced, 1 cause found, 2 inconclusive, 3 usage error, 4 internal error.
 
+Other commands: `whyreach inspect host|container NAME|service NAME|network NAME`, `whyreach probe tcp HOST:PORT|dns NAME|listeners [--from SOURCE]`, and `whyreach doctor`, which checks that everything works here.
+
+## With an AI coding agent (MCP)
+
+```sh
+claude mcp add whyreach -- /absolute/path/to/whyreach mcp serve
+```
+
+The server offers four tools: `diagnose_connection`, `inspect_environment`, `run_probe` and `save_report`. They return a compact structured result that leads with the verdict, plus a text summary. Every call is recorded in `~/.local/state/whyreach/audit.jsonl`.
+
 DNS and TCP checks from inside a container need **probe containers**, which are off by default because they write to Docker (a short-lived, hardened, labeled container, removed afterwards). Turn them on in `~/.config/whyreach/config.toml`:
 
 ```toml
@@ -24,7 +34,9 @@ DNS and TCP checks from inside a container need **probe containers**, which are 
 probe_containers = true
 ```
 
-Without them, whyreach still settles most causes from Docker metadata and the containers' listening sockets, and says what it could not check.
+Without them, whyreach still settles most causes from Docker metadata and the containers' listening sockets, and says what it could not check. Through MCP, when a probe container would change the answer, whyreach asks once per session (if the client supports elicitation); an approval lasts until the session ends.
+
+Probe targets are limited by `[probe] allow` (by default `loopback`, `rfc1918` and `docker`: the subnets of Docker's networks) and `rate_per_minute` (30). Link-local and cloud-metadata addresses are always refused.
 
 ## Development
 
@@ -34,6 +46,7 @@ make test    # unit tests and rule fixtures (no Docker, no root)
 make lint    # golangci-lint v2
 make cross   # compile check for macOS and Windows
 make lab     # the failure lab in test/lab (needs Docker)
+make lab-agent  # a headless agent diagnoses each lab scenario through MCP (needs the claude CLI)
 ```
 
 ## License
