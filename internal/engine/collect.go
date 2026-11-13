@@ -30,6 +30,7 @@ func (r *run) collect(ctx context.Context) error {
 	if dk == nil || (r.q.From.Kind == evidence.SourceContainer && r.q.From.ContainerID == "") {
 		if _, ok := evidence.NewView(r.q, r.store.Snapshot()).HostTarget(); ok {
 			r.store.Add(r.hostListeners())
+			r.hostDone = true
 		}
 		return nil
 	}
@@ -40,6 +41,7 @@ func (r *run) collect(ctx context.Context) error {
 		r.gaps = append(r.gaps, Gap{What: "the list of containers", Why: "failed", Detail: err.Error()})
 		return nil
 	}
+	r.list = list
 
 	known := r.store.Snapshot()
 	have := map[string]bool{}
@@ -189,6 +191,7 @@ const maxScan = 32
 // listeners of the running containers to find the one that serves it but
 // doesn't publish it (WR019).
 func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[string]bool) {
+	r.hostDone = true
 	port := r.q.To.Port
 	hostL := r.hostListeners()
 	r.store.Add(hostL)
@@ -196,10 +199,19 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 	if l, ok := hostL.Data.(evidence.Listeners); ok && hostL.OK() {
 		hostAccepts = len(l.OnPort(port)) > 0
 	}
+	known := evidence.NewView(r.q, r.store.Snapshot())
 	var cands, others []docker.Summary
+	var listenFor []evidence.Container
 	for _, s := range list {
 		switch {
 		case have[s.ID]:
+			// Recorded already (a peer of the source, say): a publisher
+			// still needs its listeners.
+			if c, ok := known.Container(s.ID); ok && s.MentionsPort(port) {
+				if _, read := known.ListenersIn(c.C.ID); !read {
+					listenFor = append(listenFor, c.C)
+				}
+			}
 		case s.MentionsPort(port):
 			if len(cands) < maxMatches {
 				cands = append(cands, s)
@@ -211,7 +223,6 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 	inspected, failed := r.inspectAll(ctx, cands)
 	r.store.Add(failed...)
 	r.store.Add(inspected...)
-	var listenFor []evidence.Container
 	for _, ev := range inspected {
 		listenFor = append(listenFor, ev.Data.(evidence.Container))
 	}
@@ -315,6 +326,33 @@ func (r *run) inspectAll(ctx context.Context, list []docker.Summary) (ok, failed
 
 // inspectFailure records metadata that could not be read, so the diagnosis
 // says so instead of treating the container as absent.
+// hostAfterLookup collects the host's side of a target that only the
+// source's own lookup showed to be the host: a name that resolved to a host
+// address (devbox.lan from a container) or, from the host, to loopback (the
+// machine's own hostname, 127.0.1.1 on Ubuntu). collect couldn't know that
+// before the probes ran.
+func (r *run) hostAfterLookup(ctx context.Context) error {
+	if r.hostDone || ctx.Err() != nil {
+		return nil
+	}
+	if _, ok := evidence.NewView(r.q, r.store.Snapshot()).HostTarget(); !ok {
+		return nil
+	}
+	if r.docker == nil || r.list == nil {
+		r.store.Add(r.hostListeners())
+		r.hostDone = true
+		return nil
+	}
+	have := map[string]bool{}
+	for _, e := range r.store.Snapshot() {
+		if c, ok := e.Data.(evidence.Container); ok {
+			have[c.ID] = true
+		}
+	}
+	r.collectHost(ctx, r.list, have)
+	return nil
+}
+
 // skippedContainers records containers whyreach did not inspect because of
 // a bound. Its status keeps it out of the gaps derived from records (the gap
 // is added with it), while View.Incomplete sees it.

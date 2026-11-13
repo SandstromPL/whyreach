@@ -49,7 +49,7 @@ cli / mcpserver → policy → engine → { rules, collect/host, collect/docker,
 - **`cli`, `mcpserver`:** thin adapters with no diagnostic logic. They reach the engine only through `policy`; `main` wires the MCP server into the CLI's `mcp serve`.
 - **`policy`:** validates arguments, decides the permission tiers (config, or the user's consent through MCP elicitation), guards the executors (probe allowlist at dial time, rate limit) and writes the audit log. It is the only package that builds an engine.
 - **`config`:** the XDG config file. Permission tiers come only from here, or from the user's approval of an MCP elicitation, which lasts the session.
-- **`engine`:** a staged pipeline: resolve → collect → probe → evaluate → compose. It is the only package that orchestrates I/O.
+- **`engine`:** a staged pipeline: resolve → collect → probe → evaluate → compose (plus the host's side after the probes, when only the lookup shows the target is the host). It is the only package that orchestrates I/O.
 - **`rules`:** pure functions over `evidence.View`. No I/O, no `time.Now()`, no randomness.
 - **`executor`:** runs probes *inside a context*. The options are `host`, `probecontainer` (the default for containers) and `netns` (only when running as root). **Never `docker exec`.**
 - **`collect/docker`:** a hand-written client over the unix socket, restricted to an allowlist of method + path pattern. Probe-container lifecycle calls go through a separately constructed client with its own allowlist. There is no Docker SDK.

@@ -408,7 +408,7 @@ type Finding struct {
 
 ### 4.4 Engine
 
-The engine is a staged pipeline per workflow, not a generic DAG engine (YAGNI): **resolve → collect → gate → probe → evaluate → compose** (see §3.4). The gate checks container state before any probe (WR008).
+The engine is a staged pipeline per workflow, not a generic DAG engine (YAGNI): **resolve → collect → gate → probe → evaluate → compose** (see §3.4). The gate checks container state before any probe (WR008). When only the source's own lookup shows that the target is the host (a name that resolves to a host address, or from the host to loopback, like the machine's own hostname), the host's side is collected right after the probes (M2).
 
 - **Parallelism:** `errgroup` with a limit of 4 during the collect stage.
 - **Timeouts:**
@@ -559,7 +559,7 @@ type Executor interface {
 
 - **`collect/host`** uses `vishvananda/netlink` for links, addresses, `RouteGet(dst)` and neighbours. It reads listeners from `/proc/net/{tcp,tcp6,udp,udp6}`, where addr:port is hex and state `0A` means LISTEN. It never shells out to `ip` or `ss`.
   - **As built in M2:** only what the v0.1 flows need. The host's interfaces and addresses (`host.addrs`) come from the standard library's `net.Interfaces`, which asks the kernel over netlink on Linux and builds on every OS; loopback and IPv6 link-local addresses are left out. `RouteGet` and neighbours arrive with WR013 and WR024 in v0.2, and with them `vishvananda/netlink`. TCP listeners come from `probe.ReadListeners("/proc")`.
-  - **Host targets (M2):** the target is the host's network namespace when it is `localhost` from the host (or a host-network container), one of the host's addresses, a name the source's `extra_hosts` map to `host-gateway`, `host.docker.internal`, or a name that resolved to a host address. The engine then reads the host's listeners and the containers that publish the port there; a binding that covers the target address makes that container a destination on its container port. From the host, when nothing answers the port and nothing publishes it, it reads the listeners of up to 32 running containers to find the one that serves it unpublished (WR019).
+  - **Host targets (M2):** the target is the host's network namespace when it is `localhost` from the host (or a host-network container), one of the host's addresses, a name the source's `extra_hosts` map to `host-gateway`, `host.docker.internal`, or a name that resolved to a host address (collected after the probes, since only the lookup shows it). The engine then reads the host's listeners and the containers that publish the port there; a binding that covers the target address makes that container a destination on its container port. From the host, when nothing answers the port and nothing publishes it, it reads the listeners of up to 32 running containers to find the one that serves it unpublished (WR019).
 - **`collect/docker`** uses `net/http` over the unix socket:
   - A `RoundTripper` holds an **allowlist of method + path pattern**. "GET-only" alone isn't enough: `GET /containers/{id}/export` dumps an entire filesystem.
   - Default allowlist: `GET /version`, `/containers/json`, `/containers/{id}/json`, `/networks`, `/networks/{id}`.

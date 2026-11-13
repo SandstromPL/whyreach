@@ -166,6 +166,24 @@ func TestNewRulesEndToEnd(t *testing.T) {
 				w.sockets[200] = []string{"0.0.0.0:8000"}
 				w.tcp["172.22.0.3:8080"] = evidence.OutcomeRefused
 			})},
+		// The target is the host only through the source's own lookup: the
+		// host's side is collected after the probes (M2 review, finding 4).
+		{name: "WR012 by a name that resolves to the host", from: "container:shop-worker-1", to: "devbox.lan:5432", top: "WR012", noProbeTop: "", verdict: VerdictCause,
+			w: shop(func(w *world) {
+				w.host = []string{"127.0.0.1:5432"}
+				w.dns["devbox.lan"] = []string{"192.168.1.10"}
+				w.tcp["192.168.1.10:5432"] = evidence.OutcomeRefused
+			})},
+		{name: "WR001 behind the host's own name", from: "host", to: "devbox:18080", top: "WR001", noProbeTop: "WR001", verdict: VerdictCause,
+			w: shop(func(w *world) {
+				web := ctr("e", "shop-web-1", "shop", "web", "shop_default", "172.22.0.4", 40)
+				web.Ports = []evidence.PortMap{{ContainerPort: 8080, Proto: "tcp", HostPort: 18080}}
+				w.containers = append(w.containers, web)
+				w.sockets[40] = []string{}
+				w.host = []string{"0.0.0.0:18080"}
+				w.dns["devbox"] = []string{"127.0.1.1"}
+				w.tcp["127.0.1.1:18080"] = evidence.OutcomeClosed
+			})},
 		{name: "WR001 nothing listening", from: "container:shop-worker-1", to: "api:8080", top: "WR001", noProbeTop: "WR001", verdict: VerdictCause,
 			w: shop(func(w *world) {
 				w.sockets[200] = []string{"127.0.0.1:9000"}

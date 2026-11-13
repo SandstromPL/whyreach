@@ -126,6 +126,10 @@ type run struct {
 	// internal names the internal: true networks, read once before any
 	// container is inspected; nil when the list wasn't read.
 	internal map[string]bool
+	// list is the container list collect read; hostDone is set once the
+	// host's side of a host target is collected.
+	list     []docker.Summary
+	hostDone bool
 }
 
 // Diagnose answers "why can't from reach to?". It returns an error only for
@@ -155,6 +159,7 @@ func (e *Engine) Diagnose(ctx context.Context, from target.From, to evidence.Tar
 	}
 	_ = stage("collect", r.collect)
 	_ = stage("probe", r.probe)
+	_ = stage("host", r.hostAfterLookup)
 
 	t := time.Now()
 	items := r.store.Finalize()
