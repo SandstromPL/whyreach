@@ -20,5 +20,10 @@ func ContainerListeners(int, string) ([]evidence.Socket, error) {
 	return nil, fmt.Errorf("reading container listeners from /proc on %s: %w", runtime.GOOS, ErrUnsupported)
 }
 
+// CheckPID needs Linux's /proc.
+func CheckPID(int, string) error {
+	return fmt.Errorf("verifying a container's PID through /proc on %s: %w", runtime.GOOS, ErrUnsupported)
+}
+
 // SelfNetnsID is only known on Linux.
 func SelfNetnsID() uint64 { return 0 }

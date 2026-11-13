@@ -80,9 +80,31 @@ func (s Spec) subject() string {
 // container the defaults are the target container's own files, which Docker
 // shares with the probe (ADR 0001).
 type Env struct {
-	ProcDir  string // "/proc"
+	ProcDir  string // "/proc"; "/proc/thread-self" with Enter
 	Resolver *Resolver
 	Limits   Limits // where connects may go, beyond the block list
+	// Enter, when set, runs every socket the batch creates, and its
+	// listener read, inside another network namespace (the netns
+	// executor). nil means the caller's own.
+	Enter Enter
+}
+
+// Enter runs f on an OS thread inside the network namespace a batch is for:
+// the netns executor's setns (INITIAL.md §4.7). A socket keeps the network
+// namespace it was created in, so the probes create every socket, and read
+// /proc/thread-self/net, inside f; using a socket afterwards needs no
+// namespace. f must not start goroutines of its own that create sockets:
+// they would run on other threads. Enter returns an error when the thread
+// could not get there, and f has not run then.
+type Enter func(f func()) error
+
+// run runs f through e, or in place when e is nil.
+func (e Enter) run(f func()) error {
+	if e == nil {
+		f()
+		return nil
+	}
+	return e(f)
 }
 
 // DefaultEnv reads the standard paths.
@@ -128,7 +150,7 @@ func runOne(ctx context.Context, env Env, l *lookups, s Spec) []evidence.Evidenc
 	}
 	switch s.Kind {
 	case SpecListeners:
-		return []evidence.Evidence{listeners(env.ProcDir)}
+		return []evidence.Evidence{listeners(env)}
 	case SpecDNS:
 		l.resolve(ctx, s.Host)
 		return nil
@@ -137,12 +159,16 @@ func runOne(ctx context.Context, env Env, l *lookups, s Spec) []evidence.Evidenc
 	}
 }
 
-func listeners(procDir string) evidence.Evidence {
+func listeners(env Env) evidence.Evidence {
 	start := time.Now()
-	socks, err := ReadListeners(procDir)
+	var socks []evidence.Socket
+	var err error
+	if eerr := env.Enter.run(func() { socks, err = ReadListeners(env.ProcDir) }); eerr != nil {
+		err = eerr
+	}
 	ev := evidence.Evidence{
 		Kind: evidence.KindListeners, Subject: "listeners", Duration: time.Since(start), ObservedAt: time.Now(),
-		Source: procDir + "/net/tcp{,6} inside the network namespace",
+		Source: env.ProcDir + "/net/tcp{,6} inside the network namespace",
 	}
 	if err != nil {
 		ev.Status, ev.Err = Classify(err)
@@ -161,7 +187,7 @@ func connect(ctx context.Context, env Env, l *lookups, s Spec) []evidence.Eviden
 		if s.Via == evidence.ViaMetadata {
 			via = evidence.ViaMetadata
 		}
-		return []evidence.Evidence{Dial(ctx, subject, netip.AddrPortFrom(a, s.Port), via, env.Limits)}
+		return []evidence.Evidence{dial(ctx, env.Enter, subject, netip.AddrPortFrom(a, s.Port), via, env.Limits)}
 	}
 	lk := l.resolve(ctx, s.Host)
 	p, _ := lk.ev.Data.(evidence.DNSProbe)
@@ -179,7 +205,7 @@ func connect(ctx context.Context, env Env, l *lookups, s Spec) []evidence.Eviden
 	out := make([]evidence.Evidence, len(addrs))
 	var wg sync.WaitGroup
 	for i, a := range addrs {
-		wg.Go(func() { out[i] = Dial(ctx, subject, netip.AddrPortFrom(a, s.Port), p.Via, env.Limits) })
+		wg.Go(func() { out[i] = dial(ctx, env.Enter, subject, netip.AddrPortFrom(a, s.Port), p.Via, env.Limits) })
 	}
 	wg.Wait()
 	return out

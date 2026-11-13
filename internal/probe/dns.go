@@ -42,10 +42,24 @@ type Resolver struct {
 	Exchange   Exchanger     // nil means a real UDP/TCP client
 	Timeout    time.Duration // per query; 0 means QueryTimeout
 	Budget     time.Duration // per lookup; 0 means LookupBudget
+	// Open opens HostsPath and ResolvPath; nil means os.Open. The netns
+	// executor reads a container's own files with it, since entering a
+	// network namespace leaves whyreach's file system as it is.
+	Open func(path string) (io.ReadCloser, error)
+	// Enter runs each query, and so creates its socket, inside another
+	// network namespace (Env.Enter); nil means the caller's own.
+	Enter Enter
 }
 
 func (r *Resolver) timeout() time.Duration { return cmp.Or(r.Timeout, QueryTimeout) }
 func (r *Resolver) budget() time.Duration  { return cmp.Or(r.Budget, LookupBudget) }
+
+func (r *Resolver) open(path string) (io.ReadCloser, error) {
+	if r.Open != nil {
+		return r.Open(path)
+	}
+	return os.Open(path) //nolint:gosec // G304: the resolver file paths are fixed by Env, never user input
+}
 
 // Lookup resolves name and records how. It never returns an error: a failed
 // lookup is an observation.
@@ -77,11 +91,11 @@ func (r *Resolver) Lookup(ctx context.Context, name string) evidence.Evidence {
 
 func (r *Resolver) lookup(ctx context.Context, name string) (evidence.DNSProbe, error) {
 	p := evidence.DNSProbe{Name: name}
-	if addrs, err := hostsLookup(r.HostsPath, name); err == nil && len(addrs) > 0 {
+	if addrs, err := r.hostsLookup(name); err == nil && len(addrs) > 0 {
 		p.Via, p.Answered, p.Answers = evidence.ViaHosts, name, addrs
 		return p, nil
 	}
-	conf, err := readResolvConf(r.ResolvPath)
+	conf, err := r.readResolvConf()
 	if err != nil {
 		return p, fmt.Errorf("read resolver config: %w", err)
 	}
@@ -99,6 +113,11 @@ func (r *Resolver) lookup(ctx context.Context, name string) (evidence.DNSProbe, 
 	givenRcode := ""
 	for i, cand := range conf.candidates(name) {
 		res := r.resolveOne(ctx, conf.servers, cand.fqdn)
+		if res.err != nil {
+			// No query could be sent from the namespace: that is no answer
+			// from the resolver, so it must not read as an rcode.
+			return p, res.err
+		}
 		for _, a := range res.attempts {
 			a.Query = cand.label
 			p.Attempts = append(p.Attempts, a)
@@ -154,6 +173,7 @@ type resolveResult struct {
 	answers  []netip.Addr
 	rcode    string
 	attempts []evidence.DNSAttempt
+	err      error // the queries could not be sent at all (Resolver.Enter failed)
 }
 
 // resolveOne asks for A and AAAA in parallel, as getaddrinfo does.
@@ -167,6 +187,9 @@ func (r *Resolver) resolveOne(ctx context.Context, servers []string, fqdn string
 	wg.Wait()
 	var res resolveResult
 	for i, q := range results {
+		if q.err != nil {
+			return resolveResult{err: q.err}
+		}
 		res.answers = append(res.answers, q.answers...)
 		res.attempts = append(res.attempts, evidence.DNSAttempt{
 			Type: dns.TypeToString[types[i]], Rcode: q.rcode, N: len(q.answers),
@@ -179,11 +202,13 @@ func (r *Resolver) resolveOne(ctx context.Context, servers []string, fqdn string
 type queryResult struct {
 	answers []netip.Addr
 	rcode   string
+	err     error // Resolver.Enter failed: nothing was sent
 }
 
 // query sends one question, retrying once on a timeout or an error (such as
 // an ICMP refusal), on the next nameserver if there is one. A truncated UDP
-// answer is retried over TCP.
+// answer is retried over TCP. Each attempt runs through Resolver.Enter, so
+// its sockets live in the namespace being probed.
 func (r *Resolver) query(ctx context.Context, servers []string, fqdn string, qtype uint16) queryResult {
 	m := new(dns.Msg)
 	m.SetQuestion(fqdn, qtype)
@@ -199,11 +224,18 @@ func (r *Resolver) query(ctx context.Context, servers []string, fqdn string, qty
 		}
 		server := servers[attempt%len(servers)]
 		qctx, cancel := context.WithTimeout(ctx, r.timeout())
-		resp, err := exchange(qctx, m, server, "udp")
-		if err == nil && resp.Truncated {
-			resp, err = exchange(qctx, m, server, "tcp")
-		}
+		var resp *dns.Msg
+		var err error
+		eerr := r.Enter.run(func() {
+			resp, err = exchange(qctx, m, server, "udp")
+			if err == nil && resp.Truncated {
+				resp, err = exchange(qctx, m, server, "tcp")
+			}
+		})
 		cancel()
+		if eerr != nil {
+			return queryResult{err: eerr}
+		}
 		if err != nil {
 			failure = evidence.RcodeTimeout
 			if !isTimeout(err) {
@@ -292,9 +324,8 @@ type resolvConf struct {
 	extServers []string
 }
 
-func readResolvConf(path string) (resolvConf, error) {
-	f, err := os.Open(path) //nolint:gosec // G304: the resolver config path is fixed by Env, never user input
-
+func (r *Resolver) readResolvConf() (resolvConf, error) {
+	f, err := r.open(r.ResolvPath)
 	if err != nil {
 		return resolvConf{}, err
 	}
@@ -338,9 +369,8 @@ func parseResolvConf(r io.Reader) (resolvConf, error) {
 }
 
 // hostsLookup returns the addresses /etc/hosts lists for name, in file order.
-func hostsLookup(path, name string) ([]netip.Addr, error) {
-	f, err := os.Open(path) //nolint:gosec // G304: the hosts path is fixed by Env, never user input
-
+func (r *Resolver) hostsLookup(name string) ([]netip.Addr, error) {
+	f, err := r.open(r.HostsPath)
 	if err != nil {
 		return nil, err
 	}

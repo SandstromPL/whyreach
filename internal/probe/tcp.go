@@ -26,6 +26,13 @@ const AcceptWindow = 100 * time.Millisecond
 // lim is checked before dialing. The record's Context is left for the caller
 // to fill in.
 func Dial(ctx context.Context, subject string, addr netip.AddrPort, via string, lim Limits) evidence.Evidence {
+	return dial(ctx, nil, subject, addr, via, lim)
+}
+
+// dial is Dial with the socket created through enter (Env.Enter). A dial to
+// one literal address creates its socket on the calling goroutine, so the
+// socket lives in the namespace enter put the thread in.
+func dial(ctx context.Context, enter Enter, subject string, addr netip.AddrPort, via string, lim Limits) evidence.Evidence {
 	addr = netip.AddrPortFrom(addr.Addr().Unmap(), addr.Port())
 	ev := evidence.Evidence{
 		Kind:    evidence.KindTCP,
@@ -43,7 +50,14 @@ func Dial(ctx context.Context, subject string, addr netip.AddrPort, via string, 
 	}
 	d := net.Dialer{Timeout: DialTimeout}
 	start := time.Now()
-	conn, err := d.DialContext(ctx, "tcp", addr.String())
+	var conn net.Conn
+	var err error
+	if eerr := enter.run(func() { conn, err = d.DialContext(ctx, "tcp", addr.String()) }); eerr != nil {
+		// whyreach could not get into the namespace: nothing was observed.
+		ev.Duration, ev.ObservedAt = time.Since(start), time.Now()
+		ev.Status, ev.Err = Classify(eerr)
+		return ev
+	}
 	p.RTT = time.Since(start)
 	ev.Duration = p.RTT
 	ev.ObservedAt = time.Now()

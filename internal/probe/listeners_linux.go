@@ -45,24 +45,33 @@ func ReadListeners(procDir string) ([]evidence.Socket, error) {
 // names the container, so a reused PID can't make whyreach report another
 // process's sockets.
 func ContainerListeners(pid int, containerID string) ([]evidence.Socket, error) {
-	if pid <= 0 {
-		return nil, fmt.Errorf("container %s has no process: %w", evidence.ShortID(containerID), ErrNoProcess)
-	}
-	if len(containerID) < 12 {
-		return nil, fmt.Errorf("container ID %q is too short to verify the PID", containerID)
-	}
-	dir := "/proc/" + strconv.Itoa(pid)
-	if err := checkCgroup(dir, containerID); err != nil {
+	if err := CheckPID(pid, containerID); err != nil {
 		return nil, err
 	}
+	dir := "/proc/" + strconv.Itoa(pid)
 	socks, err := ReadListeners(dir)
 	if err != nil {
 		return nil, err
 	}
-	if err := checkCgroup(dir, containerID); err != nil {
+	if err := CheckPID(pid, containerID); err != nil {
 		return nil, fmt.Errorf("pid %d changed during the read: %w", pid, err)
 	}
 	return socks, nil
+}
+
+// CheckPID verifies that /proc/<pid>/cgroup names the container, so that a
+// PID the kernel has reused since Docker reported it can't make whyreach
+// read, or enter, another process's namespace. Callers check before and
+// after they use the PID: whatever they opened in between belonged to the
+// container.
+func CheckPID(pid int, containerID string) error {
+	if pid <= 0 {
+		return fmt.Errorf("container %s has no process: %w", evidence.ShortID(containerID), ErrNoProcess)
+	}
+	if len(containerID) < 12 {
+		return fmt.Errorf("container ID %q is too short to verify the PID", containerID)
+	}
+	return checkCgroup("/proc/"+strconv.Itoa(pid), containerID)
 }
 
 func checkCgroup(dir, containerID string) error {
