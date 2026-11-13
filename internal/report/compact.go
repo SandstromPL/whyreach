@@ -276,13 +276,13 @@ func EvidenceLine(e evidence.Evidence) string {
 		return s
 	case evidence.DNSProbe:
 		if len(d.Answers) == 0 {
-			return fmt.Sprintf("%q did not resolve in %s (%s from %s)", d.Name, where, d.Rcode, d.Server)
+			return fmt.Sprintf("%q did not resolve in %s (%s from %s)", d.Name, where, d.Rcode, d.From())
 		}
 		var as []string
 		for _, a := range d.Answers {
 			as = append(as, a.String())
 		}
-		via := "via " + d.Server
+		via := "via " + d.From()
 		if d.Via == evidence.ViaHosts {
 			via = "via /etc/hosts"
 		}

@@ -202,16 +202,13 @@ func facts(v evidence.View, complete bool) []Fact {
 		}
 		ctx := d.Context.String()
 		if len(d.P.Answers) > 0 {
-			via := "via " + d.P.Server
-			switch {
-			case d.P.Via == evidence.ViaHosts:
+			via := "via " + d.P.From()
+			if d.P.Via == evidence.ViaHosts {
 				via = "via /etc/hosts"
-			case d.P.HostResolver != "":
-				via = "via " + d.P.HostResolver + ", the host's own resolver (on the probe block list, asked for DNS only)"
 			}
 			add(fmt.Sprintf("%q → %s %s, in %s", d.P.Name, addrList(d.P.Answers), via, ctx), d.ID)
 		} else {
-			add(fmt.Sprintf("%q did not resolve in %s (%s from %s)", d.P.Name, ctx, d.P.Rcode, d.P.Server), d.ID)
+			add(fmt.Sprintf("%q did not resolve in %s (%s from %s)", d.P.Name, ctx, d.P.Rcode, d.P.From()), d.ID)
 		}
 	}
 	for _, t := range v.TCP() {

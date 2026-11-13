@@ -469,6 +469,23 @@ func TestMacvlanSubnetIsNotFree(t *testing.T) {
 			t.Errorf("%s: held back %v, want %v", target, held, !free)
 		}
 	}
+	// Without rfc1918 the allowlist decides alone, and its docker class
+	// takes the same addresses: the LAN behind a macvlan network isn't in it.
+	narrow, err := New(Deps{Settings: Settings{Docker: true, Allow: []string{"loopback", "docker"}, RatePerMinute: 100},
+		Docker: lanDocker{}, Listeners: fakeDocker{}, Host: rec, Client: ClientMCP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for target, admitted := range map[string]bool{"192.168.1.53:53": true, "172.22.0.3:8080": true, "192.168.1.20:22": false, "192.168.1.1:80": false} {
+		res, err := narrow.Probe(context.Background(), ProbeArgs{Kind: "tcp", Target: target})
+		if err != nil {
+			t.Fatal(err)
+		}
+		e := res.Evidence[0]
+		if refused := e.Err != nil && strings.Contains(e.Err.Message, "allowlist"); refused == admitted {
+			t.Errorf("docker class, %s: %s %+v", target, e.Status, e.Err)
+		}
+	}
 }
 
 // doctor's DNS lines: a blocked host resolver in either file, and a warning

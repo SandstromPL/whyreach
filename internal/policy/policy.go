@@ -688,21 +688,31 @@ func (p *Policy) limits(ctx context.Context) probe.Limits {
 		if err != nil {
 			p.d.Logger.Warn("could not list Docker networks for the probe allowlist", "err", err)
 		}
-		var shared []string // networks whose subnet isn't Docker's alone
+		// A bridge network's subnet lives inside the host: every address
+		// there is Docker's. Of any other (macvlan and ipvlan share the
+		// physical network's subnet), only the containers' own addresses
+		// are, for the allowlist's docker class as for Q15's free list.
+		var shared []string
 		for _, n := range nets {
+			if n.Driver != "bridge" {
+				shared = append(shared, n.Name)
+				continue
+			}
 			if p.docker {
 				l.Allow = append(l.Allow, n.Subnets...)
 			}
-			switch {
-			case !addrs:
-			case n.Driver == "bridge":
-				l.Free = append(l.Free, n.Subnets...) // inside the host: every address is Docker's
-			default:
-				shared = append(shared, n.Name)
+			if addrs {
+				l.Free = append(l.Free, n.Subnets...)
 			}
 		}
 		if len(shared) > 0 {
-			l.Free = append(l.Free, p.containerAddrs(ctx, shared)...)
+			own := p.containerAddrs(ctx, shared)
+			if p.docker {
+				l.Allow = append(l.Allow, own...)
+			}
+			if addrs {
+				l.Free = append(l.Free, own...)
+			}
 		}
 	}
 	if addrs {

@@ -401,6 +401,16 @@ type DNSProbe struct {
 	HostResolver string `json:"host_resolver,omitempty"`
 }
 
+// From names, for text, the nameserver a lookup's result came from: the
+// host's own resolver on the probe block list when the lookup used one
+// (INITIAL.md §10 Q13), else Server, the first the source asks.
+func (p DNSProbe) From() string {
+	if p.HostResolver != "" {
+		return p.HostResolver + ", the host's own resolver (on the probe block list, asked for DNS only)"
+	}
+	return p.Server
+}
+
 // DNSAttempt is one query sent to the resolver.
 type DNSAttempt struct {
 	Query string `json:"query"` // "api" or "api.<search 1>"

@@ -3,6 +3,7 @@ package report
 import (
 	"bytes"
 	"encoding/json"
+	"net/netip"
 	"strings"
 	"testing"
 
@@ -103,5 +104,25 @@ func TestCompactFitsTheBudgetWithLongNames(t *testing.T) {
 	}
 	if c.Verdict != d.Verdict || c.Summary == "" || len(c.NextChecks) == 0 {
 		t.Errorf("trimming must keep the verdict, a summary and a next check: %+v", c)
+	}
+}
+
+// A lookup the host's own resolver on the probe block list answered names
+// that resolver in run_probe's and report.md's evidence lines, answered or
+// not (INITIAL.md §10 Q13).
+func TestEvidenceLineNamesTheHostResolver(t *testing.T) {
+	answered := evidence.DNSProbe{Name: "api.example", Via: evidence.ViaDNS, Server: "10.0.0.2:53", HostResolver: "169.254.169.254:53",
+		Answers: []netip.Addr{netip.MustParseAddr("10.9.9.9")}}
+	unanswered := evidence.DNSProbe{Name: "api.example", Server: "10.0.0.2:53", HostResolver: "169.254.169.254:53", Rcode: "NXDOMAIN"}
+	for _, d := range []evidence.DNSProbe{answered, unanswered} {
+		got := EvidenceLine(evidence.Evidence{Kind: evidence.KindDNS, Context: evidence.Host(), Status: evidence.StatusOK, Data: d})
+		if !strings.Contains(got, "169.254.169.254:53, the host's own resolver") || strings.Contains(got, "10.0.0.2") {
+			t.Errorf("%q", got)
+		}
+	}
+	plain := answered
+	plain.HostResolver = ""
+	if got := EvidenceLine(evidence.Evidence{Kind: evidence.KindDNS, Context: evidence.Host(), Status: evidence.StatusOK, Data: plain}); !strings.Contains(got, "via 10.0.0.2:53") {
+		t.Errorf("without the exception: %q", got)
 	}
 }

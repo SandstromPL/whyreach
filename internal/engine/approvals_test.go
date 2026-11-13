@@ -55,4 +55,16 @@ func TestHostResolverFact(t *testing.T) {
 			t.Errorf("host_resolver %q: facts %q lack %q", host, got, want)
 		}
 	}
+	// Without answers, the reply's rcode is credited to the same server.
+	nx := lookup("169.254.169.254:53")
+	p := nx.Data.(evidence.DNSProbe)
+	p.Answers, p.Rcode = nil, "NXDOMAIN"
+	nx.Data = p
+	var text []string
+	for _, f := range facts(evidence.NewView(q, []evidence.Evidence{nx}), true) {
+		text = append(text, f.Text)
+	}
+	if got := strings.Join(text, "\n"); !strings.Contains(got, "(NXDOMAIN from 169.254.169.254:53, the host's own resolver") {
+		t.Errorf("unanswered: %q", got)
+	}
 }
