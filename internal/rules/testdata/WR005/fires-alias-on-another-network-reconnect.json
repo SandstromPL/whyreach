@@ -179,7 +179,7 @@
         "ev-04",
         "ev-05"
       ],
-      "fix_contains": "without Compose: docker network disconnect front "
+      "fix_contains": "without Compose: docker network disconnect shop_front shop-postgres-1, then docker network connect --alias db shop_front shop-postgres-1"
     }
   ]
 }
