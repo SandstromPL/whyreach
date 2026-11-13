@@ -2,7 +2,7 @@
 
 Read-only network diagnosis for Linux and Docker, built for developers and their AI coding agents. It runs as a CLI and as an MCP server.
 
-> **Status: pre-alpha.** M2 works on Linux with Docker Engine: the CLI and an MCP server diagnose the 14 v0.1 failures, from `localhost` used inside a container to an upstream DNS server that doesn't answer (the catalog is in [INITIAL.md §4.6](INITIAL.md), each rule documented in [docs/rules](docs/rules)). The design is in [INITIAL.md](INITIAL.md), and the rules for contributors and coding agents are in [CLAUDE.md](CLAUDE.md).
+> **Status: pre-alpha.** M3 works on Linux with Docker Engine: the CLI and an MCP server diagnose the 14 v0.1 failures, from `localhost` used inside a container to an upstream DNS server that doesn't answer (the catalog is in [INITIAL.md §4.6](INITIAL.md), each rule documented in [docs/rules](docs/rules)). The design is in [INITIAL.md](INITIAL.md), and the rules for contributors and coding agents are in [CLAUDE.md](CLAUDE.md).
 
 When one container can't reach another, whyreach collects evidence from the right network namespaces (Docker metadata, listening sockets, DNS and TCP probes) and explains the cause, without changing anything.
 

@@ -4,11 +4,12 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 
 **Who it's for:** backend developers whose Docker runs on Linux and who run multi-service Compose stacks with an AI coding agent. Docker Desktop users on Windows and macOS come later. Details: `INITIAL.md` §2.1 and §3.7.
 
-**Status:** M0, M1 and M2 are done.
+**Status:** M0, M1, M2 and M3 are done.
 - M0: the repo is scaffolded (module path `github.com/SandstromPL/whyreach`); throwaway spikes are in `spikes/`, with results in `docs/adr/0001-execution-contexts.md`; the rule experiments (`spikes/experiments.sh`, results in `docs/research/rule-experiments.md`) decided the rule order in `docs/adr/0002-rule-order.md`.
 - M1, the vertical slice (`INITIAL.md` §2.3): the CLI `whyreach [--from SOURCE] HOST:PORT` diagnoses with WR008, WR007, WR004 and WR002.
 - M2: all 14 v0.1 rules; host↔container flows; `policy` (tiers, probe allowlist, rate limit, audit log); the MCP server (`whyreach mcp serve`, four tools, consent for probe containers: `docs/adr/0003-mcp-server.md`); `inspect`, `probe` and `doctor`. `make lab` passes 20 scenarios with probe containers on and off, and `make lab-agent` has a headless agent diagnose each one through the MCP tools alone.
-- Next is M3: the netns executor (root), `INITIAL.md` §7.
+- M3: the netns executor. As root on Linux Docker Engine, container checks enter the containers' network namespaces with `setns`, with no Docker write; a probe container stands in only when entering fails and tier 2b is on (ADR 0001, M3 amendment). `make lab-root` passes all 20 scenarios through it.
+- Next is M4: reports and redaction, docs, release builds, `INITIAL.md` §7.
 
 **Source of truth:** `INITIAL.md` holds the current design: decisions, HLD, LLD, the rule catalog and the milestones. The original project proposal (not published) is background only.
 - If the two disagree, `INITIAL.md` wins.
