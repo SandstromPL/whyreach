@@ -20,13 +20,40 @@ const (
 	LabelComposeService = "com.docker.compose.service"
 )
 
-// Summary is one entry of GET /containers/json.
+// Summary is one entry of GET /containers/json. It lacks aliases and
+// DNSNames; InspectContainer has them.
 type Summary struct {
-	ID      string            `json:"Id"`
-	Names   []string          `json:"Names"`
-	State   string            `json:"State"`
-	Created int64             `json:"Created"`
-	Labels  map[string]string `json:"Labels"`
+	ID              string            `json:"Id"`
+	Names           []string          `json:"Names"`
+	State           string            `json:"State"`
+	Created         int64             `json:"Created"`
+	Labels          map[string]string `json:"Labels"`
+	NetworkSettings struct {
+		Networks map[string]struct {
+			IPAddress         string `json:"IPAddress"`
+			GlobalIPv6Address string `json:"GlobalIPv6Address"`
+		} `json:"Networks"`
+	} `json:"NetworkSettings"`
+}
+
+// Networks lists the networks the container is configured on, sorted.
+func (s Summary) Networks() []string {
+	out := make([]string, 0, len(s.NetworkSettings.Networks))
+	for n := range s.NetworkSettings.Networks {
+		out = append(out, n)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// HasAddr reports whether the container holds addr on any network.
+func (s Summary) HasAddr(addr netip.Addr) bool {
+	for _, n := range s.NetworkSettings.Networks {
+		if parseAddr(n.IPAddress) == addr || parseAddr(n.GlobalIPv6Address) == addr {
+			return true
+		}
+	}
+	return false
 }
 
 // Name is the container's name without the leading slash.

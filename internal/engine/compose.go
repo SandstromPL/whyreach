@@ -1,0 +1,405 @@
+package engine
+
+import (
+	"fmt"
+	"net/netip"
+	"slices"
+	"strings"
+
+	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/rules"
+)
+
+// maxFacts bounds the facts list: the structured output stays small (ADR 0001).
+const maxFacts = 10
+
+// compose turns the ranked findings and the evidence into the answer.
+func (r *run) compose(v evidence.View, ranked rules.Ranked) *Diagnosis {
+	d := &Diagnosis{
+		SchemaVersion: SchemaVersion,
+		Question:      r.q,
+		Findings:      []rules.Finding{},
+		Suppressed:    ranked.Suppressed,
+		Evidence:      v.Items(),
+		SideEffects:   r.e.sideEffects(),
+		ChangesMade:   false,
+	}
+	if d.SideEffects == nil {
+		d.SideEffects = []string{}
+	}
+	if ranked.Primary != nil {
+		d.Findings = append(d.Findings, *ranked.Primary)
+		d.Findings = append(d.Findings, ranked.AlsoFound...)
+	}
+	connected, connAddr := connectedFromSource(v)
+	switch {
+	case connected:
+		d.Verdict = VerdictNoProblem
+	case ranked.Primary != nil && ranked.Primary.Confidence == rules.High:
+		d.Verdict = VerdictCause
+	case ranked.Primary != nil && ranked.Primary.Confidence == rules.Medium:
+		d.Verdict = VerdictLikelyCause
+	default:
+		d.Verdict = VerdictInconclusive
+	}
+	d.Facts = facts(v)
+	d.Gaps = append(slices.Clone(r.gaps), r.gapsFrom(v)...)
+	if d.Gaps == nil {
+		d.Gaps = []Gap{}
+	}
+	d.Summary = summary(d, v, connAddr)
+	d.NextChecks = nextChecks(d)
+	return d
+}
+
+// connectedFromSource reports whether the source connected to the target
+// through the name (or literal address) the app uses.
+func connectedFromSource(v evidence.View) (bool, string) {
+	q := v.Question()
+	for _, t := range v.TCP() {
+		if !inSource(q, t.Context) || !t.P.ByName() {
+			continue
+		}
+		if t.P.Outcome == evidence.OutcomeConnected {
+			return true, t.P.Addr.String()
+		}
+	}
+	return false, ""
+}
+
+func inSource(q evidence.Question, c evidence.ContextRef) bool {
+	if q.From.Kind == evidence.SourceHost {
+		return c.Kind == evidence.ContextHost
+	}
+	return c.Kind == evidence.ContextContainer && c.Container == evidence.ShortID(q.From.ContainerID)
+}
+
+func sourceName(v evidence.View) string {
+	if src, ok := v.Source(); ok {
+		return src.C.DisplayName()
+	}
+	if v.Question().From.Kind == evidence.SourceHost {
+		return "the host"
+	}
+	return strings.TrimPrefix(strings.TrimPrefix(v.Question().From.Ref, "container:"), "service:")
+}
+
+func summary(d *Diagnosis, v evidence.View, connAddr string) string {
+	src, to := sourceName(v), v.Question().To.String()
+	switch d.Verdict {
+	case VerdictNoProblem:
+		s := fmt.Sprintf("%s connected to %s (%s): no problem reproduced.", src, to, connAddr)
+		if len(d.Findings) > 0 {
+			s += " Also found: " + d.Findings[0].Title + "."
+		}
+		return s
+	case VerdictCause:
+		return fmt.Sprintf("%s can't reach %s: %s.", src, to, d.Findings[0].Title)
+	case VerdictLikelyCause:
+		return fmt.Sprintf("%s can't reach %s, probably because %s.", src, to, d.Findings[0].Title)
+	}
+	switch {
+	case len(d.Findings) > 0:
+		return fmt.Sprintf("No settled cause for %s → %s; the best lead is weak: %s.", src, to, d.Findings[0].Title)
+	case len(d.Gaps) > 0:
+		return fmt.Sprintf("No cause found for %s → %s, but %d %s could not be checked (see gaps).", src, to, len(d.Gaps), plural(len(d.Gaps), "thing", "things"))
+	}
+	for _, t := range v.TCP() {
+		if inSource(v.Question(), t.Context) && t.P.ByName() {
+			return fmt.Sprintf("No cause found for %s → %s: the connect %s, and no rule explains it yet.", src, to, outcomeText(t.P))
+		}
+	}
+	return fmt.Sprintf("No cause found for %s → %s.", src, to)
+}
+
+func outcomeText(p evidence.TCPProbe) string {
+	switch p.Outcome {
+	case evidence.OutcomeRefused:
+		return "was refused"
+	case evidence.OutcomeTimeout:
+		return "timed out"
+	case evidence.OutcomeUnreachable:
+		return "found no route (" + p.Errno + ")"
+	case evidence.OutcomeReset:
+		return "was reset"
+	default:
+		return "failed (" + p.Outcome + ")"
+	}
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
+}
+
+// facts summarises the evidence in a few short lines, each naming the
+// context of every address it mentions.
+func facts(v evidence.View) []Fact {
+	var out []Fact
+	add := func(text string, ids ...string) {
+		if len(out) < maxFacts {
+			out = append(out, Fact{Text: text, Evidence: ids})
+		}
+	}
+	q := v.Question()
+	dests := v.Destinations()
+	src, haveSrc := v.Source()
+	owner, haveOwner := v.NetnsOwner()
+	if haveSrc && haveOwner && owner.C.ID != src.C.ID {
+		add(fmt.Sprintf("%s uses the network namespace of %s", src.C.DisplayName(), owner.C.DisplayName()), src.ID, owner.ID)
+	}
+	if haveOwner {
+		if !owner.C.Running() {
+			add(fmt.Sprintf("%s is %s", owner.C.DisplayName(), owner.C.State), owner.ID)
+		}
+		switch {
+		case len(dests.OnSourceNets) > 0:
+			m := dests.OnSourceNets[0]
+			add(fmt.Sprintf("%s and %s share network %s", owner.C.DisplayName(), m.C.DisplayName(), strings.Join(m.Shared, ", ")), owner.ID, m.ID)
+		case len(dests.Elsewhere) > 0:
+			m := dests.Elsewhere[0]
+			add(fmt.Sprintf("%s is on %s; %s is on %s", owner.C.DisplayName(), orNone(owner.C.NetworkNames()), m.C.DisplayName(), strings.Join(m.Networks, ", ")), owner.ID, m.ID)
+		case q.To.Class == evidence.TargetName:
+			add(fmt.Sprintf("no container answers to %q in Docker's metadata", q.To.Host), owner.ID)
+		}
+	}
+	for _, m := range dests.All() {
+		if !m.C.Running() {
+			add(fmt.Sprintf("%s is %s", m.C.DisplayName(), stateText(m.C)), m.ID)
+		} else if m.C.Health != "" && m.C.Health != "healthy" {
+			add(fmt.Sprintf("%s is %s", m.C.DisplayName(), m.C.Health), m.ID)
+		}
+	}
+	for _, d := range v.DNS() {
+		if !inSource(q, d.Context) {
+			continue
+		}
+		ctx := d.Context.String()
+		if len(d.P.Answers) > 0 {
+			via := "via " + d.P.Server
+			if d.P.Via == evidence.ViaHosts {
+				via = "via /etc/hosts"
+			}
+			add(fmt.Sprintf("%q → %s %s, in %s", d.P.Name, addrList(d.P.Answers), via, ctx), d.ID)
+		} else {
+			add(fmt.Sprintf("%q did not resolve in %s (%s from %s)", d.P.Name, ctx, d.P.Rcode, d.P.Server), d.ID)
+		}
+	}
+	for _, t := range v.TCP() {
+		if !inSource(q, t.Context) {
+			continue
+		}
+		via := ""
+		if t.P.Via == evidence.ViaMetadata {
+			via = ", address from Docker metadata"
+		}
+		text := fmt.Sprintf("connect %s from %s: %s (%.1f ms%s)", t.P.Addr, t.Context.String(), t.P.Outcome, evidence.Millis(t.P.RTT), via)
+		if t.P.Errno != "" {
+			text = fmt.Sprintf("connect %s from %s: %s, %s (%.1f ms%s)", t.P.Addr, t.Context.String(), t.P.Outcome, t.P.Errno, evidence.Millis(t.P.RTT), via)
+		}
+		add(text, t.ID)
+	}
+	port := q.To.Port
+	for _, e := range v.Of(evidence.KindListeners) {
+		l, ok := e.Data.(evidence.Listeners)
+		if !ok || !e.OK() {
+			continue
+		}
+		socks := l.OnPort(port)
+		where := e.Context.String()
+		if e.Context.Kind == evidence.ContextHost {
+			where = "the host"
+		}
+		if len(socks) == 0 {
+			if relevantListenerContext(v, e.Context) {
+				add(fmt.Sprintf("nothing listens on port %d in %s", port, where), e.ID)
+			}
+			continue
+		}
+		var parts []string
+		for _, s := range socks {
+			parts = append(parts, s.Local.String()+"/tcp")
+		}
+		add(fmt.Sprintf("listening on port %d in %s: %s", port, where, strings.Join(parts, ", ")), e.ID)
+	}
+	if out == nil {
+		out = []Fact{}
+	}
+	return out
+}
+
+// relevantListenerContext limits "nothing listens" facts to the source (for
+// a loopback target) and the destinations.
+func relevantListenerContext(v evidence.View, c evidence.ContextRef) bool {
+	if c.Kind == evidence.ContextHost {
+		return false
+	}
+	if owner, ok := v.NetnsOwner(); ok && evidence.ShortID(owner.C.ID) == c.Container {
+		return true
+	}
+	for _, m := range v.Destinations().All() {
+		if evidence.ShortID(m.C.ID) == c.Container {
+			return true
+		}
+	}
+	return false
+}
+
+func stateText(c evidence.Container) string {
+	switch c.State {
+	case evidence.StateExited:
+		return fmt.Sprintf("exited (code %d)", c.ExitCode)
+	case evidence.StateRestarting:
+		return fmt.Sprintf("restarting (%d restarts)", c.RestartCount)
+	default:
+		return c.State
+	}
+}
+
+func orNone(nets []string) string {
+	if len(nets) == 0 {
+		return "no network"
+	}
+	return strings.Join(nets, ", ")
+}
+
+func addrList(as []netip.Addr) string {
+	parts := make([]string, 0, len(as))
+	for _, a := range as {
+		parts = append(parts, a.String())
+	}
+	return strings.Join(parts, ", ")
+}
+
+// gapsFrom turns every record without an observation into a gap, merging
+// records that failed for the same reason in the same context. Skipped
+// checks whose reason a finding explains (a stopped destination, a name that
+// did not resolve) are not gaps.
+func (r *run) gapsFrom(v evidence.View) []Gap {
+	type key struct{ ctx, status, msg string }
+	var order []key
+	byKey := map[key]*Gap{}
+	kinds := map[key][]string{}
+	for _, e := range v.Items() {
+		why, ok := gapWhy(e)
+		if !ok {
+			continue
+		}
+		ctx := e.Context.String()
+		if e.Context.Kind == evidence.ContextHost {
+			ctx = "the host"
+		}
+		k := key{ctx, string(e.Status), e.Err.Message}
+		g, seen := byKey[k]
+		if !seen {
+			g = &Gap{Why: why, Detail: e.Err.Message, HowToEnable: r.howToEnable(e)}
+			byKey[k] = g
+			order = append(order, k)
+		}
+		g.Evidence = append(g.Evidence, e.ID)
+		if label := kindLabel(e.Kind); !slices.Contains(kinds[k], label) {
+			kinds[k] = append(kinds[k], label)
+		}
+	}
+	var out []Gap
+	for _, k := range order {
+		g := byKey[k]
+		prep := "in"
+		if slices.ContainsFunc(kinds[k], func(s string) bool { return s != kindLabel(evidence.KindListeners) }) {
+			prep = "from"
+		}
+		g.What = fmt.Sprintf("%s %s %s", joinAnd(kinds[k]), prep, k.ctx)
+		out = append(out, *g)
+	}
+	return out
+}
+
+func gapWhy(e evidence.Evidence) (string, bool) {
+	if e.OK() || e.Err == nil {
+		return "", false
+	}
+	switch e.Status {
+	case evidence.StatusPermissionDenied:
+		return "permission", true
+	case evidence.StatusUnsupported:
+		return "unsupported", true
+	case evidence.StatusTimeout:
+		return "timeout", true
+	case evidence.StatusFailed:
+		return "failed", true
+	case evidence.StatusError:
+		return "error", true
+	case evidence.StatusSkipped:
+		return "policy", e.Err.Code == evidence.CodePolicyDenied
+	default:
+		return "", false
+	}
+}
+
+func (r *run) howToEnable(e evidence.Evidence) string {
+	cfg := r.e.d.ConfigPath
+	if cfg == "" {
+		cfg = "the config file"
+	}
+	switch {
+	case e.Status == evidence.StatusPermissionDenied && e.Err.Message == tier2bOff:
+		return fmt.Sprintf("Enable probe containers: set probe_containers = true under [permissions] in %s. whyreach then imports its own binary as the image whyreach-probe and runs each check in a short-lived, hardened container labeled io.whyreach.probe=1, which it removes afterwards.", cfg)
+	case e.Status == evidence.StatusPermissionDenied && e.Kind == evidence.KindListeners:
+		return "Run whyreach as root, or as a user in the docker group on Linux Docker Engine, which can read /proc/<pid>/net/tcp."
+	case e.Status == evidence.StatusUnsupported && e.Kind == evidence.KindListeners:
+		return "On Docker Desktop and non-Linux hosts, listeners will be read inside a probe container (planned for v0.3)."
+	case e.Status == evidence.StatusTimeout:
+		return fmt.Sprintf("The diagnosis deadline passed first. Run it again, or raise diagnosis under [timeouts] in %s.", cfg)
+	default:
+		return ""
+	}
+}
+
+func kindLabel(k evidence.Kind) string {
+	switch k {
+	case evidence.KindDNS:
+		return "name lookup"
+	case evidence.KindTCP:
+		return "TCP connect"
+	case evidence.KindListeners:
+		return "listening sockets"
+	case evidence.KindContainer:
+		return "container metadata"
+	default:
+		return string(k)
+	}
+}
+
+func joinAnd(items []string) string {
+	switch len(items) {
+	case 0:
+		return ""
+	case 1:
+		return items[0]
+	default:
+		return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
+	}
+}
+
+// nextChecks proposes machine-actionable follow-ups that name whyreach's
+// MCP tools (INITIAL.md §4.10).
+func nextChecks(d *Diagnosis) []NextCheck {
+	q := d.Question
+	args := map[string]string{"from": q.From.Ref, "to": q.To.String()}
+	var out []NextCheck
+	switch d.Verdict {
+	case VerdictNoProblem:
+		out = append(out, NextCheck{
+			Why:  "The TCP connection works from the source's network namespace. If the app still fails, check that it really uses this host and port (its config, proxy variables), then TLS and app-level errors.",
+			Tool: "run_probe",
+			Args: map[string]string{"kind": "dns", "from": q.From.Ref, "target": q.To.Host},
+		})
+	case VerdictCause, VerdictLikelyCause:
+		out = append(out, NextCheck{Why: "Confirm the fix: run the same diagnosis after applying it.", Tool: "diagnose_connection", Args: args})
+	default:
+		out = append(out, NextCheck{Why: "Run the diagnosis again once the gaps are closed.", Tool: "diagnose_connection", Args: args})
+	}
+	return out
+}
