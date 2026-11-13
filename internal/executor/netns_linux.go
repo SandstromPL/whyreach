@@ -79,11 +79,14 @@ func (n *Netns) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 		evs[i].Context = where
 		evs[i].Context.Executor = n.Name()
 		evs[i].Context.NetnsID = ns.inode
-		src := "; setns into the network namespace of " + where.String() + " (netns executor)"
+		src := "setns into the network namespace of " + where.String() + " (netns executor)"
 		if evs[i].Kind == evidence.KindDNS {
 			src += ", whose own files were read through /proc/<pid>/root"
 		}
-		evs[i].Source += src
+		if evs[i].Source != "" {
+			src = evs[i].Source + "; " + src
+		}
+		evs[i].Source = src
 	}
 	return evs, nil
 }
