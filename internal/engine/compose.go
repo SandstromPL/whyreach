@@ -91,6 +91,9 @@ func summary(d *Diagnosis, v evidence.View, connAddr string) string {
 	switch d.Verdict {
 	case VerdictNoProblem:
 		s := fmt.Sprintf("%s connected to %s (%s): no problem reproduced.", src, to, connAddr)
+		if connAddr == to {
+			s = fmt.Sprintf("%s connected to %s: no problem reproduced.", src, to)
+		}
 		if len(d.Findings) > 0 {
 			s += " Also found: " + d.Findings[0].Title + "."
 		}
