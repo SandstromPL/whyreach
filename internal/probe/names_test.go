@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -170,12 +171,17 @@ func TestLookupStopsBeforeBlockedNameserver(t *testing.T) {
 		{"the first answers NXDOMAIN: the app stops there", "nameserver 10.8.0.1\nnameserver 169.254.169.254\n", nil, "", evidence.StatusOK, "NXDOMAIN"},
 		{"the first answers", "nameserver 10.8.0.1\nnameserver 169.254.169.254\n", map[string]string{"api. A": "172.22.0.3"}, "", evidence.StatusOK, "NOERROR"},
 		{"an allowed one after the blocked one isn't used", "nameserver 10.8.0.1\nnameserver 169.254.169.254\nnameserver 10.8.0.3\n", nil, "10.8.0.1:53", evidence.StatusSkipped, ""},
+		// glibc takes one accepted reply of the two (A, AAAA) and asks no
+		// further nameserver.
+		{"A answered, AAAA SERVFAIL", "nameserver 10.8.0.1\nnameserver 169.254.169.254\n", map[string]string{"api. A": "172.22.0.3", "api. AAAA": "SERVFAIL"}, "", evidence.StatusOK, "NOERROR"},
+		{"A answered, AAAA timed out", "nameserver 10.8.0.1\nnameserver 169.254.169.254\n", map[string]string{"api. A": "172.22.0.3", "api. AAAA": "timeout"}, "", evidence.StatusOK, "NOERROR"},
+		{"NODATA for A, AAAA SERVFAIL", "nameserver 10.8.0.1\nnameserver 169.254.169.254\n", map[string]string{"api. A": "nodata", "api. AAAA": "SERVFAIL"}, "", evidence.StatusOK, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rp, hp := writeFiles(t, tt.resolv+"options ndots:0\n", "")
 			f := &fakeDNS{answers: tt.answers, refuse: tt.refuse}
-			r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange}
+			r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange, Timeout: 50 * time.Millisecond}
 			ev := r.Lookup(context.Background(), "api")
 			if ev.Status != tt.want {
 				t.Fatalf("status %s, err %+v", ev.Status, ev.Err)
@@ -187,7 +193,7 @@ func TestLookupStopsBeforeBlockedNameserver(t *testing.T) {
 			}
 			p := ev.Data.(evidence.DNSProbe)
 			if tt.want == evidence.StatusSkipped {
-				if ev.Err == nil || ev.Err.Code != evidence.CodePolicyDenied || !strings.Contains(ev.Err.Message, "would then ask 169.254.169.254") {
+				if ev.Err == nil || ev.Err.Code != evidence.CodePolicyDenied || !strings.Contains(ev.Err.Message, "the app asks 169.254.169.254") {
 					t.Errorf("err = %+v", ev.Err)
 				}
 				if len(p.Attempts) == 0 {
@@ -195,7 +201,7 @@ func TestLookupStopsBeforeBlockedNameserver(t *testing.T) {
 				}
 				return
 			}
-			if p.Rcode != tt.rcode {
+			if tt.rcode != "" && p.Rcode != tt.rcode {
 				t.Errorf("rcode %s, want %s", p.Rcode, tt.rcode)
 			}
 		})

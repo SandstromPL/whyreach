@@ -156,11 +156,11 @@ func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evide
 			p.Attempts = append(p.Attempts, a)
 		}
 		if rc, ok := failover(res); ok && next != "" {
-			// The app would ask the blocked nameserver next, so its answer
-			// isn't one whyreach can see (INITIAL.md §10 Q11).
+			// When the nameservers before it fail, the app asks the blocked
+			// one, whose answer whyreach can't see (INITIAL.md §10 Q11).
 			return p, notes, &Refused{Reason: fmt.Sprintf(
-				"not looked up fully: the lookup of %s from %s failed (%s), and the app would then ask %s, which is on the probe block list (link-local and cloud-metadata addresses)",
-				cand.label, p.Server, rc, next)}
+				"not looked up fully: the lookup of %s failed (%s), and when the nameservers before it fail, the app asks %s, which is on the probe block list (link-local and cloud-metadata addresses)",
+				cand.label, rc, next)}
 		}
 		if i == 0 {
 			p.Rcode = res.rcode
@@ -244,7 +244,7 @@ func allowedServers(servers []string, path string) (ok []string, next string, no
 			if i == 0 {
 				return nil, "", nil, fmt.Sprintf("not looked up: the first nameserver in %s, %s, which the app asks first, is on the probe block list (link-local and cloud-metadata addresses)", path, ap.Addr())
 			}
-			notes = append(notes, fmt.Sprintf("nameserver %d of %s, %s, is on the probe block list (%s): the app asks it when the ones before it fail, and whyreach then makes no lookup", i+1, path, ap.Addr(), reason))
+			notes = append(notes, fmt.Sprintf("nameserver %d of %s, %s, is on the probe block list (%s): glibc asks it when the ones before it fail, and whyreach then makes no lookup; musl asks every nameserver at once, so a musl app may take its answer from there", i+1, path, ap.Addr(), reason))
 			return ok, ap.Addr().String(), notes, ""
 		}
 		ok = append(ok, s)
@@ -252,16 +252,21 @@ func allowedServers(servers []string, path string) (ok []string, next string, no
 	return ok, "", nil, ""
 }
 
-// failover reports a result after which the C library asks the next
-// nameserver: no answer, or SERVFAIL, REFUSED or NOTIMP.
+// failover reports a result after which glibc asks the next nameserver:
+// neither query (A, AAAA) got a reply it accepts, only no reply, SERVFAIL,
+// REFUSED or NOTIMP. One accepted reply, answered or not, ends the lookup
+// at that server.
 func failover(res resolveResult) (string, bool) {
+	rc := ""
 	for _, a := range res.attempts {
 		switch a.Rcode {
 		case evidence.RcodeTimeout, "ERROR", "SERVFAIL", "REFUSED", "NOTIMP":
-			return a.Rcode, true
+			rc = cmp.Or(rc, a.Rcode)
+		default:
+			return "", false
 		}
 	}
-	return "", false
+	return rc, rc != ""
 }
 
 type candidate struct {
