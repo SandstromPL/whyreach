@@ -674,13 +674,21 @@ func (p *Policy) limits(ctx context.Context) probe.Limits {
 		if err != nil {
 			p.d.Logger.Warn("could not list Docker networks for the probe allowlist", "err", err)
 		}
+		var shared []string // networks whose subnet isn't Docker's alone
 		for _, n := range nets {
 			if p.docker {
 				l.Allow = append(l.Allow, n.Subnets...)
 			}
-			if addrs {
-				l.Free = append(l.Free, n.Subnets...)
+			switch {
+			case !addrs:
+			case n.Driver == "bridge":
+				l.Free = append(l.Free, n.Subnets...) // inside the host: every address is Docker's
+			default:
+				shared = append(shared, n.Name)
 			}
+		}
+		if len(shared) > 0 {
+			l.Free = append(l.Free, p.containerAddrs(ctx, shared)...)
 		}
 	}
 	if addrs {
@@ -690,6 +698,34 @@ func (p *Policy) limits(ctx context.Context) probe.Limits {
 		l.Free = append(l.Free, p.hostAddrs()...)
 	}
 	return l
+}
+
+// containerAddrs lists the addresses Docker gave running containers on the
+// named networks. A macvlan or ipvlan network's subnet is the physical
+// network itself, so of it only the containers' own addresses are Docker's
+// (§10 Q15): the router and the other hosts there still need approval.
+func (p *Policy) containerAddrs(ctx context.Context, networks []string) []netip.Prefix {
+	lctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	list, err := p.d.Docker.ListContainers(lctx, false)
+	cancel()
+	if err != nil {
+		p.d.Logger.Warn("could not list containers for the probe allowlist", "err", err)
+		return nil
+	}
+	var out []netip.Prefix
+	for _, c := range list {
+		for name, ep := range c.NetworkSettings.Networks {
+			if !slices.Contains(networks, name) {
+				continue
+			}
+			for _, s := range []string{ep.IPAddress, ep.GlobalIPv6Address} {
+				if a, err := netip.ParseAddr(s); err == nil {
+					out = append(out, netip.PrefixFrom(a.Unmap(), a.Unmap().BitLen()))
+				}
+			}
+		}
+	}
+	return out
 }
 
 // hostAddrs lists the host's own interface addresses, none when whyreach

@@ -14,6 +14,7 @@ import (
 
 	"github.com/miekg/dns"
 
+	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/engine"
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/probe"
@@ -369,5 +370,45 @@ func TestHostResolversReachTheProbe(t *testing.T) {
 	}
 	if reads != 4 {
 		t.Errorf("read the host's resolvers %d times for 4 batches", reads)
+	}
+}
+
+// lanDocker adds a macvlan network on the physical LAN, with one container
+// on it, to the fake Docker host.
+type lanDocker struct{ fakeDocker }
+
+func (lanDocker) ListNetworks(ctx context.Context) ([]docker.Network, error) {
+	nets, _ := fakeDocker{}.ListNetworks(ctx)
+	return append(nets, docker.Network{ID: "n2", Name: "lan", Driver: "macvlan", Subnets: []netip.Prefix{netip.MustParsePrefix("192.168.1.0/24")}}), nil
+}
+
+func (lanDocker) ListContainers(ctx context.Context, all bool, labels ...string) ([]docker.Summary, error) {
+	list, err := fakeDocker{}.ListContainers(ctx, all, labels...)
+	pihole := docker.Summary{ID: strings.Repeat("c", 64), Names: []string{"/pihole"}, State: evidence.StateRunning}
+	pihole.NetworkSettings.Networks = map[string]struct {
+		IPAddress         string `json:"IPAddress"`
+		GlobalIPv6Address string `json:"GlobalIPv6Address"`
+	}{"lan": {IPAddress: "192.168.1.53"}}
+	return append(list, pihole), err
+}
+
+// A macvlan network's subnet is the physical LAN: only the addresses Docker
+// gave containers there are free, not the router or the other hosts (safety
+// review of Q15).
+func TestMacvlanSubnetIsNotFree(t *testing.T) {
+	rec := &recorder{}
+	p, err := New(Deps{Settings: Settings{Docker: true, Allow: []string{"loopback", "rfc1918", "docker"}, RatePerMinute: 100},
+		Docker: lanDocker{}, Listeners: fakeDocker{}, Host: rec, Client: ClientMCP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for target, free := range map[string]bool{"192.168.1.53:53": true, "172.22.0.3:8080": true, "192.168.1.20:22": false, "192.168.1.1:80": false} {
+		res, err := p.Probe(context.Background(), ProbeArgs{Kind: "tcp", Target: target})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if held := AddrHeldBack(res.Evidence[0]); held == free {
+			t.Errorf("%s: held back %v, want %v", target, held, !free)
+		}
 	}
 }
