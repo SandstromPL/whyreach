@@ -590,7 +590,7 @@ func TestReviewFindings(t *testing.T) {
 		}
 		found := false
 		for _, g := range d.Gaps {
-			found = found || (strings.Contains(g.What, "container metadata") && g.Why == "timeout")
+			found = found || (g.What == "container metadata of shop-api-1" && g.Why == "timeout")
 		}
 		if !found {
 			t.Errorf("want a timeout gap for api's metadata: %+v", d.Gaps)
@@ -649,6 +649,16 @@ func TestReviewFindings(t *testing.T) {
 		p := d.Primary()
 		if p == nil || p.RuleID != "WR004" || !strings.Contains(p.Fix, "docker network connect shop_default redis") {
 			t.Errorf("primary = %+v", p)
+		}
+	})
+
+	t.Run("WR002 when the source is the destination itself", func(t *testing.T) {
+		w := shopWorld()
+		w.sockets[200] = []string{"127.0.0.1:8080"}
+		w.tcp["172.22.0.3:8080"] = evidence.OutcomeRefused
+		d, _ := runScenario(t, scenario{w: w, from: "container:shop-api-1", to: "api:8080", probes: true})
+		if p := d.Primary(); p == nil || p.RuleID != "WR002" {
+			t.Errorf("verdict %s, primary %+v; want WR002\n%s", d.Verdict, p, factTexts(d))
 		}
 	})
 

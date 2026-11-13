@@ -341,9 +341,12 @@ func (r *run) gapsFrom(v evidence.View) []Gap {
 	var out []Gap
 	for _, k := range order {
 		g := byKey[k]
-		prep := "in"
-		if slices.ContainsFunc(kinds[k], func(s string) bool { return s != kindLabel(evidence.KindListeners) }) {
-			prep = "from"
+		prep := "from" // probes run from a context
+		switch {
+		case slices.Equal(kinds[k], []string{kindLabel(evidence.KindListeners)}):
+			prep = "in"
+		case slices.Equal(kinds[k], []string{kindLabel(evidence.KindContainer)}):
+			prep = "of"
 		}
 		g.What = fmt.Sprintf("%s %s %s", joinAnd(kinds[k]), prep, k.ctx)
 		out = append(out, *g)

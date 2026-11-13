@@ -134,13 +134,14 @@ func (r *run) collect(ctx context.Context) error {
 			listenFor = append(listenFor, c)
 		}
 	}
+	// The destinations' listeners, even when the destination is the source's
+	// own netns: a name resolves to the network address, which a
+	// loopback-bound socket refuses there too (WR002).
 	for i, m := range dests {
 		if i == maxDestinations {
 			break
 		}
-		if m.C.ID != ownerID {
-			listenFor = append(listenFor, m.C)
-		}
+		listenFor = append(listenFor, m.C)
 	}
 	if to.Class == evidence.TargetLoopback && haveOwner && !owner.C.HostNetwork() {
 		listenFor = append(listenFor, owner.C)
