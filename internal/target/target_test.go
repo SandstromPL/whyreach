@@ -3,6 +3,7 @@ package target
 import (
 	"errors"
 	"net/netip"
+	"strings"
 	"testing"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
@@ -173,5 +174,27 @@ func TestParseName(t *testing.T) {
 		if _, err := ParseName(in); err == nil {
 			t.Errorf("ParseName(%q) succeeded", in)
 		}
+	}
+}
+
+func TestMaskArg(t *testing.T) {
+	tests := []struct{ arg, in, want string }{
+		{"to", "postgres://app:s3cr3t@db:5432/app?sslpassword=x", "postgres://***@db:5432/app?***"},
+		{"to", "tcp://admin:hunter2@db:5432", "tcp://***@db:5432"},
+		{"to", "admin:hunter2@db:5432", "***@db:5432"},
+		{"to", "api:8080", "api:8080"},
+		{"target", "u:p@api", "***@api"},
+		{"from", "service:api@shop", "service:api@shop"},
+		{"from", "http://u:p@x", "http://***@x"},
+		{"scope", "network:shop_default", "network:shop_default"},
+	}
+	for _, tt := range tests {
+		if got := MaskArg(tt.arg, tt.in); got != tt.want {
+			t.Errorf("MaskArg(%q, %q) = %q, want %q", tt.arg, tt.in, got, tt.want)
+		}
+	}
+	_, err := ParseTo("tcp://admin:hunter2@db:5432")
+	if err == nil || strings.Contains(err.Error(), "hunter2") {
+		t.Errorf("ParseTo's error repeats the password: %v", err)
 	}
 }

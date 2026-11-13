@@ -413,3 +413,29 @@ func TestCode(t *testing.T) {
 		t.Error("IsUsage")
 	}
 }
+
+// TestAuditMasksCredentials: an agent may pass a connection string as it
+// is; the refused call's audit line keeps neither its password nor its
+// query (M2 safety review, finding 1).
+func TestAuditMasksCredentials(t *testing.T) {
+	f := newFixture(t, Settings{Docker: true}, nil)
+	for _, to := range []string{"postgres://app:s3cr3t@db:5432/app?sslpassword=hunter2", "tcp://admin:hunter2@db:5432", "admin:hunter2@db:5432"} {
+		_, err := f.p.Diagnose(context.Background(), DiagnoseArgs{From: "service:worker@shop", To: to})
+		if err == nil {
+			t.Fatalf("%s was accepted", to)
+		}
+		if strings.Contains(err.Error(), "s3cr3t") || strings.Contains(err.Error(), "hunter2") {
+			t.Errorf("the error repeats the password: %v", err)
+		}
+	}
+	b, err := os.ReadFile(f.audit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "s3cr3t") || strings.Contains(string(b), "hunter2") {
+		t.Errorf("the audit log keeps a password:\n%s", b)
+	}
+	if !strings.Contains(string(b), `"from":"service:worker@shop"`) {
+		t.Errorf("a Compose project's @ was masked:\n%s", b)
+	}
+}

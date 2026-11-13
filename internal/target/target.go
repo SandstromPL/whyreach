@@ -28,6 +28,39 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("invalid %s %q: %s", e.Arg, e.Input, e.Reason)
 }
 
+// MaskArg masks credentials in an argument as given (see MaskCredentials):
+// always in a destination ("to", "target"), and in the others only in a
+// URL, because "service:api@shop" names a Compose project with its "@".
+func MaskArg(arg, s string) string {
+	if arg == "to" || arg == "target" || strings.Contains(s, "://") {
+		return MaskCredentials(s)
+	}
+	return s
+}
+
+// MaskCredentials hides what a URL-like argument may carry besides the
+// address: the userinfo before an "@" and the query
+// ("postgres://app:s3cr3t@db:5432/app?sslpassword=x" becomes
+// "postgres://***@db:5432/app?***"). An agent may pass a connection string
+// as it is; its password must never reach an error, a log or the audit.
+func MaskCredentials(s string) string {
+	prefix, rest := "", s
+	if i := strings.Index(s, "://"); i >= 0 {
+		prefix, rest = s[:i+3], s[i+3:]
+	}
+	auth, tail := rest, ""
+	if j := strings.IndexAny(rest, "/?#"); j >= 0 {
+		auth, tail = rest[:j], rest[j:]
+	}
+	if at := strings.LastIndex(auth, "@"); at >= 0 {
+		auth = "***" + auth[at:]
+	}
+	if q := strings.IndexAny(tail, "?#"); q >= 0 {
+		tail = tail[:q+1] + "***"
+	}
+	return prefix + auth + tail
+}
+
 // From kinds.
 const (
 	FromHost      = "host"
@@ -71,7 +104,7 @@ var (
 func ParseFrom(s string) (From, error) {
 	in := strings.TrimSpace(s)
 	bad := func(reason string) (From, error) {
-		return From{}, &Error{Arg: "from", Input: s, Reason: reason}
+		return From{}, &Error{Arg: "from", Input: MaskArg("from", s), Reason: reason}
 	}
 	if in == "" || in == FromHost {
 		return From{Kind: FromHost}, nil
@@ -107,7 +140,7 @@ func ParseFrom(s string) (From, error) {
 func ParseTo(s string) (evidence.Target, error) {
 	in := strings.TrimSpace(s)
 	bad := func(reason string) (evidence.Target, error) {
-		return evidence.Target{}, &Error{Arg: "to", Input: s, Reason: reason}
+		return evidence.Target{}, &Error{Arg: "to", Input: MaskCredentials(s), Reason: reason}
 	}
 	if scheme, rest, ok := strings.Cut(in, "://"); ok {
 		if !strings.EqualFold(scheme, "tcp") {
@@ -151,7 +184,7 @@ func ParseTo(s string) (evidence.Target, error) {
 	if addr.IsValid() {
 		host = addr.String()
 		if reason, blocked := Blocked(addr); blocked {
-			return evidence.Target{}, &Error{Arg: "to", Input: s, Reason: reason, Policy: true}
+			return evidence.Target{}, &Error{Arg: "to", Input: MaskCredentials(s), Reason: reason, Policy: true}
 		}
 	} else {
 		host = strings.ToLower(host)
@@ -216,12 +249,12 @@ func ParseScope(s string) (Scope, error) {
 	in := strings.TrimSpace(s)
 	if rest, ok := strings.CutPrefix(in, "network:"); ok {
 		if !containerName.MatchString(rest) {
-			return Scope{}, &Error{Arg: "scope", Input: s, Reason: "not a network name or ID"}
+			return Scope{}, &Error{Arg: "scope", Input: MaskArg("scope", s), Reason: "not a network name or ID"}
 		}
 		return Scope{Kind: ScopeNetwork, Name: rest}, nil
 	}
 	if in == "" {
-		return Scope{}, &Error{Arg: "scope", Input: s, Reason: "want host, container:<name>, service:<name>[@<project>] or network:<name>"}
+		return Scope{}, &Error{Arg: "scope", Input: MaskArg("scope", s), Reason: "want host, container:<name>, service:<name>[@<project>] or network:<name>"}
 	}
 	f, err := ParseFrom(in)
 	if err != nil {
@@ -240,7 +273,7 @@ func ParseScope(s string) (Scope, error) {
 func ParseName(s string) (string, error) {
 	in := strings.TrimSuffix(strings.TrimSpace(s), ".")
 	bad := func(reason string) (string, error) {
-		return "", &Error{Arg: "target", Input: s, Reason: reason}
+		return "", &Error{Arg: "target", Input: MaskCredentials(s), Reason: reason}
 	}
 	if in == "" {
 		return bad("want a host name to look up")

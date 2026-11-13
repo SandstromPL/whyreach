@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 	"unicode"
+
+	"github.com/SandstromPL/whyreach/internal/target"
 )
 
 // Entry is one line of the audit log: a tool call, its sanitized arguments,
@@ -59,9 +61,9 @@ func (a *Audit) Write(e Entry) error {
 			delete(e.Args, k)
 			continue
 		}
-		e.Args[k] = sanitize(v)
+		e.Args[k] = sanitize(target.MaskArg(k, v))
 	}
-	e.Error = sanitize(e.Error)
+	e.Error = sanitize(target.MaskArg("error", e.Error))
 	b, err := json.Marshal(e)
 	if err != nil {
 		return fmt.Errorf("encode audit entry: %w", err)
@@ -88,7 +90,7 @@ func (a *Audit) Write(e Entry) error {
 }
 
 // sanitize keeps arguments printable and short: they come from an agent
-// and may carry anything.
+// and may carry anything. Write masks credentials first.
 func sanitize(s string) string {
 	s = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r) {
