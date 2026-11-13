@@ -1,0 +1,46 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.SandstromPL/whyreach",
+  "title": "whyreach",
+  "description": "Read-only Docker network diagnosis: why one container can't reach another, with evidence.",
+  "version": "0.1.0",
+  "websiteUrl": "https://github.com/SandstromPL/whyreach",
+  "repository": {
+    "url": "https://github.com/SandstromPL/whyreach",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/sandstrompl/whyreach:0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeHint": "docker",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--pid",
+          "value": "host",
+          "description": "Lets whyreach read the containers' listening sockets through /proc/<pid>/net, without probe containers."
+        },
+        {
+          "type": "named",
+          "name": "-v",
+          "value": "/var/run/docker.sock:/var/run/docker.sock",
+          "description": "The Docker API: whyreach reads metadata through an allowlist of endpoints and writes nothing unless you allow probe containers."
+        }
+      ],
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        },
+        {
+          "type": "positional",
+          "value": "serve"
+        }
+      ]
+    }
+  ]
+}

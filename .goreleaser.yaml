@@ -1,0 +1,73 @@
+# Release builds (INITIAL.md §7, M4): static Linux binaries for amd64 and
+# arm64 in tar.gz archives, SHA-256 checksums, and a multi-arch container
+# image (INITIAL.md §3.5). The release workflow runs this on a v* tag and
+# attests what it built; `make release-snapshot` builds the archives and
+# checksums into dist/ locally, publishing nothing.
+#
+# goreleaser is pinned in the Makefile (GORELEASER) and run with go run.
+version: 2
+project_name: whyreach
+
+builds:
+  - id: whyreach
+    main: ./cmd/whyreach
+    binary: whyreach
+    env:
+      - CGO_ENABLED=0 # static: the probe container runs the binary on scratch
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: whyreach
+    ids: [whyreach]
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# The image: FROM scratch, nothing pulled (Dockerfile). The registry's
+# ownership check reads io.modelcontextprotocol.server.name (server.json).
+dockers_v2:
+  - id: whyreach
+    ids: [whyreach]
+    dockerfile: Dockerfile
+    images:
+      - ghcr.io/sandstrompl/whyreach
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: whyreach
+      org.opencontainers.image.description: Read-only network diagnosis for Docker on Linux, as a CLI and an MCP server
+      org.opencontainers.image.source: https://github.com/SandstromPL/whyreach
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.licenses: Apache-2.0
+      io.modelcontextprotocol.server.name: io.github.SandstromPL/whyreach
+
+release:
+  # A draft: the owner reads it and publishes it by hand.
+  draft: true
+  github:
+    owner: SandstromPL
+    name: whyreach
+
+changelog:
+  use: git
+  sort: asc
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"

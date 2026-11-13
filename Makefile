@@ -7,8 +7,9 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 CROSS_TARGETS := darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 GOVULNCHECK := golang.org/x/vuln/cmd/govulncheck@v1.9.0
+GORELEASER := github.com/goreleaser/goreleaser/v2@v2.19.0
 
-.PHONY: build test lint vuln lab lab-agent lab-root golden cross clean
+.PHONY: build test lint vuln lab lab-agent lab-root golden cross release-check release-snapshot release clean
 
 ## build: static binary in bin/whyreach
 build:
@@ -53,6 +54,20 @@ lab-root:
 ## golden: regenerate golden files: the text renderer, the compact MCP structured form, the Diagnosis JSON, the MCP tools
 golden:
 	go test ./internal/report/... ./internal/mcpserver/... -update
+
+## release-check: validate .goreleaser.yaml (go run fetches the pinned goreleaser first)
+release-check:
+	go run $(GORELEASER) check
+
+## release-snapshot: the release archives and checksums.txt in dist/, as a tag would make
+## them, publishing nothing; the image is left to the release workflow
+release-snapshot:
+	go run $(GORELEASER) release --snapshot --clean --skip=docker
+
+## release: what .github/workflows/release.yml runs on a v* tag (it publishes); refuses to run elsewhere
+release:
+	@test -n "$${GITHUB_ACTIONS:-}" || { echo "make release runs only in the release workflow; use make release-snapshot" >&2; exit 1; }
+	go run $(GORELEASER) release --clean
 
 ## cross: compile check for macOS and Windows (INITIAL.md §4.15)
 cross:

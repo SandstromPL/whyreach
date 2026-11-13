@@ -1,0 +1,61 @@
+# The release (INITIAL.md §7, M4): on a v* tag, test, then goreleaser builds
+# the archives, checksums.txt and the container image, drafts a GitHub
+# release and pushes the image to ghcr.io; then the archives and the image
+# get build-provenance attestations (Sigstore, stored by GitHub).
+#
+# Nothing here publishes to the MCP Registry: that is a separate, manual
+# step for the owner, once the image is public (server.json).
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write     # the draft release and its assets
+      packages: write     # the image on ghcr.io
+      id-token: write     # sign the attestations
+      attestations: write # store them
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # goreleaser's changelog reads the history
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: make test
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: goreleaser (pinned in the Makefile)
+        run: make release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: attest the archives
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: dist/checksums.txt
+      - name: find the image digest
+        id: image
+        run: |
+          digest=$(docker buildx imagetools inspect "ghcr.io/sandstrompl/whyreach:${GITHUB_REF_NAME#v}" --format '{{json .Manifest.Digest}}' | tr -d '"')
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: attest the image
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/sandstrompl/whyreach
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true

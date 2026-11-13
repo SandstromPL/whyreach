@@ -11,6 +11,7 @@ import (
 
 	"github.com/SandstromPL/whyreach/internal/config"
 	"github.com/SandstromPL/whyreach/internal/engine"
+	"github.com/SandstromPL/whyreach/internal/platform"
 	"github.com/SandstromPL/whyreach/internal/policy"
 	"github.com/SandstromPL/whyreach/internal/report"
 )
@@ -57,7 +58,11 @@ Exit codes: 0 nothing failed, 1 something failed, 3 usage error, 4 internal erro
 				}
 				r.Checks = append(r.Checks, p.Doctor(cmd.Context())...)
 			}
-			if exe, err := os.Executable(); err == nil {
+			switch exe, err := os.Executable(); {
+			case platform.Detect().InContainer:
+				r.Checks = append(r.Checks, engine.Check{Name: "mcp", Status: engine.CheckInfo,
+					Detail: "add the image to Claude Code: claude mcp add whyreach -- docker run --rm -i --pid host -v /var/run/docker.sock:/var/run/docker.sock IMAGE mcp serve"})
+			case err == nil:
 				r.Checks = append(r.Checks, engine.Check{Name: "mcp", Status: engine.CheckInfo,
 					Detail: "add it to Claude Code: claude mcp add whyreach -- " + exe + " mcp serve"})
 			}

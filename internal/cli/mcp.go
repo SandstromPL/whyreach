@@ -51,6 +51,9 @@ Add it to Claude Code with:
 			switch pl := platform.Detect(); {
 			case p.Netns():
 				logger.Warn("the MCP server runs as root: an agent's container checks enter the containers' network namespaces (within the probe policy). Prefer a regular user and keep root for the CLI, or set netns = false under [permissions]")
+			case pl.InContainer:
+				// whyreach's own image runs as the container's root: what it
+				// may do comes from the Docker socket it is given, not root.
 			case pl.Root || pl.Netns:
 				logger.Warn("the MCP server runs with root's privileges: prefer a regular user, and keep root for the CLI")
 			}
