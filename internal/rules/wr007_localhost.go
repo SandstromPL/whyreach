@@ -2,6 +2,7 @@ package rules
 
 import (
 	"fmt"
+	"net/netip"
 	"strings"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
@@ -24,7 +25,7 @@ func (wr007) Supersedes() []string      { return []string{"WR001"} }
 
 func (r wr007) Evaluate(v evidence.View) []Finding {
 	q := v.Question()
-	if q.To.Class != evidence.TargetLoopback {
+	if q.To.Class != evidence.TargetLoopback && q.To.Class != evidence.TargetName {
 		return nil
 	}
 	src, ok := v.Source()
@@ -34,6 +35,22 @@ func (r wr007) Evaluate(v evidence.View) []Finding {
 	owner, ok := v.NetnsOwner()
 	if !ok || owner.C.HostNetwork() {
 		return nil // with network_mode: host, localhost is the host
+	}
+	// A name can mean loopback too: through the source's extra_hosts, or
+	// through DNS (names under .localhost, say).
+	entry, viaHosts, loopAddr := "", false, ""
+	if q.To.Class == evidence.TargetName {
+		if e, ok := owner.C.HostsEntry(q.To.Host); ok {
+			a, err := netip.ParseAddr(e)
+			if err != nil || !a.Unmap().IsLoopback() {
+				return nil
+			}
+			entry, viaHosts, loopAddr = e, true, a.Unmap().String()
+		} else if dns, ok := v.SourceDNS(q.To.Host); ok && len(dns.P.Answers) > 0 && allLoopback(dns.P.Answers) {
+			loopAddr = dns.P.Answers[0].String()
+		} else {
+			return nil
+		}
 	}
 	port := q.To.Port
 	if connectedByName(v) {
@@ -61,6 +78,7 @@ func (r wr007) Evaluate(v evidence.View) []Finding {
 
 	type candidate struct {
 		name, listen, network string
+		named                 bool // the container answers to the target name
 	}
 	var cands []candidate
 	for _, c := range v.Containers() {
@@ -75,7 +93,8 @@ func (r wr007) Evaluate(v evidence.View) []Finding {
 		if !ok || !l.L.AcceptsRemote(port) {
 			continue
 		}
-		cands = append(cands, candidate{name: c.C.DisplayName(), listen: socketList(l.L.OnPort(port)), network: shared[0]})
+		cands = append(cands, candidate{name: c.C.DisplayName(), listen: socketList(l.L.OnPort(port)), network: shared[0],
+			named: q.To.Class == evidence.TargetName && c.C.Matches(q.To.Host)})
 		f.Supporting = append(f.Supporting, c.ID, l.ID)
 	}
 	hostListen := ""
@@ -91,7 +110,14 @@ func (r wr007) Evaluate(v evidence.View) []Finding {
 
 	target := hostPort(q.To.Host, port)
 	var expl strings.Builder
-	fmt.Fprintf(&expl, "Inside a container, %s is the container's own network namespace, not the host's or another container's. ", q.To.Host)
+	switch {
+	case viaHosts:
+		fmt.Fprintf(&expl, "%s's extra_hosts map %s to %s, and inside a container %s is the container's own network namespace, not the host's or another container's. ", srcName, q.To.Host, entry, loopAddr)
+	case loopAddr != "":
+		fmt.Fprintf(&expl, "%s resolves to %s in %s, and inside a container %s is the container's own network namespace, not the host's or another container's. ", q.To.Host, loopAddr, srcName, loopAddr)
+	default:
+		fmt.Fprintf(&expl, "Inside a container, %s is the container's own network namespace, not the host's or another container's. ", q.To.Host)
+	}
 	if haveLocal {
 		fmt.Fprintf(&expl, "Nothing in %s listens on port %d", srcName, port)
 	} else {
@@ -114,6 +140,8 @@ func (r wr007) Evaluate(v evidence.View) []Finding {
 	f.Explanation = expl.String()
 
 	switch {
+	case loopAddr != "":
+		f.Title = fmt.Sprintf("%s means %s inside %s, which is %s itself", q.To.Host, loopAddr, srcName, srcName)
 	case len(cands) == 1:
 		f.Title = fmt.Sprintf("%s inside %s is %s itself, not %s", q.To.Host, srcName, srcName, cands[0].name)
 	default:
@@ -138,5 +166,39 @@ func (r wr007) Evaluate(v evidence.View) []Finding {
 	default:
 		f.Fix = fmt.Sprintf("Connect to the name of the container that runs the service (its Compose service name) instead of %s, or to %s if it runs on the host.", target, hostFix)
 	}
+	if viaHosts {
+		f.Fix = fmt.Sprintf("Remove %s from %s's extra_hosts (Compose extra_hosts, docker run --add-host) and recreate it. ", hostsLine(q.To.Host, entry), srcName)
+		named := false
+		for _, c := range cands {
+			named = named || c.named
+		}
+		switch {
+		case named:
+			f.Fix += fmt.Sprintf("Docker's DNS then answers %s with the container on the shared network.", q.To.Host)
+		case len(cands) > 0:
+			f.Fix += fmt.Sprintf("Then connect to %s, which runs the service.", quoteList(fixes))
+		case hostListen != "":
+			f.Fix += fmt.Sprintf("If the service runs on the host, map the name to the host instead: extra_hosts: [\"%s:host-gateway\"].", q.To.Host)
+		default:
+			f.Fix += "Map the name to the address of the machine or container that runs the service."
+		}
+	}
 	return []Finding{f}
+}
+
+func allLoopback(addrs []netip.Addr) bool {
+	for _, a := range addrs {
+		if !a.Unmap().IsLoopback() {
+			return false
+		}
+	}
+	return true
+}
+
+// hostsLine renders an extra_hosts entry.
+func hostsLine(name, value string) string {
+	if strings.Contains(value, ":") {
+		return name + "=" + value
+	}
+	return name + ":" + value
 }

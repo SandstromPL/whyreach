@@ -546,8 +546,9 @@ func (v View) SourceDNS(name string) (DNSEv, bool) {
 	return DNSEv{}, false
 }
 
-// Incomplete reports container metadata that could not be read: claims that
-// no container has some name can't be made then.
+// Incomplete reports container metadata that could not be read, or that
+// whyreach skipped at one of its bounds: claims that no container has some
+// name can't be made then.
 func (v View) Incomplete() bool {
 	for _, e := range v.items {
 		if e.Kind == KindContainer && !e.OK() {

@@ -1,0 +1,180 @@
+{
+  "description": "client uses weblo:18090, a host port weblo publishes for its port 8080 (WR006), and weblo listens on nothing: WR001 speaks of 8080, the port the fix points to",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:lab-client-1",
+      "container_id": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt"
+    },
+    "to": {
+      "host": "weblo",
+      "port": 18090,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "tttttttttttt",
+        "name": "client"
+      },
+      "subject": "container:lab-client-1",
+      "status": "ok",
+      "data": {
+        "id": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+        "name": "lab-client-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "lab_default",
+        "pid": 96,
+        "compose": {
+          "project": "lab",
+          "service": "client"
+        },
+        "networks": [
+          {
+            "network": "lab_default",
+            "network_id": "lab_default-id",
+            "ipv4": "172.29.0.2",
+            "names": [
+              "client",
+              "lab-client-1"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "ssssssssssss",
+        "name": "weblo"
+      },
+      "subject": "container:lab-weblo-1",
+      "status": "ok",
+      "data": {
+        "id": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
+        "name": "lab-weblo-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "lab_default",
+        "pid": 95,
+        "compose": {
+          "project": "lab",
+          "service": "weblo"
+        },
+        "networks": [
+          {
+            "network": "lab_default",
+            "network_id": "lab_default-id",
+            "ipv4": "172.29.0.3",
+            "names": [
+              "lab-weblo-1",
+              "weblo"
+            ]
+          }
+        ],
+        "ports": [
+          {
+            "container_port": 8080,
+            "proto": "tcp",
+            "host_ip": "127.0.0.1",
+            "host_port": 18090
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "ssssssssssss",
+        "name": "weblo"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "data": {
+        "sockets": []
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "tttttttttttt",
+        "name": "client",
+        "executor": "probe-container"
+      },
+      "subject": "weblo",
+      "status": "ok",
+      "data": {
+        "name": "weblo",
+        "server": "127.0.0.11:53",
+        "rcode": "NOERROR",
+        "answers": [
+          "172.29.0.3"
+        ],
+        "via": "dns",
+        "answered": "weblo"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "container",
+        "container": "tttttttttttt",
+        "name": "client",
+        "executor": "probe-container"
+      },
+      "subject": "weblo:18090",
+      "status": "ok",
+      "data": {
+        "target": "weblo:18090",
+        "addr": "172.29.0.3:18090",
+        "via": "dns",
+        "outcome": "refused",
+        "rtt_ns": 300000,
+        "errno": "ECONNREFUSED"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR001",
+      "confidence": "high",
+      "supporting": [
+        "ev-02",
+        "ev-03",
+        "ev-05"
+      ],
+      "fix_contains": "listens on port 8080"
+    }
+  ]
+}

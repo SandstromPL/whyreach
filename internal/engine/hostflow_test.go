@@ -2,11 +2,14 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/rules"
 	"github.com/SandstromPL/whyreach/internal/target"
 )
 
@@ -187,5 +190,27 @@ func TestNewRulesEndToEnd(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestSkippedPeersLowerWR005: past maxPeers containers on the source's
+// networks, the uninspected ones might answer to the name through an alias,
+// so WR005 can't claim that none does with its usual confidence (M2 review).
+func TestSkippedPeersLowerWR005(t *testing.T) {
+	w := shopWorld()
+	for i := range maxPeers + 6 {
+		c := ctr(fmt.Sprintf("%02x", i+16), fmt.Sprintf("shop-svc%02d-1", i), "shop", fmt.Sprintf("svc%02d", i), "shop_default", fmt.Sprintf("172.22.1.%d", i+10), 1000+i)
+		if i == maxPeers+5 {
+			c.Networks[0].Names = append(c.Networks[0].Names, "dbx")
+		}
+		w.containers = append(w.containers, c)
+	}
+	d := diagnoseWith(t, w, "container:shop-worker-1", "dbx:5432", false)
+	p := d.Primary()
+	if p == nil || p.RuleID != "WR005" || p.Confidence != rules.Low {
+		t.Fatalf("primary = %+v, want WR005 at low confidence", p)
+	}
+	if !slices.ContainsFunc(d.Gaps, func(g Gap) bool { return strings.HasPrefix(g.What, "aliases of ") && g.Why == "skipped" }) {
+		t.Errorf("no gap for the skipped containers: %+v", d.Gaps)
 	}
 }

@@ -1,0 +1,196 @@
+{
+  "description": "the host connects to 192.168.1.10:5432; db publishes 5432 as 127.0.0.1:15432, which refuses the LAN address: the fix names 127.0.0.1:15432",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "192.168.1.10",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "ip",
+      "addr": "192.168.1.10"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "oooooooooooo",
+        "name": "db"
+      },
+      "subject": "container:shop-db-1",
+      "status": "ok",
+      "data": {
+        "id": "oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo",
+        "name": "shop-db-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 90,
+        "compose": {
+          "project": "shop",
+          "service": "db"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "ipv4": "172.22.0.6",
+            "names": [
+              "db",
+              "shop-db-1"
+            ]
+          }
+        ],
+        "ports": [
+          {
+            "container_port": 5432,
+            "proto": "tcp",
+            "host_ip": "127.0.0.1",
+            "host_port": 15432
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "docker0",
+            "up": true,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "br-shop",
+            "up": true,
+            "addrs": [
+              "172.22.0.1/16"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "addrs": [
+              "192.168.1.10/24"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "127.0.0.1:15432"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "oooooooooooo",
+        "name": "db"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:5432"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "192.168.1.10:5432",
+      "status": "ok",
+      "data": {
+        "target": "192.168.1.10:5432",
+        "addr": "192.168.1.10:5432",
+        "via": "literal",
+        "outcome": "refused",
+        "rtt_ns": 300000,
+        "errno": "ECONNREFUSED"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-06"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR019",
+      "confidence": "high",
+      "supporting": [
+        "ev-02",
+        "ev-06"
+      ],
+      "fix_contains": "Connect to 127.0.0.1:15432"
+    }
+  ]
+}

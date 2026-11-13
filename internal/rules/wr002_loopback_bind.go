@@ -28,7 +28,8 @@ func (r wr002) Evaluate(v evidence.View) []Finding {
 	// a published port, to the container port behind it). A loopback-bound
 	// socket refuses that even from inside its own network namespace, so the
 	// source's netns doesn't matter.
-	for _, m := range v.Destinations().All() {
+	matches := v.Destinations().All()
+	for _, m := range matches {
 		if m.C.HostNetwork() {
 			continue // its listeners are the host's: WR012's case
 		}
@@ -67,7 +68,7 @@ func (r wr002) Evaluate(v evidence.View) []Finding {
 			continue
 		}
 		f.Supporting = ids(f.Supporting...)
-		name := m.C.DisplayName()
+		name := replicaName(matches, m)
 		f.Title = fmt.Sprintf("%s listens only on %s inside its container", name, socketList(socks))
 		f.Explanation = fmt.Sprintf("%s's only %s for port %d %s %s (in %s). A socket bound to loopback accepts connections only from inside %s's own network namespace, so %s can't reach it.",
 			name, plural(len(socks), "listener", "listeners"), port, plural(len(socks), "is", "are"), socketList(socks), name, name, sourceName(v))
@@ -75,6 +76,7 @@ func (r wr002) Evaluate(v evidence.View) []Finding {
 			f.Explanation = fmt.Sprintf("%s publishes %s → its port %d, but its only %s for port %d %s %s (in %s). The published port forwards connections into the container from outside its loopback, so the socket never sees them: the host's connection is refused, or accepted and closed at once by docker-proxy.",
 				name, m.Published.HostAddr(), port, plural(len(socks), "listener", "listeners"), port, plural(len(socks), "is", "are"), socketList(socks), name)
 		}
+		partOfReplicas(&f, servingReplicas(v, matches, m), m.C.Name)
 		f.Fix = fmt.Sprintf("Make the server in %s listen on 0.0.0.0:%d (or [::]:%d), for example with --host 0.0.0.0 or a HOST=0.0.0.0 setting, then restart %s.", name, port, port, name)
 		return []Finding{f}
 	}

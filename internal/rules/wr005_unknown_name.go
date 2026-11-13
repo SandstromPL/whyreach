@@ -38,8 +38,14 @@ func (r wr005) Evaluate(v evidence.View) []Finding {
 		return nil // on the default bridge no name resolves at all
 	}
 	d := v.Destinations()
-	if len(d.All()) > 0 || d.Host != nil || d.HostsEntry != "" {
+	if d.Host != nil || d.HostsEntry != "" {
 		return nil
+	}
+	if len(d.OnSourceNets) > 0 {
+		return r.aliasElsewhere(v, src, owner, d.OnSourceNets)
+	}
+	if len(d.All()) > 0 {
+		return nil // only on other networks: WR004
 	}
 	name := strings.TrimSuffix(strings.ToLower(q.To.Host), ".")
 	known := namesOn(v, owner.C, nets)
@@ -52,23 +58,13 @@ func (r wr005) Evaluate(v evidence.View) []Finding {
 		RuleID: r.ID(), Layer: r.Layer(), DocURL: DocURL(r.ID()), Confidence: Medium,
 		Supporting: []string{src.ID, owner.ID},
 	}
-	looked := ""
-	if dns, ok := v.SourceDNS(q.To.Host); ok {
-		if len(dns.P.Answers) > 0 {
-			return nil // it resolves to something after all
-		}
-		f.Confidence = High
-		f.Supporting = append(f.Supporting, dns.ID)
-		looked = fmt.Sprintf(" The lookup in %s failed too (%s from %s).", src.C.DisplayName(), dns.P.Rcode, dns.P.Server)
-		if ctl, ok := v.SourceDNS(owner.C.Name); ok && ctl.ID != dns.ID && len(ctl.P.Answers) > 0 {
-			f.Supporting = append(f.Supporting, ctl.ID)
-			looked = fmt.Sprintf(" The lookup in %s failed too (%s from %s), while %s's own name resolved there: Docker's DNS works and doesn't know %s.",
-				src.C.DisplayName(), dns.P.Rcode, dns.P.Server, owner.C.Name, q.To.Host)
-		}
+	looked, resolved := confirmLookup(v, &f, src, owner)
+	if resolved {
+		return nil // it resolves to something after all
 	}
 	if v.Incomplete() {
 		f.Confidence = f.Confidence.Lower() // some containers' metadata is missing
-		looked += " Some containers' metadata could not be read, so one of them might answer to it."
+		looked += " Some containers' metadata could not be read or was skipped, so one of them might answer to it."
 	}
 	for _, c := range v.Containers() {
 		if c.C.ID != owner.C.ID && len(sharedNetworks(owner.C, c.C)) > 0 {
@@ -85,8 +81,8 @@ func (r wr005) Evaluate(v evidence.View) []Finding {
 		f.Explanation = fmt.Sprintf("No container name, Compose service or alias on %s's %s is %s; the closest is %s.%s",
 			owner.C.DisplayName(), where, q.To.Host, best, looked)
 		f.Title = fmt.Sprintf("no container on %s's networks is called %s (did you mean %s?)", src.C.DisplayName(), q.To.Host, best)
-		f.Fix = fmt.Sprintf("Use %s. If %s is meant to be another service, start it on %s, or give the service that alias (networks: {%s: {aliases: [%s]}}).",
-			target, q.To.Host, nets[0], nets[0], q.To.Host)
+		f.Fix = fmt.Sprintf("Use %s. If %s is meant to be another service, start it on %s, or give the service that alias (networks: {%s: {aliases: [%s]}} in Compose).",
+			target, q.To.Host, nets[0], composeKey(owner.C, nets[0]), q.To.Host)
 	default:
 		shown := known
 		if len(shown) > 6 {
@@ -94,6 +90,79 @@ func (r wr005) Evaluate(v evidence.View) []Finding {
 		}
 		f.Fix = fmt.Sprintf("Use the name of a service on %s (%s), or start the service called %s there.", nets[0], strings.Join(shown, ", "), q.To.Host)
 	}
+	return []Finding{f}
+}
+
+// confirmLookup adds the source's own lookup of the target, which raises a
+// finding to high when it failed, unless it timed out: a timeout says the
+// upstream resolver didn't answer (WR020), not that Docker doesn't know the
+// name. It returns the sentence to add, and whether the name resolved.
+func confirmLookup(v evidence.View, f *Finding, src, owner evidence.ContainerEv) (string, bool) {
+	q := v.Question()
+	dns, ok := v.SourceDNS(q.To.Host)
+	if !ok {
+		return "", false
+	}
+	if len(dns.P.Answers) > 0 {
+		return "", true
+	}
+	f.Supporting = append(f.Supporting, dns.ID)
+	if dns.P.Rcode == evidence.RcodeTimeout {
+		return fmt.Sprintf(" The lookup in %s timed out (from %s), which points at the upstream DNS rather than at the name.", src.C.DisplayName(), dns.P.Server), false
+	}
+	f.Confidence = High
+	looked := fmt.Sprintf(" The lookup in %s failed too (%s from %s).", src.C.DisplayName(), dns.P.Rcode, dns.P.Server)
+	if ctl, ok := v.SourceDNS(owner.C.Name); ok && ctl.ID != dns.ID && len(ctl.P.Answers) > 0 {
+		f.Supporting = append(f.Supporting, ctl.ID)
+		looked = fmt.Sprintf(" The lookup in %s failed too (%s from %s), while %s's own name resolved there: Docker's DNS works and doesn't know %s.",
+			src.C.DisplayName(), dns.P.Rcode, dns.P.Server, owner.C.Name, q.To.Host)
+	}
+	return looked, false
+}
+
+// aliasElsewhere is the case of a name that a container on a shared network
+// answers to only on another network: an alias is per network, so Docker's
+// DNS doesn't know it on the networks the source shares with it.
+func (r wr005) aliasElsewhere(v evidence.View, src, owner evidence.ContainerEv, matches []evidence.Match) []Finding {
+	q := v.Question()
+	var m *evidence.Match
+	var shared []string
+	for i, c := range matches {
+		if len(intersect(c.Networks, c.Shared)) > 0 {
+			return nil // the name resolves on a network they share
+		}
+		var user []string
+		for _, n := range c.Shared {
+			if evidence.UserDefined(n) {
+				user = append(user, n)
+			}
+		}
+		if len(user) > 0 && len(c.Networks) > 0 && m == nil {
+			m, shared = &matches[i], user
+		}
+	}
+	if m == nil || connectedByName(v) {
+		return nil // only the default bridge in common: WR009's case
+	}
+	f := Finding{
+		RuleID: r.ID(), Layer: r.Layer(), DocURL: DocURL(r.ID()), Confidence: Medium,
+		Supporting: []string{src.ID, owner.ID, m.ID},
+	}
+	looked, resolved := confirmLookup(v, &f, src, owner)
+	if resolved {
+		return nil
+	}
+	f.Supporting = ids(f.Supporting...)
+	name := m.C.DisplayName()
+	here := m.C.Name
+	if m.C.Compose != nil && m.C.Compose.Service != "" {
+		here = m.C.Compose.Service
+	}
+	f.Title = fmt.Sprintf("%s answers to %s only on %s, which %s isn't on", name, q.To.Host, quoteList(m.Networks), src.C.DisplayName())
+	f.Explanation = fmt.Sprintf("%s has %s as an alias on %s %s only. Aliases are per network: on %s, which %s shares with it, Docker's DNS knows it as %s, not %s.%s",
+		containerLabel(m.C), q.To.Host, plural(len(m.Networks), "network", "networks"), quoteList(m.Networks), shared[0], src.C.DisplayName(), here, q.To.Host, looked)
+	f.Fix = fmt.Sprintf("Use %s, or give %s the alias on %s too: networks: {%s: {aliases: [%s]}} for %s in Compose (docker network connect --alias %s %s %s).",
+		hostPort(here, q.To.Port), name, shared[0], composeKey(m.C, shared[0]), q.To.Host, name, q.To.Host, shared[0], m.C.Name)
 	return []Finding{f}
 }
 

@@ -2,6 +2,7 @@ package rules
 
 import (
 	"fmt"
+	"net/netip"
 	"slices"
 	"strings"
 
@@ -40,42 +41,55 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 	target := q.To.String()
 
 	// Published on another host address.
-	for _, c := range v.Containers() {
-		if b := c.C.PublishedAs(port); len(b) > 0 {
-			var where []string
-			for _, pm := range b {
-				where = append(where, pm.HostAddr())
-			}
-			name := c.C.DisplayName()
-			f.Supporting = r.confirm(v, c.ID)
-			f.Title = fmt.Sprintf("%s publishes port %d only on %s", name, port, strings.Join(where, ", "))
-			f.Explanation = fmt.Sprintf("%s publishes its port %d on the host as %s, which accepts connections only to that address, and %s goes to %s.",
-				containerLabel(c.C), b[0].ContainerPort, strings.Join(where, ", "), target, d.Host.Addr)
-			if !d.Host.Addr.IsValid() {
-				f.Explanation = fmt.Sprintf("%s publishes its port %d on the host as %s, which accepts connections only to that address, not to %s.",
-					containerLabel(c.C), b[0].ContainerPort, strings.Join(where, ", "), target)
-			}
-			f.Fix = fmt.Sprintf("Connect to %s instead, or publish it on every address: ports: [\"%d:%d\"] for %s in Compose (-p %d:%d), then docker compose up -d %s.",
-				b[0].HostAddr(), port, b[0].ContainerPort, name, port, b[0].ContainerPort, name)
-			return []Finding{f}
+	if pubs := byNameOrder(v, func(c evidence.Container) []evidence.PortMap { return c.PublishedAs(port) }); len(pubs) > 0 {
+		c, b := pubs[0].c, pubs[0].b
+		var where []string
+		for _, pm := range b {
+			where = append(where, pm.HostAddr())
 		}
+		name := c.C.DisplayName()
+		f.Supporting = r.confirm(v, c.ID)
+		f.Title = fmt.Sprintf("%s publishes port %d only on %s", name, port, strings.Join(where, ", "))
+		f.Explanation = fmt.Sprintf("%s publishes its port %d on the host as %s, which accepts connections only to that address, and %s goes to %s.",
+			containerLabel(c.C), b[0].ContainerPort, strings.Join(where, ", "), target, d.Host.Addr)
+		if !d.Host.Addr.IsValid() {
+			f.Explanation = fmt.Sprintf("%s publishes its port %d on the host as %s, which accepts connections only to that address, not to %s.",
+				containerLabel(c.C), b[0].ContainerPort, strings.Join(where, ", "), target)
+		}
+		f.Fix = fmt.Sprintf("Connect to %s instead, or publish it on every address: ports: [\"%d:%d\"] for %s in Compose (-p %d:%d), then docker compose up -d %s.",
+			b[0].HostAddr(), port, b[0].ContainerPort, name, port, b[0].ContainerPort, name)
+		r.others(&f, pubs)
+		return []Finding{f}
 	}
 	// Its port is published under another host port.
-	for _, c := range v.Containers() {
-		if b := c.C.PublishesPort(port); len(b) > 0 {
-			name := c.C.DisplayName()
-			f.Supporting = r.confirm(v, c.ID)
-			f.Title = fmt.Sprintf("%s's port %d is published as %d, not %d", name, port, b[0].HostPort, port)
-			f.Explanation = fmt.Sprintf("%s publishes its port %d on the host as %s. Port %d on the host is the container port's number, which nothing publishes.",
-				containerLabel(c.C), port, b[0].HostAddr(), port)
-			host := "localhost"
-			if d.Host.Addr.IsValid() && !d.Host.Addr.IsLoopback() {
-				host = d.Host.Addr.String()
+	if pubs := byNameOrder(v, func(c evidence.Container) []evidence.PortMap { return c.PublishesPort(port) }); len(pubs) > 0 {
+		c, b := pubs[0].c, pubs[0].b
+		name := c.C.DisplayName()
+		f.Supporting = r.confirm(v, c.ID)
+		// Prefer a binding that accepts the address the client uses; else
+		// name the binding's own address.
+		pm := b[0]
+		for _, x := range b {
+			if d.Host.Addr.IsValid() && x.Covers(d.Host.Addr) {
+				pm = x
+				break
 			}
-			f.Fix = fmt.Sprintf("Connect to %s instead of %s, or change the mapping to ports: [\"%d:%d\"] for %s.",
-				hostPort(host, b[0].HostPort), target, port, port, name)
-			return []Finding{f}
 		}
+		covers := d.Host.Addr.IsValid() && pm.Covers(d.Host.Addr)
+		host := "localhost"
+		switch {
+		case covers && !d.Host.Addr.IsLoopback():
+			host = d.Host.Addr.String()
+		case !covers && !unspecified(pm.HostIP):
+			host = pm.HostIP
+		}
+		f.Title = fmt.Sprintf("%s's port %d is published as %d, not %d", name, port, pm.HostPort, port)
+		f.Explanation = fmt.Sprintf("%s publishes its port %d on the host as %s. Port %d on the host is the container port's number, which nothing publishes.",
+			containerLabel(c.C), port, publishedList(b), port)
+		f.Fix = fmt.Sprintf("Connect to %s instead of %s, or change the mapping to ports: [\"%d:%d\"] for %s.",
+			hostPort(host, pm.HostPort), target, port, port, name)
+		r.others(&f, pubs)
+		return []Finding{f}
 	}
 	// It listens on the port but publishes nothing for it.
 	var servers []evidence.ContainerEv
@@ -114,11 +128,51 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 	return []Finding{f}
 }
 
-// byName is the case of a container name used from the host, where
-// Docker's DNS doesn't answer.
+// published is a container and its bindings that a WR019 case is about.
+type published struct {
+	c evidence.ContainerEv
+	b []evidence.PortMap
+}
+
+// byNameOrder lists the containers with bindings that sel picks, in name
+// order, so the one a finding names doesn't depend on container IDs.
+func byNameOrder(v evidence.View, sel func(evidence.Container) []evidence.PortMap) []published {
+	var out []published
+	for _, c := range v.Containers() {
+		if b := sel(c.C); len(b) > 0 {
+			out = append(out, published{c, b})
+		}
+	}
+	slices.SortFunc(out, func(a, b published) int { return strings.Compare(a.c.C.Name, b.c.C.Name) })
+	return out
+}
+
+// others lowers a finding that picked one of several containers and names
+// the rest.
+func (wr019) others(f *Finding, pubs []published) {
+	if len(pubs) < 2 {
+		return
+	}
+	f.Confidence = Medium
+	var names []string
+	for _, p := range pubs[1:] {
+		names = append(names, fmt.Sprintf("%s (%s)", p.c.C.DisplayName(), publishedList(p.b)))
+		f.Supporting = ids(append(f.Supporting, p.c.ID)...)
+	}
+	f.Explanation += fmt.Sprintf(" %s %s it too, so it isn't certain which one you mean.", quoteList(names), plural(len(names), "publishes", "publish"))
+}
+
+func unspecified(ip string) bool {
+	a, err := netip.ParseAddr(ip)
+	return ip == "" || (err == nil && a.IsUnspecified())
+}
+
+// byName is the case of a container name used from the host's network
+// namespace (the host, or a network_mode: host container), where Docker's
+// DNS doesn't answer.
 func (r wr019) byName(v evidence.View, d evidence.Destinations) []Finding {
 	q := v.Question()
-	if q.To.Class != evidence.TargetName || len(d.Elsewhere) == 0 || v.Question().From.Kind != evidence.SourceHost {
+	if q.To.Class != evidence.TargetName || len(d.Elsewhere) == 0 {
 		return nil
 	}
 	f := Finding{RuleID: r.ID(), Layer: r.Layer(), DocURL: DocURL(r.ID()), Confidence: Medium}
@@ -131,9 +185,15 @@ func (r wr019) byName(v evidence.View, d evidence.Destinations) []Finding {
 	}
 	m := d.Elsewhere[0]
 	name := m.C.DisplayName()
-	f.Supporting = ids(append(f.Supporting, m.ID)...)
-	f.Title = fmt.Sprintf("the host can't resolve %s: container names resolve only inside Docker networks", q.To.Host)
-	f.Explanation = fmt.Sprintf("%s is a container (%s), and Docker's DNS answers its name only inside its networks. From the host, reach a container through a port it publishes.", q.To.Host, containerLabel(m.C))
+	f.Supporting = append(f.Supporting, m.ID)
+	f.Title = fmt.Sprintf("%s can't resolve %s: container names resolve only inside Docker networks", sourceName(v), q.To.Host)
+	f.Explanation = fmt.Sprintf("%s is a container (%s), and Docker's DNS answers its name only inside its networks. From the host's network namespace, reach a container through a port it publishes.", q.To.Host, containerLabel(m.C))
+	if src, ok := v.Source(); ok {
+		f.Supporting = append(f.Supporting, src.ID)
+		f.Explanation = fmt.Sprintf("%s is a container (%s), and Docker's DNS answers its name only inside its networks. %s uses the host's network namespace (network_mode: host), so it resolves names the way the host does; reach the container through a port it publishes.",
+			q.To.Host, containerLabel(m.C), src.C.DisplayName())
+	}
+	f.Supporting = ids(f.Supporting...)
 	if b := m.C.PublishesPort(q.To.Port); len(b) > 0 {
 		host := b[0].HostIP
 		if host == "" || host == "0.0.0.0" || host == "::" {

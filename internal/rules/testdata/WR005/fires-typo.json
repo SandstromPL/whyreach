@@ -228,7 +228,7 @@
         "ev-04",
         "ev-05"
       ],
-      "fix_contains": "api:8080"
+      "fix_contains": "networks: {default: {aliases: [apii]}}"
     }
   ]
 }

@@ -65,11 +65,15 @@ func (r *run) collect(ctx context.Context) error {
 	// (given literally, or from the source's own extra_hosts).
 	to := r.q.To
 	byName, byAddr := to.Class == evidence.TargetName, to.Addr
+	// A name the source's extra_hosts map to loopback means the source
+	// itself, as localhost does (WR007).
+	loopback := to.Class == evidence.TargetLoopback
 	if byName && haveOwner {
 		if entry, ok := owner.C.HostsEntry(to.Host); ok {
 			byName, byAddr = false, netip.Addr{}
 			if a, err := netip.ParseAddr(entry); err == nil {
 				byAddr = a.Unmap()
+				loopback = byAddr.IsLoopback()
 			}
 		}
 	}
@@ -98,21 +102,27 @@ func (r *run) collect(ctx context.Context) error {
 			peers = append(peers, s)
 		}
 	}
+	// Skipped containers are a gap, and a record too: rules must not claim
+	// that no container has a name when some were never inspected.
 	if droppedMatches > 0 {
 		r.metadataIncomplete = true
-		r.gaps = append(r.gaps, Gap{
+		g := Gap{
 			What:   fmt.Sprintf("%d more containers named %q", droppedMatches, to.Host),
 			Why:    "skipped",
 			Detail: fmt.Sprintf("whyreach inspects at most %d containers that match the target", maxMatches),
-		})
+		}
+		r.gaps = append(r.gaps, g)
+		r.store.Add(skippedContainers(g))
 	}
 	if droppedPeers > 0 {
 		r.metadataIncomplete = true
-		r.gaps = append(r.gaps, Gap{
+		g := Gap{
 			What:   fmt.Sprintf("aliases of %d more containers on %s's networks", droppedPeers, r.q.From.Ref),
 			Why:    "skipped",
 			Detail: fmt.Sprintf("whyreach inspects at most %d containers on the source's networks; one of the others may answer to %q through an alias", maxPeers, to.Host),
-		})
+		}
+		r.gaps = append(r.gaps, g)
+		r.store.Add(skippedContainers(g))
 	}
 	inspected, failed := r.inspectAll(ctx, append(matches, peers...))
 	if len(failed) > 0 {
@@ -126,7 +136,7 @@ func (r *run) collect(ctx context.Context) error {
 	// and the containers whose network namespace they use.
 	view = evidence.NewView(r.q, append(slices.Clone(known), inspected...))
 	dests := view.Destinations().All()
-	allPeers := to.Class == evidence.TargetLoopback || (to.Class == evidence.TargetName && len(dests) == 0 && byName)
+	allPeers := loopback || (to.Class == evidence.TargetName && len(dests) == 0 && byName)
 	record := map[string]bool{}
 	for _, m := range dests {
 		record[m.C.ID] = true
@@ -146,7 +156,7 @@ func (r *run) collect(ctx context.Context) error {
 		if allPeers || record[c.ID] {
 			r.store.Add(ev)
 		}
-		if to.Class == evidence.TargetLoopback && c.NetnsOwner() != ownerID {
+		if loopback && c.NetnsOwner() != ownerID {
 			listenFor = append(listenFor, c)
 		}
 	}
@@ -159,7 +169,7 @@ func (r *run) collect(ctx context.Context) error {
 		}
 		listenFor = append(listenFor, m.C)
 	}
-	if to.Class == evidence.TargetLoopback && haveOwner && !owner.C.HostNetwork() {
+	if loopback && haveOwner && !owner.C.HostNetwork() {
 		listenFor = append(listenFor, owner.C)
 		// WR007 chooses host.docker.internal when the host serves the port.
 		r.store.Add(r.hostListeners())
@@ -305,6 +315,21 @@ func (r *run) inspectAll(ctx context.Context, list []docker.Summary) (ok, failed
 
 // inspectFailure records metadata that could not be read, so the diagnosis
 // says so instead of treating the container as absent.
+// skippedContainers records containers whyreach did not inspect because of
+// a bound. Its status keeps it out of the gaps derived from records (the gap
+// is added with it), while View.Incomplete sees it.
+func skippedContainers(g Gap) evidence.Evidence {
+	return evidence.Evidence{
+		Kind:       evidence.KindContainer,
+		Context:    evidence.ContextRef{Kind: evidence.ContextHost, Name: "docker"},
+		Subject:    g.What,
+		Status:     evidence.StatusSkipped,
+		ObservedAt: time.Now(),
+		Err:        &evidence.Error{Code: evidence.CodeLimit, Message: g.Detail},
+		Source:     "docker GET /containers/json",
+	}
+}
+
 func (r *run) inspectFailure(id, name string, err error) evidence.Evidence {
 	ev := evidence.Evidence{
 		Kind:       evidence.KindContainer,

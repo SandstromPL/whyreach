@@ -1,0 +1,269 @@
+{
+  "description": "api publishes 18080->8080 and admin 18081->8080; the host connects to localhost:8080: either could be meant, so medium, naming both",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "localhost",
+      "port": 8080,
+      "proto": "tcp",
+      "class": "loopback"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "ffffffffffff",
+        "name": "admin"
+      },
+      "subject": "container:shop-admin-1",
+      "status": "ok",
+      "data": {
+        "id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "name": "shop-admin-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 42,
+        "compose": {
+          "project": "shop",
+          "service": "admin"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "ipv4": "172.22.0.5",
+            "names": [
+              "admin",
+              "shop-admin-1"
+            ]
+          }
+        ],
+        "ports": [
+          {
+            "container_port": 8080,
+            "proto": "tcp",
+            "host_ip": "",
+            "host_port": 18081
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "eeeeeeeeeeee",
+        "name": "api"
+      },
+      "subject": "container:shop-api-1",
+      "status": "ok",
+      "data": {
+        "id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "name": "shop-api-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 41,
+        "compose": {
+          "project": "shop",
+          "service": "api"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "ipv4": "172.22.0.4",
+            "names": [
+              "api",
+              "shop-api-1"
+            ]
+          }
+        ],
+        "ports": [
+          {
+            "container_port": 8080,
+            "proto": "tcp",
+            "host_ip": "",
+            "host_port": 18080
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "docker0",
+            "up": true,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "br-shop",
+            "up": true,
+            "addrs": [
+              "172.22.0.1/16"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "addrs": [
+              "192.168.1.10/24"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:18080"
+          },
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:18081"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "ffffffffffff",
+        "name": "admin"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:8080"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-06"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "eeeeeeeeeeee",
+        "name": "api"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:8080"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-07"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "localhost:8080",
+      "status": "ok",
+      "data": {
+        "target": "localhost:8080",
+        "addr": "127.0.0.1:8080",
+        "via": "hosts",
+        "outcome": "refused",
+        "rtt_ns": 300000,
+        "errno": "ECONNREFUSED"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-08"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR019",
+      "confidence": "medium",
+      "supporting": [
+        "ev-02",
+        "ev-03",
+        "ev-08"
+      ],
+      "fix_contains": "localhost:18081"
+    }
+  ]
+}

@@ -2,6 +2,7 @@ package rules
 
 import (
 	"cmp"
+	"fmt"
 	"net/netip"
 	"slices"
 	"strconv"
@@ -151,4 +152,64 @@ func plural(n int, one, many string) string {
 		return one
 	}
 	return many
+}
+
+// serving is the other destinations that accept connections on their port
+// from other network namespaces, with the records that show it. With
+// replicas behind one name, a broken one fails only the connections that
+// reach it.
+type serving struct {
+	names, ids []string
+}
+
+func servingReplicas(v evidence.View, matches []evidence.Match, m evidence.Match) serving {
+	var out serving
+	for _, o := range matches {
+		if o.C.ID == m.C.ID || !o.C.Running() || o.C.HostNetwork() {
+			continue
+		}
+		l, ok := v.ListenersIn(o.C.ID)
+		switch {
+		case ok && l.L.AcceptsRemote(o.Port):
+			out.names, out.ids = append(out.names, o.C.Name), append(out.ids, o.ID, l.ID)
+		case !ok && o.C.Health == "healthy":
+			out.names, out.ids = append(out.names, o.C.Name), append(out.ids, o.ID)
+		}
+	}
+	return out
+}
+
+// partOfReplicas lowers a finding about one of several replicas when others
+// serve, and says so.
+func partOfReplicas(f *Finding, s serving, broken string) {
+	if len(s.names) == 0 {
+		return
+	}
+	f.Confidence = f.Confidence.Lower()
+	f.Supporting = ids(append(f.Supporting, s.ids...)...)
+	f.Explanation += fmt.Sprintf(" %s answer%s to the same name and %s, so only the connections that reach %s fail.",
+		quoteList(s.names), plural(len(s.names), "s", ""), plural(len(s.names), "serves", "serve"), broken)
+}
+
+// composeKey is how a Compose file names a network: without the project
+// prefix Compose adds to the Docker network's name ("shop_default" is
+// "default" in project shop).
+func composeKey(c evidence.Container, network string) string {
+	if p := projectOf(c); p != "" {
+		if k, ok := strings.CutPrefix(network, p+"_"); ok && k != "" {
+			return k
+		}
+	}
+	return network
+}
+
+// replicaName names a destination for prose: its Compose service, or its
+// container name when other destinations share that service name.
+func replicaName(matches []evidence.Match, m evidence.Match) string {
+	for _, o := range matches {
+		if o.C.ID != m.C.ID && o.C.DisplayName() == m.C.DisplayName() {
+			return m.C.Name
+		}
+	}
+	return m.C.DisplayName()
 }

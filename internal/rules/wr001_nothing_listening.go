@@ -24,31 +24,49 @@ func (r wr001) Evaluate(v evidence.View) []Finding {
 		return nil
 	}
 	d := v.Destinations()
-	for _, m := range d.All() {
+	matches := d.All()
+	for _, m := range matches {
 		if m.C.HostNetwork() || !m.C.Running() {
 			continue
 		}
 		l, ok := v.ListenersIn(m.C.ID)
-		if !ok || len(l.L.OnPort(m.Port)) > 0 || len(otherPorts(l.L, m.Port)) > 0 {
+		if !ok {
+			continue
+		}
+		// A target port that is a host port the container publishes for
+		// another container port (WR006) points at that container port: the
+		// server would listen there, if anywhere.
+		port := m.Port
+		var behind *evidence.PortMap
+		if m.Published == nil && len(l.L.OnPort(port)) == 0 {
+			if b := m.C.PublishedAs(port); len(b) > 0 && b[0].ContainerPort != port {
+				behind, port = &b[0], b[0].ContainerPort
+			}
+		}
+		if len(l.L.OnPort(port)) > 0 || len(otherPorts(l.L, port)) > 0 {
 			continue // it listens (WR002 if on loopback), or elsewhere (WR003)
 		}
 		f := Finding{
 			RuleID: r.ID(), Layer: r.Layer(), DocURL: DocURL(r.ID()), Confidence: High,
 			Supporting: refusedFrom(v, []string{m.ID, l.ID}),
 		}
-		name := m.C.DisplayName()
-		f.Title = fmt.Sprintf("nothing in %s listens on port %d", name, m.Port)
-		f.Explanation = fmt.Sprintf("Nothing in %s listens on TCP port %d", containerLabel(m.C), m.Port)
-		if m.Published != nil {
-			f.Explanation = fmt.Sprintf("%s publishes %s → its port %d, but nothing in it listens on TCP port %d", containerLabel(m.C), m.Published.HostAddr(), m.Port, m.Port)
+		name := replicaName(matches, m)
+		f.Title = fmt.Sprintf("nothing in %s listens on port %d", name, port)
+		f.Explanation = fmt.Sprintf("Nothing in %s listens on TCP port %d", containerLabel(m.C), port)
+		switch {
+		case m.Published != nil:
+			f.Explanation = fmt.Sprintf("%s publishes %s → its port %d, but nothing in it listens on TCP port %d", containerLabel(m.C), m.Published.HostAddr(), port, port)
+		case behind != nil:
+			f.Explanation = fmt.Sprintf("Nothing in %s listens on TCP port %d, the container port it publishes as %s, nor on %d itself", containerLabel(m.C), port, behind.HostAddr(), m.Port)
 		}
-		if loop := loopbackElsewhere(l.L, m.Port); loop != "" {
+		if loop := loopbackElsewhere(l.L, port); loop != "" {
 			f.Explanation += fmt.Sprintf(", and it listens only on loopback otherwise (%s)", loop)
 		} else {
 			f.Explanation += ", nor on any other port reachable from outside it"
 		}
 		f.Explanation += ": its server isn't listening."
-		f.Fix = fmt.Sprintf("Check that the server in %s started and listens on port %d: docker logs %s, and its port setting. If it serves UDP only, a TCP client can't reach it.", name, m.Port, m.C.Name)
+		partOfReplicas(&f, servingReplicas(v, matches, m), m.C.Name)
+		f.Fix = fmt.Sprintf("Check that the server in %s started and listens on port %d: docker logs %s, and its port setting. If it serves UDP only, a TCP client can't reach it.", name, port, m.C.Name)
 		return []Finding{f}
 	}
 	if d.Host == nil || len(d.Published) > 0 {

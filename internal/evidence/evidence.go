@@ -109,6 +109,7 @@ const (
 	CodeTimeout           = "timeout"
 	CodeUnsupported       = "unsupported"
 	CodeInternal          = "internal"
+	CodeLimit             = "limit" // whyreach's own bound on what it collects was reached
 )
 
 // Evidence is one observation with its provenance.

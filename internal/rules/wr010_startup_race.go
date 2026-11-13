@@ -30,7 +30,11 @@ func (r wr010) Evaluate(v evidence.View) []Finding {
 	if len(matches) == 0 || connectedByName(v) {
 		return nil
 	}
+	// The first replica that is still starting is the finding; another one
+	// that serves only lowers it, so the order of the replicas doesn't
+	// change the answer.
 	var f *Finding
+	var starting evidence.Match
 	for _, m := range matches {
 		c := m.C
 		at := observedAt(v, m.ID)
@@ -38,17 +42,20 @@ func (r wr010) Evaluate(v evidence.View) []Finding {
 			continue // WR008's cases
 		}
 		l, haveL := v.ListenersIn(c.ID)
-		if haveL && len(l.L.OnPort(m.Port)) > 0 {
-			return nil // it listens on the port: started, whatever its health says
+		if haveL && (len(l.L.OnPort(m.Port)) > 0 || len(otherPorts(l.L, m.Port)) > 0) {
+			continue // it listens: started, whatever its health says (on another port: WR003)
 		}
 		uptime := ""
 		if !c.StartedAt.IsZero() && !at.IsZero() {
 			uptime = fmt.Sprintf(" %s ago", at.Sub(c.StartedAt).Round(time.Second))
 		}
 		name := containerLabel(c)
+		var g Finding
 		switch {
+		case f != nil:
+			continue
 		case c.Health == "starting":
-			g := Finding{Confidence: Medium, Supporting: []string{m.ID}}
+			g = Finding{Confidence: Medium, Supporting: []string{m.ID}}
 			g.Explanation = fmt.Sprintf("%s started%s and its healthcheck has not passed yet (health: starting)", name, uptime)
 			if haveL {
 				g.Confidence = High
@@ -56,21 +63,19 @@ func (r wr010) Evaluate(v evidence.View) []Finding {
 				g.Explanation += fmt.Sprintf(", and nothing in it listens on port %d yet", m.Port)
 			}
 			g.Explanation += ". Connections fail until it is ready."
-			f = &g
 		case c.Health == "" && haveL && !listensAtAll(l.L) && uptime != "" && at.Sub(c.StartedAt) < justStarted:
-			g := Finding{Confidence: Medium, Supporting: []string{m.ID, l.ID}}
+			g = Finding{Confidence: Medium, Supporting: []string{m.ID, l.ID}}
 			g.Explanation = fmt.Sprintf("%s started only%s and listens on nothing yet: it is probably still starting up. It has no healthcheck, so whyreach can't tell for sure.", name, uptime)
-			f = &g
 		default:
-			if haveL || c.Health == "healthy" {
-				return nil // a ready replica: connections can be served
-			}
 			continue
 		}
-		f.RuleID, f.Layer, f.DocURL = r.ID(), r.Layer(), DocURL(r.ID())
-		f.Title = fmt.Sprintf("%s is still starting", c.DisplayName())
-		f.Fix = wr010Fix(v, c)
-		break
+		g.RuleID, g.Layer, g.DocURL = r.ID(), r.Layer(), DocURL(r.ID())
+		g.Title = fmt.Sprintf("%s is still starting", replicaName(matches, m))
+		g.Fix = wr010Fix(v, c)
+		f, starting = &g, m
+	}
+	if f != nil {
+		partOfReplicas(f, servingReplicas(v, matches, starting), starting.C.Name)
 	}
 	if f == nil {
 		return nil

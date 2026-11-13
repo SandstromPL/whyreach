@@ -74,6 +74,9 @@ func (r wr006) throughHost(v evidence.View, src evidence.ContainerEv, d evidence
 	if len(d.Published) > 0 {
 		return nil // published where the connection arrives
 	}
+	if ver, ok := dockerVersion(v); ok && !ver.LinuxEngine {
+		return nil // Docker Desktop forwards the host's loopback to containers (INITIAL.md §3.7)
+	}
 	port := v.Question().To.Port
 	for _, c := range v.Containers() {
 		b := c.C.PublishedAs(port)
