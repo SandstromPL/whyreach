@@ -77,6 +77,7 @@ func (r wr002) Evaluate(v evidence.View) []Finding {
 				name, m.Published.HostAddr(), port, plural(len(socks), "listener", "listeners"), port, plural(len(socks), "is", "are"), socketList(socks), name)
 		}
 		partOfReplicas(&f, servingReplicas(v, matches, m), m.C.Name)
+		contradictedByPath(v, &f)
 		f.Fix = fmt.Sprintf("Make the server in %s listen on 0.0.0.0:%d (or [::]:%d), for example with --host 0.0.0.0 or a HOST=0.0.0.0 setting, then restart %s.", name, port, port, name)
 		return []Finding{f}
 	}

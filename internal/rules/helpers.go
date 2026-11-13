@@ -213,3 +213,34 @@ func replicaName(matches []evidence.Match, m evidence.Match) string {
 	}
 	return m.C.DisplayName()
 }
+
+// contradictedByPath lowers a listener finding when the source's connect
+// through the target's name (or literal address) timed out or found no
+// route instead of being refused: a listener explains a refusal, so
+// something on the path (a firewall, say) drops the connection as well.
+func contradictedByPath(v evidence.View, f *Finding) {
+	var against []string
+	unreachable := true
+	for _, t := range fromSource(v) {
+		if !t.P.ByName() {
+			continue
+		}
+		switch t.P.Outcome {
+		case evidence.OutcomeTimeout:
+			unreachable = false
+			against = append(against, t.ID)
+		case evidence.OutcomeUnreachable:
+			against = append(against, t.ID)
+		}
+	}
+	if len(against) == 0 {
+		return
+	}
+	how := "timed out"
+	if unreachable {
+		how = "found no route"
+	}
+	f.Confidence = f.Confidence.Lower()
+	f.Contradicting = ids(append(f.Contradicting, against...)...)
+	f.Explanation += fmt.Sprintf(" But %s's connect %s rather than being refused, so something on the path (a firewall, say) stops it too: fixing this alone may not be enough.", sourceName(v), how)
+}

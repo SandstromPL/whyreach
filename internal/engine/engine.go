@@ -123,6 +123,9 @@ type run struct {
 	// metadataIncomplete is set when some containers' metadata could not be
 	// read or was skipped: "no container has that name" can't be claimed then.
 	metadataIncomplete bool
+	// internal names the internal: true networks, read once before any
+	// container is inspected; nil when the list wasn't read.
+	internal map[string]bool
 }
 
 // Diagnose answers "why can't from reach to?". It returns an error only for

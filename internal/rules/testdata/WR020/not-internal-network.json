@@ -1,0 +1,117 @@
+{
+  "description": "app is only on an internal: true network: Docker's DNS answers SERVFAIL at once for external names (Engine 29.9.3), which is the network's isolation (WR015, v0.2), not a failing upstream",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-app-1",
+      "container_id": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+    },
+    "to": {
+      "host": "example.com",
+      "port": 443,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "nnnnnnnnnnnn",
+        "name": "app"
+      },
+      "subject": "container:shop-app-1",
+      "status": "ok",
+      "data": {
+        "id": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+        "name": "shop-app-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_backend",
+        "pid": 80,
+        "compose": {
+          "project": "shop",
+          "service": "app"
+        },
+        "networks": [
+          {
+            "network": "shop_backend",
+            "network_id": "shop_backend-id",
+            "ipv4": "172.28.0.2",
+            "names": [
+              "app",
+              "shop-app-1"
+            ],
+            "internal": true
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "nnnnnnnnnnnn",
+        "name": "app",
+        "executor": "probe-container"
+      },
+      "subject": "example.com",
+      "status": "ok",
+      "data": {
+        "name": "example.com",
+        "server": "127.0.0.11:53",
+        "rcode": "SERVFAIL",
+        "attempts": [
+          {
+            "query": "example.com",
+            "type": "A",
+            "rcode": "SERVFAIL",
+            "answers": 0
+          },
+          {
+            "query": "example.com",
+            "type": "AAAA",
+            "rcode": "SERVFAIL",
+            "answers": 0
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "nnnnnnnnnnnn",
+        "name": "app",
+        "executor": "probe-container"
+      },
+      "subject": "shop-app-1",
+      "status": "ok",
+      "data": {
+        "name": "shop-app-1",
+        "server": "127.0.0.11:53",
+        "rcode": "NOERROR",
+        "answers": [
+          "172.28.0.2"
+        ],
+        "via": "dns",
+        "answered": "shop-app-1"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    }
+  ],
+  "want": []
+}

@@ -30,6 +30,7 @@ type world struct {
 	tcp         map[string]string // "addr:port" → outcome; missing means timeout
 	desktop     bool
 	failInspect map[string]error // container name → inspect error
+	internal    map[string]bool  // network name → internal: true
 }
 
 func (w *world) Negotiate(context.Context) (docker.Version, error) {
@@ -106,7 +107,7 @@ func (w *world) ListNetworks(context.Context) ([]docker.Network, error) {
 				continue
 			}
 			seen[a.Network] = true
-			n := docker.Network{ID: a.Network + "-id", Name: a.Network, Driver: "bridge"}
+			n := docker.Network{ID: a.Network + "-id", Name: a.Network, Driver: "bridge", Internal: w.internal[a.Network]}
 			if a.IPv4.IsValid() {
 				n.Subnets = []netip.Prefix{netip.PrefixFrom(a.IPv4, 16).Masked()}
 			}

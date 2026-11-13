@@ -44,6 +44,7 @@ func (r *run) resolve(ctx context.Context) error {
 	if r.from.Kind == target.FromHost {
 		return nil
 	}
+	r.internal = r.internalNetworks(ctx)
 	src, err := r.findSource(ctx)
 	if err != nil {
 		var ee *Error
@@ -132,11 +133,33 @@ func (r *run) inspectEv(ctx context.Context, idOrName string) (evidence.Containe
 	if err != nil {
 		return c, evidence.Evidence{}, err
 	}
+	for i := range c.Networks {
+		c.Networks[i].Internal = r.internal[c.Networks[i].Network]
+	}
 	return c, evidence.Evidence{
 		Kind: evidence.KindContainer, Context: evidence.InContainer(c), Subject: "container:" + c.Name,
 		Status: evidence.StatusOK, ObservedAt: time.Now(), Duration: time.Since(start), Data: c,
 		Source: "docker GET /containers/{id}/json",
 	}, nil
+}
+
+// internalNetworks lists the networks with internal: true. Containers on
+// them have no way out of the host, which changes what a failed external
+// lookup means (WR020). It returns nil when the list can't be read.
+func (r *run) internalNetworks(ctx context.Context) map[string]bool {
+	lctx, cancel := context.WithTimeout(ctx, dockerTimeout)
+	defer cancel()
+	nets, err := r.docker.ListNetworks(lctx)
+	if err != nil {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, n := range nets {
+		if n.Internal {
+			out[n.Name] = true
+		}
+	}
+	return out
 }
 
 // dockerGap records that Docker metadata is unavailable.

@@ -39,6 +39,9 @@ func (r wr020) Evaluate(v evidence.View) []Finding {
 	if len(d.All()) > 0 || d.Host != nil || d.HostsEntry != "" {
 		return nil // an internal name, or the host
 	}
+	if onlyInternal(owner.C) {
+		return nil // internal: true networks have no way out, and Docker's DNS doesn't forward from them (WR015, v0.2)
+	}
 	dns, ok := v.SourceDNS(q.To.Host)
 	if !ok || len(dns.P.Answers) > 0 {
 		return nil
@@ -130,4 +133,23 @@ func wr020Fix(src, owner evidence.Container, p evidence.DNSProbe) string {
 	default:
 		return fmt.Sprintf("Set dns: [<a resolver that works from containers>] for %s in Compose (or \"dns\" in /etc/docker/daemon.json for every container), %s; or fix the resolvers Docker copied from the host's resolv.conf.", name, recreate)
 	}
+}
+
+// onlyInternal reports a container whose user-defined networks are all
+// internal: true.
+func onlyInternal(c evidence.Container) bool {
+	n := 0
+	for _, a := range c.Networks {
+		if !evidence.UserDefined(a.Network) {
+			if a.Network == evidence.NetworkBridge {
+				return false // the default bridge has a way out
+			}
+			continue
+		}
+		if !a.Internal {
+			return false
+		}
+		n++
+	}
+	return n > 0
 }

@@ -66,6 +66,7 @@ func (r wr001) Evaluate(v evidence.View) []Finding {
 		}
 		f.Explanation += ": its server isn't listening."
 		partOfReplicas(&f, servingReplicas(v, matches, m), m.C.Name)
+		contradictedByPath(v, &f)
 		f.Fix = fmt.Sprintf("Check that the server in %s started and listens on port %d: docker logs %s, and its port setting. If it serves UDP only, a TCP client can't reach it.", name, port, m.C.Name)
 		return []Finding{f}
 	}
@@ -83,6 +84,7 @@ func (r wr001) Evaluate(v evidence.View) []Finding {
 		Title:      fmt.Sprintf("nothing on the host listens on port %d", port),
 	}
 	f.Explanation = fmt.Sprintf("The target is the host itself, and nothing on the host listens on TCP port %d.", port)
+	contradictedByPath(v, &f)
 	f.Fix = fmt.Sprintf("Start the service on the host, or check its port. If the service runs in a container, publish its port (ports: [\"%d:<container port>\"]) or connect to the container directly.", port)
 	return []Finding{f}
 }

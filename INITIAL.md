@@ -358,7 +358,7 @@ type Container struct {
     StartedAt, FinishedAt         time.Time
     Compose      *ComposeRef     // project, service (from labels; no other label is kept)
     NetworkMode  string          // bridge | host | none | container:<id> | <network>
-    Networks     []NetAttachment // network, IPv4, IPv6, gateway, Names (aliases ∪ DNSNames)
+    Networks     []NetAttachment // network, IPv4, IPv6, gateway, Names (aliases ∪ DNSNames), Internal (M2: from the network list)
     Ports        []PortMap       // container port/proto → host ip:port
     ExtraHosts   []string
 }

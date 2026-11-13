@@ -2,6 +2,7 @@ package rules
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
 )
@@ -54,9 +55,11 @@ func (r wr012) Evaluate(v evidence.View) []Finding {
 		RuleID: r.ID(), Layer: r.Layer(), DocURL: DocURL(r.ID()), Confidence: High,
 		Supporting: append([]string{src.ID, hl.ID}, d.Host.Evidence...),
 	}
+	refused := false
 	for _, t := range fromSource(v) {
 		if t.P.Outcome == evidence.OutcomeRefused {
 			f.Supporting = append(f.Supporting, t.ID)
+			refused = true
 		}
 	}
 	f.Supporting = ids(f.Supporting...)
@@ -71,8 +74,18 @@ func (r wr012) Evaluate(v evidence.View) []Finding {
 		}
 	}
 	f.Title = fmt.Sprintf("the host service on port %d listens only on %s", port, socketList(socks))
-	f.Explanation = fmt.Sprintf("On the host, port %d is served only on %s, which accepts connections from the host itself. %s's connection to %s arrives at %s, where nothing listens, so it is refused.",
+	f.Explanation = fmt.Sprintf("On the host, port %d is served only on %s, which accepts connections from the host itself. %s's connection to %s arrives at %s, where nothing listens.",
 		port, socketList(socks), srcName, v.Question().To.String(), arrives)
+	switch {
+	case d.Host.Via == evidence.HostViaName:
+		// host.docker.internal without a mapping doesn't resolve on Docker
+		// Engine (WR011): this is what happens once it does.
+		f.Explanation = fmt.Sprintf("On the host, port %d is served only on %s, which accepts connections from the host itself. Once %s resolves in %s (WR011), its connections will arrive at the host's address, where nothing listens.",
+			port, socketList(socks), v.Question().To.Host, srcName)
+	case refused:
+		f.Explanation = strings.TrimSuffix(f.Explanation, ".") + ", so it is refused."
+	}
+	contradictedByPath(v, &f)
 	f.Fix = fmt.Sprintf("Make the host service listen on %s too, or on 0.0.0.0 (then mind the host firewall), and restart it. For PostgreSQL, for example: listen_addresses = 'localhost,%s' and a host line for the containers' subnet in pg_hba.conf.",
 		reachable, reachable)
 	return []Finding{f}

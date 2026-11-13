@@ -90,6 +90,7 @@ func (r wr003) Evaluate(v evidence.View) []Finding {
 			f.Explanation += fmt.Sprintf(" %s is still starting (health: starting), so it may open port %d later.", name, m.Port)
 		}
 		partOfReplicas(&f, servingReplicas(v, matches, m), m.C.Name)
+		contradictedByPath(v, &f)
 		return []Finding{f}
 	}
 	return nil

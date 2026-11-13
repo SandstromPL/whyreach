@@ -70,6 +70,9 @@ type NetAttachment struct {
 	IPv6      netip.Addr `json:"ipv6,omitzero"`
 	Gateway   netip.Addr `json:"gateway,omitzero"`
 	Names     []string   `json:"names,omitempty"` // names Docker's DNS answers for on this network (aliases and DNSNames), sorted
+	// Internal is the network's internal: true (no way out of the host),
+	// from Docker's network list; false when that list couldn't be read.
+	Internal bool `json:"internal,omitempty"`
 }
 
 // PortMap is one published port: container port → host address. A running

@@ -214,3 +214,35 @@ func TestSkippedPeersLowerWR005(t *testing.T) {
 		t.Errorf("no gap for the skipped containers: %+v", d.Gaps)
 	}
 }
+
+// TestInternalNetworkIsNotUpstreamDNS: on internal: true networks Docker's
+// DNS answers SERVFAIL for external names at once; that is the network's
+// isolation, not a failing upstream (WR020; M2 review).
+func TestInternalNetworkIsNotUpstreamDNS(t *testing.T) {
+	for _, internal := range []bool{false, true} {
+		w := shopWorld()
+		w.dns["shop-worker-1"] = []string{"172.22.0.2"}
+		if internal {
+			w.internal = map[string]bool{"shop_default": true}
+		}
+		d := diagnoseWith(t, w, "container:shop-worker-1", "example.com:443", true)
+		got := ""
+		if p := d.Primary(); p != nil {
+			got = p.RuleID
+		}
+		want := "WR020"
+		if internal {
+			want = ""
+		}
+		if got != want {
+			t.Errorf("internal=%v: primary %q, want %q: %+v", internal, got, want, d.Findings)
+		}
+		for _, e := range d.Evidence {
+			if c, ok := e.Data.(evidence.Container); ok && c.Name == "shop-worker-1" {
+				if a, _ := c.Attachment("shop_default"); a.Internal != internal {
+					t.Errorf("internal=%v: the source's attachment says internal=%v", internal, a.Internal)
+				}
+			}
+		}
+	}
+}
