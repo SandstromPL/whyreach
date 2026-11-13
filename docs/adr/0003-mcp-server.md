@@ -79,3 +79,18 @@ The owner settled `INITIAL.md` §10 Q11 and Q12. M4 builds both.
   - Names without a dot are harmless only where the resolver and the search domains are the user's own. On an untrusted network (a hostile Wi-Fi's DHCP-supplied resolver and search domain), or where systemd-resolved multicasts single-label names (LLMNR), they reach other hands.
   - An approval holds for the session, as decided, so the approved name can be looked up again and again. Whoever serves that domain sees each query, and their timing can carry a few bits a minute within the rate limit.
 - **`save_report`** takes only `diagnosis_id`. The input schema rejects any other argument, so a call that passes `redact` fails and is audited as refused. A golden file pins the four tools' schemas and annotations (`internal/mcpserver/testdata/tools.golden`).
+
+## Amendment (2026-11-14, before v0.1.0): approvals get a budget; private addresses ask too
+
+The owner settled `INITIAL.md` §10 Q13–Q15 after the experiments in `docs/research/q13-q15-experiments.md`. All three are to be built before v0.1.0 is tagged.
+
+- **A budget per approval (Q14).**
+  - E2 showed that every repeated lookup reaches the domain's server. A cache wouldn't change that, since the domain's owner sets the TTL. An approval held for the session was therefore a timing channel running at the full rate limit.
+  - An approval now covers 3 lookups of the name. A fourth asks again, within the session's limit of 3 questions.
+  - No agent scenario needed more than 3.
+- **Private addresses (Q15).**
+  - The address, port and timing of a TCP probe can carry data to a host on a routed private network.
+  - Through MCP, probes to loopback, Docker's networks and the host's own addresses stay free.
+  - Any other address the `rfc1918` class admits needs the user's approval for that exact address and port, asked and budgeted like names. An explicit CIDR or address in `[probe] allow` covers it without asking.
+  - Narrowing the default to Docker's networks was rejected. Connections through the host's LAN address, and to LAN and VPC services, would become uncheckable (E3).
+- **Cloud resolvers (Q13)** are a probe-policy matter, not an MCP one. The host's own resolver may be asked even at a blocked address, for DNS only. A blocked address that only a container names stays refused.

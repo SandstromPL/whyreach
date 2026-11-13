@@ -10,7 +10,12 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 - M2: all 14 v0.1 rules; host↔container flows; `policy` (tiers, probe allowlist, rate limit, audit log); the MCP server (`whyreach mcp serve`, four tools, consent for probe containers: `docs/adr/0003-mcp-server.md`); `inspect`, `probe` and `doctor`. `make lab` passes 20 scenarios with probe containers on and off, and `make lab-agent` has a headless agent diagnose each one through the MCP tools alone.
 - M3: the netns executor. As root on Linux Docker Engine, container checks enter the containers' network namespaces with `setns`, with no Docker write; a probe container stands in only when entering fails and tier 2b is on (ADR 0001, M3 amendment). `make lab-root` passes all 20 scenarios through it.
 - M4: through MCP, outside names are looked up only with the user's approval or under `[probe] names`, and nameservers pass the block list (§10 Q11, ADR 0003's amendments); `save_report` always redacts (Q12); `diagnose --report`, `report list|show|export` and `rules list|explain`; the demo (`demo/compose.yaml`, WR007); release builds prepared but never published (`.goreleaser.yaml`, `Dockerfile`, `.github/workflows/release.yml`, `server.json`). A fresh agent installed whyreach from a release-layout archive, connected it and diagnosed the demo with only the docs.
-- Next is M5: the benchmark (`INITIAL.md` §6.4) and the launch. Publishing (tag, release, image, MCP Registry) is the owner's step.
+- Next: build the decisions on `INITIAL.md` §10 Q13–Q15:
+  - the host's own resolver may be asked even at a blocked address;
+  - an approval covers 3 lookups;
+  - through MCP, private addresses outside Docker need approval.
+
+  Then publishing, which is the owner's step (tag, release, image, MCP Registry), and M5: the benchmark (`INITIAL.md` §6.4) and the launch.
 
 **Source of truth:** `INITIAL.md` holds the current design: decisions, HLD, LLD, the rule catalog and the milestones. The original project proposal (not published) is background only.
 - If the two disagree, `INITIAL.md` wins.
