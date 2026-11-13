@@ -166,7 +166,7 @@ Why probe-container is the right default:
 **Verified in M0 (ADR 0001):** the probe container works exactly as described above, hardened and without a registry pull.
 - **Listeners from the host:** on Linux Docker Engine, the destination's listeners can also be read from the host through `/proc/<pid>/net/tcp{,6}`. This needs no root and no Docker write, once `/proc/<pid>/cgroup` confirms that the PID belongs to the container.
 - **Without tier 2b:** v0.1 can still conclude most of its rules. The rule experiments (`docs/research/rule-experiments.md`) show that, of the v0.1 rules, only WR020 depends on the probe container. WR005 and WR011 just lose their DNS confirmation.
-- **Still needs the probe container or root:** WR020, WR014, WR016, and confirming reachability from the source.
+- **Still needs the probe container or root:** WR020, WR014 and WR016; WR021 and WR022, which weren't reproduced but are marked Probe? "yes" in §4.6; and confirming reachability from the source.
 
 ### 3.4 Main flow: `diagnose_connection(from=container:worker, to=api:8080)`
 
@@ -459,6 +459,7 @@ Suppression pairs from the experiments:
 | WR007, WR002 | WR001 | — |
 | WR006 | WR003 | — |
 | WR015, WR024 | WR016 | — |
+| WR013 | WR016 | The route sends the traffic somewhere else. Expected but not reproduced yet (E9 only looked the route up); confirm in v0.2. |
 
 ### 4.6 Rule catalog
 
@@ -486,7 +487,7 @@ Sources for the columns:
 | WR013 | A Docker subnet overlaps a VPN or LAN route | 4 | host route lookup + network subnets | no | 15 | v0.2 |
 | WR014 | IPv6/IPv4 mismatch: `localhost` resolves to `::1` first, but the listener is IPv4-only | 5 | DNS answers + listener families | yes | 18 | v0.2 |
 | WR015 | `internal: true` network, but the target is outside it | 4 | network Internal flag | no | not measured | v0.2 |
-| WR016 | Timeout means a silent drop. Last resort, after WR004, WR013, WR015 and WR024 | 4 | TCP timeout + route | yes | — | v0.2 |
+| WR016 | Timeout means a silent drop. Last resort: suppressed when WR004, WR008, WR013, WR015 or WR024 explains the timeout | 4 | TCP timeout + route | yes | not measured | v0.2 |
 | WR017 | MTU mismatch. Advisory until a size probe confirms a stall | 6 | link MTUs | no | 16 | v0.3 |
 | WR018 | Proxy env vars intercept traffic. Reads env var **keys only**, never values | 6 | env keys | no | not measured | v0.3 |
 | WR019 | Port not published, or published on another host address (host → container) | 2 | PortBindings + container listeners | no | 6 | v0.1 · M2 |
@@ -671,7 +672,7 @@ WR002  api listens only on 127.0.0.1:8080 inside its container
   fix    bind to 0.0.0.0:8080 (e.g. --host 0.0.0.0) and restart api
   docs   docs/rules/WR002.md
 
-side effects: 2 ephemeral probe containers (removed) · changes made: none
+side effects: 1 ephemeral probe container (removed) · changes made: none
 ```
 
 **MCP `structuredContent` (trimmed)**
@@ -755,13 +756,13 @@ Record whether it found the right root cause, how many tool calls and tokens it 
 | M | Scope | Exit criterion |
 |---|---|---|
 | **M0** (≤1 wk) | `git init` and scaffold (Makefile, CI, lint, and a `make cross` compile check for macOS and Windows). Spikes: (1) the privilege matrix; (2) a probe-container proof: `resolv.conf`/`hosts` sharing, `/proc/net` in a shared netns, importing a scratch image; (3) an MCP Go SDK hello-world tool with structured output, called from Claude Code. Collect the top ~20 real failure signatures. | Spike results written up in `docs/adr/0001-execution-contexts.md`. ✅ Done 2026-11-13 |
-| **M1** (2–3 wk) | Evidence types, the allowlisted Docker client, the probe-container executor, probes, rule layers and precedence, the slice rules WR007/WR004/WR002 plus the healthy control (ADR 0002), CLI `diagnose` | The §2.3 vertical slice passes in the lab |
-| **M2** (2 wk) | MCP server (4 tools), policy, audit log, the rest of the v0.1 rules in ADR 0002's order (WR008 first, then WR020, WR010, WR012, WR019, WR011, WR005, WR009, WR006, WR003, WR001), `doctor` | An agent diagnoses every MVP lab scenario through MCP alone |
-| **M3** (1–2 wk) | netns executor (root), host collectors, host↔container flows | The same lab passes with the netns executor and no Docker writes |
+| **M1** (2–3 wk) | Evidence types, the allowlisted Docker client, the probe-container executor, probes, listeners read from the host (the containers' through `/proc/<pid>`, plus the host's own, which WR007 needs to choose its fix), rule layers and precedence, the slice rules WR007/WR004/WR002 plus the healthy control (ADR 0002), CLI `diagnose` | The §2.3 vertical slice passes in the lab |
+| **M2** (2 wk) | MCP server (4 tools), policy, audit log, host↔container flows (`--from host`, and containers reaching host services) with the host collectors they need, the rest of the v0.1 rules in ADR 0002's order (WR008 first, then WR020, WR010, WR012, WR019, WR011, WR005, WR009, WR006, WR003, WR001), `doctor` | An agent diagnoses every MVP lab scenario through MCP alone |
+| **M3** (1–2 wk) | netns executor (root) | The same lab passes with the netns executor and no Docker writes |
 | **M4** (1–2 wk) | Reports and redaction, `docs/rules/*`, goreleaser builds (linux amd64/arm64), checksums and attestations, a container image, MCP Registry listing | A new user installs, connects a client, and diagnoses the demo using only the docs |
 | **M5** | Benchmark (§6.4) and launch | Results published |
 | **M6** (v0.2) | Windows via WSL2 (`wsl2-desktop` and `wsl2-engine`): platform detection and platform-aware rules (WR011 must not fire under Docker Desktop), host evidence labelled as the WSL2 VM, setup docs for launching through `wsl.exe` (§3.7). CI mode: an example GitHub Actions step that runs `whyreach diagnose --from <source> <target> --json` when Compose tests fail (JSON output and exit codes already ship in v0.1). The v0.2 rules: WR015, WR024, WR014, WR013, WR016, WR021 | The lab passes inside WSL2 in a manual run; the CI example diagnoses a deliberately broken Compose test |
-| **M7** (v0.3) | Native macOS and Windows builds for container checks: embedded Linux probe binaries, Docker endpoint discovery, platform-aware rules for `macos-desktop`, `windows-desktop` and `linux-desktop`, and running the container image (§3.5) on Docker Desktop. Docker Desktop for Linux | Manual lab runs pass on Docker Desktop for macOS, Windows and Linux |
+| **M7** (v0.3) | Native macOS and Windows builds for container checks: embedded Linux probe binaries, Docker endpoint discovery, platform-aware rules for `macos-desktop`, `windows-desktop` and `linux-desktop`, and running the container image (§3.5) on Docker Desktop. Docker Desktop for Linux. The v0.3 rules: WR017, WR018, WR022, WR023 | Manual lab runs pass on Docker Desktop for macOS, Windows and Linux |
 
 ---
 
@@ -820,7 +821,7 @@ Record whether it found the right root cause, how many tool calls and tokens it 
 
 1. **Resolved: yes** (ADR 0001). A `docker`-group user can read a root-owned container process's `/proc/<pid>/net/tcp{,6}`, so on Linux Engine listener checks need no Docker write.
 2. **Resolved: yes** (ADR 0001). The probe and the target have identical `ResolvConfPath`, `HostsPath` and `HostnamePath`, and markers set only on the target were visible in the probe.
-3. Which MCP clients support elicitation or input-required results for tier-2b consent? The fallback is the config file.
+3. Which MCP clients support elicitation or input-required results for tier-2b consent? The fallback is the config file. (Resolve in M2, with the MCP server.)
 4. **Resolved: import our own binary** (ADR 0001). A 3.3 MB import took 78 ms and an ~18 MB import 69 ms, so Linux needs no registry image. Revisit for M7, when the macOS and Windows builds embed Linux probe binaries.
 5. **Resolved: renamed from NetDoctor to whyreach** (2026-11-13). Rule IDs changed from `NDxxx` to `WRxxx` at the same time.
    - **Why the old name had to go** (details in `docs/research/failure-signatures.md`):
@@ -833,3 +834,4 @@ Record whether it found the right root cause, how many tool calls and tokens it 
 7. Does the probe container work on Docker Desktop with Enhanced Container Isolation turned on (common on business plans)? Docker's docs are silent. Sysbox, which ECI is built on, supports container-to-container network sharing, so it's expected to work, but it must be tested. (Resolve in M6, when Docker Desktop's WSL integration is first supported.)
 8. Which runtimes besides Docker Engine (OrbStack, Colima, Rancher Desktop with moby, Podman) pass the lab unchanged? (Resolve in M7.)
 9. How do we test WR021 (host firewall reject) and confirm WR017 (an actual MTU stall)? The dev box has no host firewall rules, and an MTU stall needs a size probe. Both need a lab VM with ufw or firewalld rules, or a tunnel with a reduced MTU. (Resolve before v0.2.)
+10. How do we reproduce WR023 (`network_mode: host` on Docker Desktop means the VM)? It needs Docker Desktop, so it's tested in M7's manual lab runs. (Resolve in M7.)

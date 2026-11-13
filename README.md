@@ -2,7 +2,7 @@
 
 Read-only network diagnosis for Linux and Docker, built for developers and their AI coding agents. It runs as a CLI and as an MCP server.
 
-> **Status: pre-alpha (milestone M0).** Nothing usable yet. The design is in [INITIAL.md](INITIAL.md), and the rules for contributors and coding agents are in [CLAUDE.md](CLAUDE.md).
+> **Status: pre-alpha.** M0 (scaffold and spikes) is done, and M1, the first vertical slice, is next. Nothing usable yet. The design is in [INITIAL.md](INITIAL.md), and the rules for contributors and coding agents are in [CLAUDE.md](CLAUDE.md).
 
 What it will do: when one container can't reach another, whyreach collects evidence from the right network namespaces (listeners, DNS, TCP probes, Docker metadata) and explains the cause, without changing anything.
 

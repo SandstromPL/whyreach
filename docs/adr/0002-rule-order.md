@@ -69,7 +69,7 @@ The full layer table is in `INITIAL.md` §4.5.
 - **`Rule` gains `Layer()`**, and the engine sorts findings by layer, then confidence, then specificity.
 - **The engine checks container state (WR008) before starting any probe.** A restarting container has no IP and can't be joined.
 - **Lab scenarios:** the experiment Compose files are promoted to `test/lab/` in M1, starting with the slice: `wr007-localhost`, `wr004-separate-projects`, `wr002-loopback-bind` and `healthy`.
-- **Refines ADR 0001's list of what needs the probe container.** With tier 2b off, only WR020, WR014 and WR016 lose their main evidence. WR005 and WR011 lose only their DNS confirmation.
+- **Refines ADR 0001's list of what needs the probe container.** With tier 2b off, only WR020, WR014 and WR016 of the reproduced rules lose their main evidence; WR021 and WR022, not reproduced yet, are expected to as well. WR005 and WR011 lose only their DNS confirmation, and WR009 needs no probe: the network name is enough.
 - **Can't be tested on the dev box:**
   - WR021 needs a host or VM with ufw or firewalld rules.
   - WR017 needs a size probe to confirm an actual stall.
