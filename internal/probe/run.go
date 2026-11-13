@@ -183,7 +183,14 @@ func connect(ctx context.Context, l *lookups, s Spec) []evidence.Evidence {
 	return out
 }
 
+// invalid records a spec that was refused: a policy denial (a blocked
+// address) is a skipped check, anything else an error.
 func invalid(s Spec, err error) evidence.Evidence {
+	status, code := evidence.StatusError, evidence.CodeInvalidArgument
+	var te *target.Error
+	if errors.As(err, &te) && te.Policy {
+		status, code = evidence.StatusSkipped, evidence.CodePolicyDenied
+	}
 	kind := evidence.KindTCP
 	switch s.Kind {
 	case SpecDNS:
@@ -192,8 +199,8 @@ func invalid(s Spec, err error) evidence.Evidence {
 		kind = evidence.KindListeners
 	}
 	return evidence.Evidence{
-		Kind: kind, Subject: s.subject(), Status: evidence.StatusError, ObservedAt: time.Now(),
-		Err: &evidence.Error{Code: evidence.CodeInvalidArgument, Message: err.Error()},
+		Kind: kind, Subject: s.subject(), Status: status, ObservedAt: time.Now(),
+		Err: &evidence.Error{Code: code, Message: err.Error()},
 	}
 }
 
