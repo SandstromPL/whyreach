@@ -40,7 +40,11 @@ func dial(ctx context.Context, enter Enter, subject string, addr netip.AddrPort,
 		Source:  "TCP connect, then close (no payload)",
 	}
 	p := evidence.TCPProbe{Target: subject, Addr: addr, Via: via}
-	if reason, ok := lim.Check(addr.Addr()); !ok {
+	reason, ok := lim.CheckConnect(addr)
+	if ok && lim.needsApproval(addr.Addr()) && !lim.allowance.take(addr) {
+		reason, ok = AddrNotApproved, false // this batch used its approved connects
+	}
+	if !ok {
 		p.Outcome = evidence.OutcomeBlocked
 		ev.Status = evidence.StatusSkipped
 		ev.Err = &evidence.Error{Code: evidence.CodePolicyDenied, Message: reason}

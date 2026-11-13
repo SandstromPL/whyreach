@@ -40,7 +40,15 @@ const (
 	// ToolNameConsent records the user's answer to a request to look up an
 	// outside name (INITIAL.md §10 Q11).
 	ToolNameConsent = "name_lookup_consent"
+	// ToolAddrConsent records the user's answer to a request to connect to
+	// a private address outside Docker's networks (INITIAL.md §10 Q15).
+	ToolAddrConsent = "connect_consent"
 )
+
+// ApprovalBudget is how many lookups of a name, or connects to an address
+// and port, one approval covers in a session (INITIAL.md §10 Q14, Q15):
+// past them, whyreach asks again, within the session's question limit.
+const ApprovalBudget = probe.ApprovalBudget
 
 // Clients that go through the policy.
 const (
@@ -81,6 +89,10 @@ type Deps struct {
 	Interfaces func() (evidence.HostAddrs, error)
 	Host       executor.Executor // runs probes in the host's network namespace
 	Self       string            // the ID of the Docker container whyreach runs in, if any
+	// HostResolvers reads the host's own resolvers, which a probe may ask
+	// even on the block list, for DNS only (INITIAL.md §10 Q13); nil when
+	// whyreach can't see the host's resolver files.
+	HostResolvers func() []netip.Addr
 	// NewProbe builds the probe-container executor the first time tier 2b
 	// is used; nil when it can't exist (no Docker API).
 	NewProbe func() (executor.Executor, error)
@@ -104,8 +116,12 @@ type Policy struct {
 	engine  *engine.Engine
 	granted atomic.Bool // tier 2b approved for this session
 
+	rfc1918  bool           // the allowlist has the rfc1918 class
+	explicit []netip.Prefix // the allowlist's CIDRs and addresses
+
 	namesMu  sync.Mutex
-	approved map[string]bool // outside names the user approved for this session
+	approved map[string]int         // outside names the user approved: lookups left
+	addrs    map[netip.AddrPort]int // private addresses and ports the user approved: connects left
 
 	probeOnce sync.Once
 	probeEx   executor.Executor
@@ -132,14 +148,20 @@ func New(d Deps) (*Policy, error) {
 	if d.Docker == nil || d.Settings.NetnsOff {
 		d.Netns = nil // it finds containers through the Docker API; and the user can turn it off
 	}
-	p := &Policy{d: d, limiter: newLimiter(d.Settings.RatePerMinute, d.Now), approved: map[string]bool{}}
+	p := &Policy{d: d, limiter: newLimiter(d.Settings.RatePerMinute, d.Now), approved: map[string]int{}, addrs: map[netip.AddrPort]int{}}
 	for _, entry := range d.Settings.Allow {
 		prefixes, err := config.AllowPrefixes(entry)
 		if err != nil {
 			return nil, &Error{Code: evidence.CodeInvalidArgument, Message: "probe allowlist: " + err.Error()}
 		}
-		if strings.EqualFold(strings.TrimSpace(entry), config.AllowDocker) {
+		switch strings.ToLower(strings.TrimSpace(entry)) {
+		case config.AllowDocker:
 			p.docker = true
+		case config.AllowRFC1918:
+			p.rfc1918 = true
+		case config.AllowLoopback:
+		default:
+			p.explicit = append(p.explicit, prefixes...)
 		}
 		p.static = append(p.static, prefixes...)
 	}
@@ -214,26 +236,27 @@ func (p *Policy) RecordConsent(approved bool, how string) {
 func (p *Policy) NamesNeedApproval() bool { return p.d.Client == ClientMCP }
 
 // NameAllowed reports whether an outside name may be looked up without
-// asking: [probe] names covers it, or the user approved it this session.
+// asking: [probe] names covers it, or the user approved it this session
+// and the approval has lookups left (INITIAL.md §10 Q14).
 func (p *Policy) NameAllowed(name string) bool {
 	if target.CoveredBy(name, p.d.Settings.Names) {
 		return true
 	}
 	p.namesMu.Lock()
 	defer p.namesMu.Unlock()
-	return p.approved[target.NormalizeName(name)]
+	return p.approved[target.NormalizeName(name)] > 0
 }
 
 // RecordNameConsent records the user's answer to a request to look up one
 // outside name; an approval lets that exact name, and no other, be looked
-// up for the rest of the session. Only the MCP server calls it, with what
-// the user chose in the client's own dialog about the name the server
-// asked about: never with anything the model sent.
+// up ApprovalBudget times in the session. Only the MCP server calls it,
+// with what the user chose in the client's own dialog about the name the
+// server asked about: never with anything the model sent.
 func (p *Policy) RecordNameConsent(name string, approved bool, how string) {
 	n := target.NormalizeName(name)
 	if approved {
 		p.namesMu.Lock()
-		p.approved[n] = true
+		p.approved[n] = ApprovalBudget
 		p.namesMu.Unlock()
 	}
 	status := "declined"
@@ -241,6 +264,117 @@ func (p *Policy) RecordNameConsent(name string, approved bool, how string) {
 		status = "approved"
 	}
 	p.audit(Entry{Tool: ToolNameConsent, Args: map[string]string{"name": n, "answer": how}, Status: status, SideEffects: []string{}}, time.Now(), nil)
+}
+
+// AddrsNeedApproval reports whether connects to private addresses outside
+// Docker's networks and the host's own addresses wait for the user's
+// approval (INITIAL.md §10 Q15): for MCP clients, when the allowlist admits
+// them only through its rfc1918 class. The CLI's user types the targets.
+func (p *Policy) AddrsNeedApproval() bool {
+	return p.d.Client == ClientMCP && p.rfc1918
+}
+
+// AddrAllowed reports whether the user approved connects to ap this session
+// and the approval has connects left.
+func (p *Policy) AddrAllowed(ap netip.AddrPort) bool {
+	p.namesMu.Lock()
+	defer p.namesMu.Unlock()
+	return p.addrs[unmapped(ap)] > 0
+}
+
+// RecordAddrConsent records the user's answer to a request to connect to one
+// private address and port; an approval covers ApprovalBudget connects to
+// exactly that address and port in the session. Only the MCP server calls
+// it, with what the user chose about what the server asked.
+func (p *Policy) RecordAddrConsent(ap netip.AddrPort, approved bool, how string) {
+	ap = unmapped(ap)
+	if approved {
+		p.namesMu.Lock()
+		p.addrs[ap] = ApprovalBudget
+		p.namesMu.Unlock()
+	}
+	status := "declined"
+	if approved {
+		status = "approved"
+	}
+	p.audit(Entry{Tool: ToolAddrConsent, Args: map[string]string{"address": ap.String(), "answer": how}, Status: status, SideEffects: []string{}}, time.Now(), nil)
+}
+
+func unmapped(ap netip.AddrPort) netip.AddrPort {
+	return netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
+}
+
+// leaseName takes one lookup from an approval of name for a batch.
+func (p *Policy) leaseName(n string) bool {
+	p.namesMu.Lock()
+	defer p.namesMu.Unlock()
+	if p.approved[n] == 0 {
+		return false
+	}
+	p.approved[n]--
+	return true
+}
+
+// leaseAddrs sets aside, for one batch, connects to the approved addresses:
+// as many as the batch has TCP checks to the address's port, and no more
+// than the approval has left. The probe counts them down as it connects.
+func (p *Policy) leaseAddrs(specs []probe.Spec) []netip.AddrPort {
+	perPort := map[uint16]int{}
+	for _, s := range specs {
+		if s.Kind == probe.SpecTCP {
+			perPort[s.Port]++
+		}
+	}
+	p.namesMu.Lock()
+	defer p.namesMu.Unlock()
+	var out []netip.AddrPort
+	for ap, left := range p.addrs {
+		n := min(left, perPort[ap.Port()])
+		p.addrs[ap] -= n
+		for range n {
+			out = append(out, ap)
+		}
+	}
+	slices.SortFunc(out, func(a, b netip.AddrPort) int { return a.Compare(b) })
+	return out
+}
+
+// settle returns what a batch set aside and didn't use: a lookup of a
+// leased name whose records show no query sent (the hosts file answered,
+// or nothing could be sent), and connects to approved addresses it didn't
+// make. A return never takes an approval past ApprovalBudget.
+func (p *Policy) settle(names []string, addrs []netip.AddrPort, evs []evidence.Evidence) {
+	if len(names) == 0 && len(addrs) == 0 {
+		return
+	}
+	sent := map[string]bool{}
+	used := map[netip.AddrPort]int{}
+	for _, e := range evs {
+		switch d := e.Data.(type) {
+		case evidence.DNSProbe:
+			if len(d.Attempts) > 0 {
+				sent[target.NormalizeName(e.Subject)] = true
+			}
+		case evidence.TCPProbe:
+			if d.Outcome != evidence.OutcomeBlocked && d.Addr.IsValid() {
+				used[unmapped(d.Addr)]++
+			}
+		}
+	}
+	p.namesMu.Lock()
+	defer p.namesMu.Unlock()
+	for _, n := range names {
+		if !sent[n] {
+			p.approved[n] = min(p.approved[n]+1, ApprovalBudget)
+		}
+	}
+	for _, ap := range addrs {
+		if used[ap] > 0 {
+			used[ap]--
+			continue
+		}
+		p.addrs[ap] = min(p.addrs[ap]+1, ApprovalBudget)
+	}
 }
 
 // Netns reports whether tier 3 is in effect: as root, container checks
@@ -422,6 +556,30 @@ func NeedsNameApproval(evs []evidence.Evidence) []string {
 	return out
 }
 
+// NeedsAddrApproval lists the private addresses and ports whose connects a
+// batch held back because no one approved them (INITIAL.md §10 Q15), sorted
+// and without repeats: what the MCP server may ask the user about.
+func NeedsAddrApproval(evs []evidence.Evidence) []netip.AddrPort {
+	var out []netip.AddrPort
+	for _, e := range evs {
+		if !AddrHeldBack(e) {
+			continue
+		}
+		if t, ok := e.Data.(evidence.TCPProbe); ok && t.Addr.IsValid() && !slices.Contains(out, unmapped(t.Addr)) {
+			out = append(out, unmapped(t.Addr))
+		}
+	}
+	slices.SortFunc(out, func(a, b netip.AddrPort) int { return a.Compare(b) })
+	return out
+}
+
+// AddrHeldBack reports a connect the probe didn't make because its private
+// address and port weren't approved.
+func AddrHeldBack(e evidence.Evidence) bool {
+	return e.Kind == evidence.KindTCP && e.Status == evidence.StatusSkipped && e.Err != nil &&
+		e.Err.Code == evidence.CodePolicyDenied && e.Err.Message == probe.AddrNotApproved
+}
+
 // NameHeldBack reports a lookup the probe didn't send because its outside
 // name wasn't approved.
 func NameHeldBack(e evidence.Evidence) bool {
@@ -485,11 +643,19 @@ func (p *Policy) probeExecutor() (executor.Executor, error) {
 // limits is the allowlist in effect now: the fixed ranges plus, when the
 // config names "docker", the subnets of Docker's networks at this moment.
 func (p *Policy) limits(ctx context.Context) probe.Limits {
-	if len(p.d.Settings.Allow) == 0 {
-		return probe.Limits{}
+	var l probe.Limits
+	if p.d.HostResolvers != nil {
+		l.HostResolvers = p.d.HostResolvers()
 	}
-	l := probe.Limits{Restricted: true, Allow: append([]netip.Prefix(nil), p.static...)}
-	if p.docker && p.d.Docker != nil {
+	if len(p.d.Settings.Allow) == 0 {
+		return l
+	}
+	l.Restricted, l.Allow = true, append([]netip.Prefix(nil), p.static...)
+	// Through MCP, a private address the allowlist admits only through its
+	// rfc1918 class needs the user's approval, except on Docker's networks,
+	// at the host's own addresses or under an explicit entry (§10 Q15).
+	addrs := p.AddrsNeedApproval()
+	if (p.docker || addrs) && p.d.Docker != nil {
 		lctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		nets, err := p.d.Docker.ListNetworks(lctx)
 		cancel()
@@ -497,10 +663,40 @@ func (p *Policy) limits(ctx context.Context) probe.Limits {
 			p.d.Logger.Warn("could not list Docker networks for the probe allowlist", "err", err)
 		}
 		for _, n := range nets {
-			l.Allow = append(l.Allow, n.Subnets...)
+			if p.docker {
+				l.Allow = append(l.Allow, n.Subnets...)
+			}
+			if addrs {
+				l.Free = append(l.Free, n.Subnets...)
+			}
 		}
 	}
+	if addrs {
+		l.AddrsRestricted = true
+		l.Private, _ = config.AllowPrefixes(config.AllowRFC1918)
+		l.Free = append(l.Free, p.explicit...)
+		l.Free = append(l.Free, p.hostAddrs()...)
+	}
 	return l
+}
+
+// hostAddrs lists the host's own interface addresses, none when whyreach
+// can't see the host's network (its image without --network host).
+func (p *Policy) hostAddrs() []netip.Prefix {
+	if p.d.Interfaces == nil {
+		return nil
+	}
+	ha, err := p.d.Interfaces()
+	if err != nil {
+		return nil
+	}
+	var out []netip.Prefix
+	for _, i := range ha.Interfaces {
+		for _, a := range i.Addrs {
+			out = append(out, netip.PrefixFrom(a.Addr().Unmap(), a.Addr().Unmap().BitLen()))
+		}
+	}
+	return out
 }
 
 // audit writes an entry, if there is an audit log.

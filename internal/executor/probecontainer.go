@@ -115,6 +115,9 @@ func (p *ProbeContainer) Run(ctx context.Context, where evidence.ContextRef, spe
 	if lim.NamesRestricted {
 		cmd = append(cmd, "--names", lim.NamesFlag())
 	}
+	for _, f := range lim.AddrsFlags() {
+		cmd = append(cmd, f[0], f[1])
+	}
 	id, err := p.API.Create(ctx, docker.ProbeSpec{Name: name, Image: ref, NetnsOf: where.Container, Cmd: cmd})
 	if err != nil {
 		// The daemon may have created the container although its answer was

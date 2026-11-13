@@ -395,6 +395,10 @@ type DNSProbe struct {
 	Answers  []netip.Addr `json:"answers,omitempty"`  // unmapped: IPv4 first, then IPv6
 	Upstream []string     `json:"upstream,omitempty"` // Docker's "# ExtServers:" comment in resolv.conf
 	Attempts []DNSAttempt `json:"attempts,omitempty"` // each query sent, in order
+	// HostResolver says a nameserver this lookup could ask is on the probe
+	// block list and was allowed because it is one of the host's own
+	// resolvers (INITIAL.md §10 Q13); the record's limitations name it.
+	HostResolver bool `json:"host_resolver,omitempty"`
 }
 
 // DNSAttempt is one query sent to the resolver.

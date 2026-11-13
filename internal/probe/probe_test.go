@@ -239,7 +239,7 @@ func TestLimits(t *testing.T) {
 	if _, ok := empty.Check(netip.MustParseAddr("10.0.0.1")); ok {
 		t.Error("an empty allowlist admits nothing")
 	}
-	if back, _ := ParseLimits(l.Flag()); !cmp.Equal(back, l, cmpopts.EquateComparable(netip.Prefix{})) {
+	if back, _ := ParseLimits(l.Flag()); !cmp.Equal(back, l, cmpopts.EquateComparable(netip.Prefix{}), cmpopts.IgnoreUnexported(Limits{})) {
 		t.Errorf("flag round trip: %v", back)
 	}
 	if _, err := ParseLimits("10.0.0.0/33"); err == nil {

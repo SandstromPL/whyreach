@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -177,7 +178,7 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 
 // newProbeEntry is the hidden subcommand the probe container runs.
 func newProbeEntry() *cobra.Command {
-	var spec, allow, names string
+	var spec, allow, names, hostResolvers, private, free, approved string
 	var budget time.Duration
 	cmd := &cobra.Command{
 		Use:    "__probe",
@@ -199,6 +200,22 @@ func newProbeEntry() *cobra.Command {
 					return internalErr(err)
 				}
 			}
+			var err error
+			if lim.HostResolvers, err = probe.ParseAddrs(hostResolvers); err != nil {
+				return internalErr(err)
+			}
+			if cmd.Flags().Changed("private") {
+				lim.AddrsRestricted = true
+				if lim.Private, err = probe.ParsePrefixes(private); err != nil {
+					return internalErr(err)
+				}
+				if lim.Free, err = probe.ParsePrefixes(free); err != nil {
+					return internalErr(err)
+				}
+				if lim.Approved, err = probe.ParseAddrPorts(approved); err != nil {
+					return internalErr(err)
+				}
+			}
 			if c := probe.Main(cmd.Context(), spec, budget, lim, cmd.OutOrStdout(), cmd.ErrOrStderr()); c != probe.ExitOK {
 				return internalErr(errors.New("probe failed"))
 			}
@@ -209,6 +226,10 @@ func newProbeEntry() *cobra.Command {
 	cmd.Flags().DurationVar(&budget, "budget", probe.Budget, "time the whole batch may take")
 	cmd.Flags().StringVar(&allow, "allow", "", "comma-separated prefixes connects are restricted to (absent: no allowlist)")
 	cmd.Flags().StringVar(&names, "names", "", "comma-separated outside names that may be sent to a nameserver (absent: any name)")
+	cmd.Flags().StringVar(&hostResolvers, "host-resolvers", "", "comma-separated addresses of the host's own resolvers, asked for DNS even on the block list")
+	cmd.Flags().StringVar(&private, "private", "", "comma-separated prefixes whose addresses need free or approved (absent: no such limit)")
+	cmd.Flags().StringVar(&free, "free", "", "comma-separated prefixes of private addresses that need no approval")
+	cmd.Flags().StringVar(&approved, "approved", "", "comma-separated address:port pairs the user approved")
 	return cmd
 }
 
@@ -370,9 +391,13 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 		Listeners:  procListeners{},
 		Interfaces: host.Addrs,
 		Host:       executor.NewHost(),
-		Client:     client,
-		Deadline:   cfg.Timeouts.Diagnosis.Duration,
-		Logger:     logger,
+		// The host's own resolvers, read for each batch, since they change
+		// (DHCP, VPNs): a probe may ask them even on the block list, for DNS
+		// only (INITIAL.md §10 Q13).
+		HostResolvers: func() []netip.Addr { return probe.Nameservers(hostResolvConf, systemdResolvConf) },
+		Client:        client,
+		Deadline:      cfg.Timeouts.Diagnosis.Duration,
+		Logger:        logger,
 	}
 	if auditPath, err := config.AuditPath(); err == nil {
 		deps.Audit = policy.NewAudit(auditPath)
@@ -416,6 +441,7 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 		v := viewFromContainer(context.Background(), deps.Docker, deps.Self, host.DockerBridgeVisible, "/proc", logger)
 		if !v.network {
 			hideHost(&deps)
+			deps.HostResolvers = nil // its own resolv.conf isn't the host's
 		}
 		if !v.pids {
 			deps.Listeners = hiddenPIDs{deps.Listeners}
@@ -454,6 +480,14 @@ func viewFromContainer(ctx context.Context, dk engine.Docker, ownID string, brid
 	}
 	return view{network: bridgeVisible(), pids: true}
 }
+
+// The host's resolver files: its own, and systemd-resolved's list of the
+// upstream servers behind its stub, which Docker gives default-bridge
+// containers when the first lists only the stub.
+const (
+	hostResolvConf    = "/etc/resolv.conf"
+	systemdResolvConf = "/run/systemd/resolve/resolv.conf"
+)
 
 // selfInspectTimeout bounds asking Docker about whyreach's own container.
 const selfInspectTimeout = 3 * time.Second

@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -125,10 +126,12 @@ func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evide
 		return p, nil, fmt.Errorf("%s lists no nameserver", r.ResolvPath)
 	}
 	// The container controls its resolv.conf: a nameserver on the block list
-	// (link-local, cloud metadata) gets no query (INITIAL.md §10 Q11). The
-	// nameservers come before the name: a lookup that can't be made isn't
-	// worth asking the user about.
-	servers, next, notes, refusal := allowedServers(conf.servers, r.ResolvPath)
+	// (link-local, cloud metadata) gets no query unless it is one of the
+	// host's own resolvers (INITIAL.md §10 Q11, Q13). The nameservers come
+	// before the name: a lookup that can't be made isn't worth asking the
+	// user about.
+	servers, next, notes, refusal, viaHost := allowedServers(conf.servers, r.ResolvPath, lim)
+	p.HostResolver = viaHost
 	if refusal != "" {
 		return p, notes, &Refused{Reason: refusal}
 	}
@@ -225,13 +228,14 @@ const maxNameservers = 3
 
 // allowedServers returns the nameservers ("addr:53") a lookup may use, as
 // the app's resolver would: of the first three, those before the first on
-// the block list. The C library asks them in order and moves on when one
-// fails, so a blocked one is reached only after the ones before it fail:
-// next names it, and a lookup whose servers fail stops there (failover).
-// When the first is blocked, the app's own lookup would go there, so a
-// lookup through the others would describe one the app doesn't make:
-// refusal says so, and nothing is sent.
-func allowedServers(servers []string, path string) (ok []string, next string, notes []string, refusal string) {
+// the block list that isn't one of the host's own resolvers (lim). The C
+// library asks them in order and moves on when one fails, so a blocked one
+// is reached only after the ones before it fail: next names it, and a
+// lookup whose servers fail stops there (failover). When the first is
+// blocked, the app's own lookup would go there, so a lookup through the
+// others would describe one the app doesn't make: refusal says so, and
+// nothing is sent. viaHost says a blocked one is used as the host's own.
+func allowedServers(servers []string, path string, lim Limits) (ok []string, next string, notes []string, refusal string, viaHost bool) {
 	if len(servers) > maxNameservers {
 		servers = servers[:maxNameservers]
 	}
@@ -241,15 +245,50 @@ func allowedServers(servers []string, path string) (ok []string, next string, no
 			continue
 		}
 		if reason, isBlocked := target.Blocked(ap.Addr()); isBlocked {
-			if i == 0 {
-				return nil, "", nil, fmt.Sprintf("not looked up: the first nameserver in %s, %s, which the app asks first, is on the probe block list (link-local and cloud-metadata addresses)", path, ap.Addr())
+			if lim.HostResolver(ap.Addr()) {
+				// The host's own resolver, which Docker copies into
+				// default-bridge and host-network containers: DNS only, on
+				// port 53 (INITIAL.md §10 Q13).
+				notes = append(notes, fmt.Sprintf("nameserver %d of %s, %s, is on the probe block list (%s), but it is one of the host's own resolvers, so whyreach asks it for DNS only (INITIAL.md §10 Q13)", i+1, path, ap.Addr(), reason))
+				ok, viaHost = append(ok, s), true
+				continue
 			}
-			notes = append(notes, fmt.Sprintf("nameserver %d of %s, %s, is on the probe block list (%s): glibc asks it when the ones before it fail, and whyreach then makes no lookup; musl asks every nameserver at once, so a musl app may take its answer from there", i+1, path, ap.Addr(), reason))
-			return ok, ap.Addr().String(), notes, ""
+			if i == 0 {
+				return nil, "", notes, fmt.Sprintf("not looked up: the first nameserver in %s, %s, which the app asks first, is on the probe block list (link-local and cloud-metadata addresses), which whyreach asks only when it is one of the host's own resolvers", path, ap.Addr()), false
+			}
+			notes = append(notes, fmt.Sprintf("nameserver %d of %s, %s, is on the probe block list (%s) and isn't one of the host's own resolvers: glibc asks it when the ones before it fail, and whyreach then makes no lookup; musl asks every nameserver at once, so a musl app may take its answer from there", i+1, path, ap.Addr(), reason))
+			return ok, ap.Addr().String(), notes, "", viaHost
 		}
 		ok = append(ok, s)
 	}
-	return ok, "", nil, ""
+	return ok, "", notes, "", viaHost
+}
+
+// maxResolverFile bounds a read of the host's resolver files.
+const maxResolverFile = 1 << 20
+
+// Nameservers reads the nameservers that resolver files list, as the C
+// library reads them, without repeats; a file that can't be read is
+// skipped. The policy reads the host's own with it (INITIAL.md §10 Q13).
+func Nameservers(paths ...string) []netip.Addr {
+	var out []netip.Addr
+	for _, path := range paths {
+		f, err := os.Open(path) //nolint:gosec // G304: the caller's fixed resolver files
+		if err != nil {
+			continue
+		}
+		conf, err := parseResolvConf(io.LimitReader(f, maxResolverFile))
+		_ = f.Close() // read-only
+		if err != nil {
+			continue
+		}
+		for _, s := range conf.servers {
+			if ap, err := netip.ParseAddrPort(s); err == nil && !slices.Contains(out, ap.Addr()) {
+				out = append(out, ap.Addr())
+			}
+		}
+	}
+	return out
 }
 
 // failover reports a result after which glibc asks the next nameserver:

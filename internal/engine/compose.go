@@ -203,8 +203,11 @@ func facts(v evidence.View, complete bool) []Fact {
 		ctx := d.Context.String()
 		if len(d.P.Answers) > 0 {
 			via := "via " + d.P.Server
-			if d.P.Via == evidence.ViaHosts {
+			switch {
+			case d.P.Via == evidence.ViaHosts:
 				via = "via /etc/hosts"
+			case d.P.HostResolver:
+				via += ", the host's own resolver (on the probe block list, asked for DNS only)"
 			}
 			add(fmt.Sprintf("%q → %s %s, in %s", d.P.Name, addrList(d.P.Answers), via, ctx), d.ID)
 		} else {
@@ -432,10 +435,12 @@ func (r *run) howToEnable(e evidence.Evidence) string {
 	case e.Status == evidence.StatusPermissionDenied && e.Err.Message == executor.ProbeContainersOff:
 		return fmt.Sprintf("Enable probe containers (the user's decision, not an agent's): approve them when an MCP client asks, or set probe_containers = true under [permissions] in %s. whyreach then imports its own binary as the image whyreach-probe and runs each check in a short-lived, hardened container labeled io.whyreach.probe=1, which it removes afterwards.", cfg)
 	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && e.Err.Message == probe.NameNotApproved:
-		return fmt.Sprintf("A lookup sends its name to the DNS servers of the name's domain, so for an MCP client whyreach looks up a name with a dot that Docker doesn't know only with the user's approval (the user's decision, not an agent's): approve the name if whyreach asks (it asks only through clients that support elicitation, about 3 names at most in a session, and not again about a name the user declined), or list its domain under names in [probe] in %s (example.com covers its subdomains).", cfg)
+		return fmt.Sprintf("A lookup sends its name to the DNS servers of the name's domain, so for an MCP client whyreach looks up a name with a dot that Docker doesn't know only with the user's approval (the user's decision, not an agent's): approve the name if whyreach asks (it asks only through clients that support elicitation, about 3 names or addresses at most in a session, and not again about one the user declined; an approval covers %d lookups), or list its domain under names in [probe] in %s (example.com covers its subdomains).", probe.ApprovalBudget, cfg)
+	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && e.Err.Message == probe.AddrNotApproved:
+		return fmt.Sprintf("A connect's address, port and timing can carry data to whoever runs a private address, so for an MCP client whyreach connects to one outside Docker's networks and this machine's own addresses only with the user's approval of that address and port (the user's decision, not an agent's): approve it if whyreach asks (it asks only through clients that support elicitation, about 3 names or addresses at most in a session, and not again about one the user declined; an approval covers %d connects), or add the address or its CIDR to allow under [probe] in %s.", probe.ApprovalBudget, cfg)
 	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && strings.Contains(e.Err.Message, "block list"):
-		return "whyreach never sends a query to a link-local or cloud-metadata address (INITIAL.md §10 Q11), and the app's lookup would go to one (its first nameserver, or the next one after the first failed), so whyreach can't make that lookup. " +
-			"Some clouds use 169.254.169.254 as their resolver, and Docker copies the host's resolver into containers on the default bridge and on the host's network. " +
+		return "whyreach sends a query to a link-local or cloud-metadata address only when it is one of the host's own resolvers (INITIAL.md §10 Q13), and the app's lookup would go to one that isn't (its first nameserver, or the next one after the first failed), so whyreach can't make that lookup. " +
+			"Either the container's own resolver settings (dns: in Compose) name it, or whyreach can't read the host's resolvers (its image without --network host). " +
 			"From a container on a user-defined network, lookups go to Docker's DNS (127.0.0.11) instead."
 	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && strings.Contains(e.Err.Message, "allowlist"):
 		return fmt.Sprintf("Add the address or its range to allow under [probe] in %s (classes: loopback, rfc1918, docker; or CIDRs).", cfg)

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/evidence"
@@ -498,7 +499,7 @@ func TestOutsideNameLimits(t *testing.T) {
 		{NamesRestricted: true},
 		{NamesRestricted: true},
 	}
-	if diff := cmp.Diff(want, f.host.lims); diff != "" {
+	if diff := cmp.Diff(want, f.host.lims, cmpopts.IgnoreUnexported(probe.Limits{})); diff != "" {
 		t.Errorf("limits (-want +got):\n%s", diff)
 	}
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -33,22 +34,26 @@ func (p *Policy) Doctor(ctx context.Context) []engine.Check {
 	if len(p.d.Settings.Names) > 0 {
 		names = "names under " + strings.Join(p.d.Settings.Names, ", ") + " need no approval ([probe] names)"
 	}
+	private := ""
+	if p.rfc1918 {
+		private = fmt.Sprintf(" A connect to a private address outside Docker's networks and this machine's own addresses needs the user's approval of that address and port (%d connects an approval), unless an address or CIDR in allow covers it.", ApprovalBudget)
+	}
 	out = append(out, engine.Check{Name: "probe policy", Status: engine.CheckInfo,
-		Detail: fmt.Sprintf("TCP probes may go to %s; at most %d probes a minute; link-local and cloud-metadata addresses are always blocked, as nameservers too. "+
-			"For MCP clients, a name with a dot that Docker doesn't know is looked up only after the user approves it; %s", allow, p.d.Settings.RatePerMinute, names)})
+		Detail: fmt.Sprintf("TCP probes may go to %s; at most %d probes a minute; link-local and cloud-metadata addresses are always blocked, and as nameservers asked only when they are the host's own resolvers (DNS only). "+
+			"For MCP clients, a name with a dot that Docker doesn't know is looked up only after the user approves it (%d lookups an approval); %s.%s", allow, p.d.Settings.RatePerMinute, ApprovalBudget, names, private)})
 
 	const hostResolv, systemdResolv = "/etc/resolv.conf", "/run/systemd/resolve/resolv.conf"
+	var host []netip.Addr
+	if p.d.HostResolvers != nil {
+		host = p.d.HostResolvers()
+	}
 	if ns, blocked, err := probe.FirstNameserverBlocked(hostResolv); err == nil && blocked {
-		out = append(out, engine.Check{Name: "dns", Status: engine.CheckWarn,
-			Detail: fmt.Sprintf("the first nameserver in /etc/resolv.conf, %s, is a link-local or cloud-metadata address, which whyreach never queries (INITIAL.md §10 Q11): "+
-				"no lookups from the host, from host-network containers, or from containers on the default bridge, which copy it. Containers on user-defined networks ask Docker's DNS instead", ns)})
+		out = append(out, resolverCheck("the first nameserver in /etc/resolv.conf", ns, host))
 	} else if path := probe.DockerResolvConf(hostResolv, systemdResolv); path != hostResolv {
 		// systemd-resolved: the host asks its stub, and Docker gives
 		// default-bridge containers the upstreams behind it instead.
 		if ns, blocked, err := probe.FirstNameserverBlocked(path); err == nil && blocked {
-			out = append(out, engine.Check{Name: "dns", Status: engine.CheckWarn,
-				Detail: fmt.Sprintf("the first nameserver Docker gives containers on the default bridge, %s (from %s, since /etc/resolv.conf lists only systemd-resolved's 127.0.0.53), is a link-local or cloud-metadata address, which whyreach never queries (INITIAL.md §10 Q11): "+
-					"no lookups from those containers. The host, host-network containers and containers on user-defined networks are unaffected", ns, path)})
+			out = append(out, resolverCheck("the first nameserver Docker gives containers on the default bridge (from "+path+", since /etc/resolv.conf lists only systemd-resolved's 127.0.0.53)", ns, host))
 		}
 	}
 	pl := platform.Detect()
@@ -181,4 +186,19 @@ func (p *Policy) auditCheck() engine.Check {
 		c.Status, c.Detail = engine.CheckFail, err.Error()
 	}
 	return c
+}
+
+// resolverCheck is doctor's line about a host resolver on the block list
+// (INITIAL.md §10 Q13): whyreach asks it for DNS only, as one of the host's
+// own resolvers, unless it can't see the host's resolver files (its image
+// without --network host).
+func resolverCheck(which, ns string, host []netip.Addr) engine.Check {
+	if a, err := netip.ParseAddr(ns); err == nil && (probe.Limits{HostResolvers: host}).HostResolver(a) {
+		return engine.Check{Name: "dns", Status: engine.CheckInfo, Detail: fmt.Sprintf(
+			"%s, %s, is a link-local or cloud-metadata address, and one of the host's own resolvers: whyreach asks it for DNS only, and never connects to it otherwise (INITIAL.md §10 Q13). "+
+				"A blocked nameserver that only a container's own resolv.conf names stays refused", which, ns)}
+	}
+	return engine.Check{Name: "dns", Status: engine.CheckWarn, Detail: fmt.Sprintf(
+		"%s, %s, is a link-local or cloud-metadata address, and whyreach can't see the host's resolvers from here, so it doesn't ask it: no lookups through it (INITIAL.md §10 Q13)", which, ns),
+		Fix: executor.HostHiddenAdvice + "."}
 }

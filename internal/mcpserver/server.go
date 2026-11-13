@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net/netip"
 	"os"
 	"slices"
 	"sync"
@@ -53,36 +54,49 @@ type Server struct {
 	o   Options
 	srv *mcp.Server
 
-	logOnce    sync.Once
-	mu         sync.Mutex
-	recent     []*engine.Diagnosis // the last few, for save_report
-	asked      bool                // the user was asked for probe containers this session
-	askedNames map[string]bool     // outside names the user was asked about this session
-	pending    map[string]question // request states of questions sent as input requests
-	readOnly   bool                // the annotations currently registered
+	logOnce   sync.Once
+	mu        sync.Mutex
+	recent    []*engine.Diagnosis // the last few, for save_report
+	asked     bool                // the user was asked for probe containers this session
+	questions int                 // questions about names and addresses asked this session
+	answers   map[string]string   // per name or address question: pending, approved or declined
+	pending   map[string]question // request states of questions sent as input requests
+	readOnly  bool                // the annotations currently registered
 }
 
 // question is what an input request asked the user: to allow probe
-// containers, or to look up one outside name.
+// containers, to look up one outside name, or to connect to one private
+// address and port.
 type question struct {
-	key  string // consentKey or nameKey
-	name string // for nameKey: the name the server asked about
+	key  string         // consentKey, nameKey or addrKey
+	name string         // for nameKey: the name the server asked about
+	addr netip.AddrPort // for addrKey: the address and port
 }
 
 // keep is how many diagnoses save_report can find.
 const keep = 32
 
-// Keys of the questions in input requests: probe containers, and the
-// lookup of an outside name (INITIAL.md §10 Q11).
+// Keys of the questions in input requests: probe containers, the lookup of
+// an outside name (INITIAL.md §10 Q11), and a connect to a private address
+// (§10 Q15).
 const (
 	consentKey = "probe_containers"
 	nameKey    = "name_lookup"
+	addrKey    = "private_connect"
 )
 
-// maxNameQuestions bounds the questions about names in a session: an agent
-// can pick any name, and a stream of dialogs invites a careless yes. Past
-// it, a held-back name is a gap that names [probe] names.
-const maxNameQuestions = 3
+// maxQuestions bounds the questions about names and addresses in a session,
+// together: an agent can pick any name or address, and a stream of dialogs
+// invites a careless yes. Past it, a held-back check is a gap that names
+// the setting.
+const maxQuestions = 3
+
+// States of a name or address question (Server.answers).
+const (
+	answerPending  = "pending"
+	answerApproved = "approved"
+	answerDeclined = "declined"
+)
 
 // New builds the server and registers its tools.
 func New(p *policy.Policy, o Options) *Server {
@@ -92,7 +106,7 @@ func New(p *policy.Policy, o Options) *Server {
 	if o.ConsentTimeout <= 0 {
 		o.ConsentTimeout = 2 * time.Minute
 	}
-	s := &Server{p: p, o: o, pending: map[string]question{}, askedNames: map[string]bool{}}
+	s := &Server{p: p, o: o, pending: map[string]question{}, answers: map[string]string{}}
 	s.srv = mcp.NewServer(&mcp.Implementation{Name: "whyreach", Title: "whyreach: Docker network diagnosis", Version: o.Version}, &mcp.ServerOptions{
 		Logger:             o.Logger,
 		Instructions:       instructions,
@@ -323,6 +337,17 @@ func (s *Server) diagnose(ctx context.Context, req *mcp.CallToolRequest, in Diag
 			}
 		}
 	}
+	if addrs := policy.NeedsAddrApproval(d.Evidence); !settled(d) && len(addrs) > 0 {
+		res, approved := s.askForAddr(ctx, req, addrs, d.Question.From.Ref)
+		if res != nil {
+			return res, report.Diagnosis{}, nil
+		}
+		if approved {
+			if again, err := s.p.Diagnose(ctx, args); err == nil {
+				d = again
+			}
+		}
+	}
 	s.remember(d)
 	var text bytes.Buffer
 	report.RenderText(&text, d)
@@ -390,6 +415,17 @@ func (s *Server) probe(ctx context.Context, req *mcp.CallToolRequest, in ProbeIn
 			}
 		}
 	}
+	if addrs := policy.NeedsAddrApproval(res.Evidence); len(addrs) > 0 {
+		ask, approved := s.askForAddr(ctx, req, addrs, res.From)
+		if ask != nil {
+			return ask, report.ProbeResult{}, nil
+		}
+		if approved {
+			if again, err := s.p.Probe(ctx, args); err == nil {
+				res = again
+			}
+		}
+	}
 	out := report.CompactProbe(res, s.adviceFor(req))
 	var text bytes.Buffer
 	report.RenderProbe(&text, out)
@@ -417,9 +453,17 @@ func (s *Server) advice(e evidence.Evidence, canAsk bool) string {
 	case e.Status == evidence.StatusPermissionDenied:
 		return "This check runs inside the container through a probe container, which is off. Turning them on is the user's decision: " +
 			"approve probe containers when whyreach asks, or set probe_containers = true under [permissions] in " + s.p.ConfigPath() + "."
+	case policy.AddrHeldBack(e):
+		t, _ := e.Data.(evidence.TCPProbe)
+		how := "add the address or its CIDR to allow under [probe] in " + s.p.ConfigPath() + "."
+		if canAsk && t.Addr.IsValid() && s.mayAskAbout(question{key: addrKey, addr: t.Addr}.answerKey()) {
+			how = "approve the address and port when whyreach asks, or " + how
+		}
+		return "A connect's address, port and timing can carry data to whoever runs a private address, so whyreach connects to one outside Docker's networks " +
+			"and this machine's own addresses only with the user's approval of that address and port. That is the user's decision: " + how
 	case policy.NameHeldBack(e):
 		how := "list its domain under names in [probe] in " + s.p.ConfigPath() + "."
-		if canAsk && s.mayAskAbout(target.NormalizeName(e.Subject)) {
+		if canAsk && s.mayAskAbout(question{key: nameKey, name: target.NormalizeName(e.Subject)}.answerKey()) {
 			how = "approve the name when whyreach asks, or " + how
 		}
 		msg := "A lookup sends its name to the DNS servers of the name's domain, so whyreach looks up a name with a dot that Docker doesn't know " +
@@ -434,12 +478,27 @@ func (s *Server) advice(e evidence.Evidence, canAsk bool) string {
 }
 
 // mayAskAbout reports whether whyreach would still ask the user about a
-// name in this session: not one asked about already (and declined, or it
-// wouldn't be held back), and not past maxNameQuestions.
-func (s *Server) mayAskAbout(name string) bool {
+// name or an address in this session (its answer key).
+func (s *Server) mayAskAbout(k string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return !s.askedNames[name] && len(s.askedNames) < maxNameQuestions
+	return s.mayAsk(k)
+}
+
+// mayAsk reports whether a question may be put: not declined, not waiting
+// for an answer, and within maxQuestions. An approval whose uses ran out
+// may be asked about again. s.mu is held.
+func (s *Server) mayAsk(k string) bool {
+	st := s.answers[k]
+	return st != answerPending && st != answerDeclined && s.questions < maxQuestions
+}
+
+// answerKey identifies a question about a name or an address.
+func (q question) answerKey() string {
+	if q.key == addrKey {
+		return "addr:" + q.addr.String()
+	}
+	return "name:" + q.name
 }
 
 // SaveIn is save_report's input. It has no way to turn redaction off:
@@ -562,8 +621,8 @@ func (s *Server) answered(req *mcp.CallToolRequest) {
 	switch q.key {
 	case consentKey:
 		s.consent(answer)
-	case nameKey:
-		s.nameConsent(q.name, answer)
+	case nameKey, addrKey:
+		s.record(q, answer, "")
 	}
 }
 
@@ -582,57 +641,95 @@ func (s *Server) consent(answer *mcp.ElicitResult) bool {
 	return approved
 }
 
-// askForName asks the user, once per name per session and at most
-// maxNameQuestions times, to allow a lookup of one outside name that a check
-// needed (INITIAL.md §10 Q11), through the same two paths as
-// askForProbeContainers. An approval covers that exact name only, for the
-// rest of the session: one yes must not let other names out. A name the
-// user declined is not asked about again.
-func (s *Server) askForName(ctx context.Context, req *mcp.CallToolRequest, names []string, source string) (res *mcp.CallToolResult, approved bool) {
-	caps := req.ClientCapabilities()
-	if caps == nil || caps.Elicitation == nil {
-		return nil, false
-	}
-	s.mu.Lock()
-	name := ""
+// askForName asks the user about one outside name that a check needed
+// (INITIAL.md §10 Q11, Q14), the first that may be asked about. An approval
+// covers that exact name only, for ApprovalBudget lookups: one yes must not
+// let other names out. A declined name isn't asked about again; one whose
+// lookups ran out may be.
+func (s *Server) askForName(ctx context.Context, req *mcp.CallToolRequest, names []string, source string) (*mcp.CallToolResult, bool) {
 	for _, n := range names {
-		if !s.askedNames[n] && !s.p.NameAllowed(n) {
-			name = n
-			break
+		if s.p.NameAllowed(n) {
+			continue
+		}
+		if res, approved, asked := s.ask(ctx, req, question{key: nameKey, name: n}, nameParams(n, source, s.p.ConfigPath())); asked {
+			return res, approved
 		}
 	}
-	if name == "" || len(s.askedNames) >= maxNameQuestions {
-		s.mu.Unlock()
-		return nil, false
+	return nil, false
+}
+
+// askForAddr asks the user about one private address and port that a check
+// needed (INITIAL.md §10 Q15), like askForName: an approval covers exactly
+// that address and port, for ApprovalBudget connects.
+func (s *Server) askForAddr(ctx context.Context, req *mcp.CallToolRequest, addrs []netip.AddrPort, source string) (*mcp.CallToolResult, bool) {
+	for _, a := range addrs {
+		if s.p.AddrAllowed(a) {
+			continue
+		}
+		if res, approved, asked := s.ask(ctx, req, question{key: addrKey, addr: a}, addrParams(a, source, s.p.ConfigPath())); asked {
+			return res, approved
+		}
 	}
-	s.askedNames[name] = true
-	params := nameParams(name, source, s.p.ConfigPath())
+	return nil, false
+}
+
+// ask puts one question about a name or an address to the user through the
+// same two paths as askForProbeContainers, unless mayAsk says no; asked
+// says whether it was put. On the 2026-07-28 path the answer comes with the
+// client's next call (answered).
+func (s *Server) ask(ctx context.Context, req *mcp.CallToolRequest, q question, params *mcp.ElicitParams) (res *mcp.CallToolResult, approved, asked bool) {
+	caps := req.ClientCapabilities()
+	if caps == nil || caps.Elicitation == nil {
+		return nil, false, false
+	}
+	k := q.answerKey()
+	s.mu.Lock()
+	if !s.mayAsk(k) {
+		s.mu.Unlock()
+		return nil, false, false
+	}
+	s.answers[k] = answerPending
+	s.questions++
 	if req.ProtocolVersion() >= "2026-07-28" {
 		state := randomState()
-		s.pending[state] = question{key: nameKey, name: name}
+		s.pending[state] = q
 		s.mu.Unlock()
-		return &mcp.CallToolResult{InputRequests: mcp.InputRequestMap{nameKey: params}, RequestState: state}, false
+		return &mcp.CallToolResult{InputRequests: mcp.InputRequestMap{q.key: params}, RequestState: state}, false, true
 	}
 	s.mu.Unlock()
 	ectx, cancel := context.WithTimeout(ctx, s.o.ConsentTimeout)
 	defer cancel()
 	answer, err := req.Session.Elicit(ectx, params)
 	if err != nil {
-		s.o.Logger.Warn("could not ask about a name", "err", err)
-		s.p.RecordNameConsent(name, false, "no answer: "+err.Error())
-		return nil, false
+		s.o.Logger.Warn("could not ask the user", "question", q.key, "err", err)
+		s.record(q, nil, "no answer: "+err.Error())
+		return nil, false, true
 	}
-	return nil, s.nameConsent(name, answer)
+	return nil, s.record(q, answer, ""), true
 }
 
-// nameConsent records the user's answer about one name.
-func (s *Server) nameConsent(name string, answer *mcp.ElicitResult) bool {
+// record stores the user's answer to a question about a name or an
+// address; how, when set, says why there was none.
+func (s *Server) record(q question, answer *mcp.ElicitResult, how string) bool {
 	approved := answer != nil && answer.Action == "accept" && answer.Content["allow"] == true
-	how := "cancel"
-	if answer != nil {
-		how = answer.Action
+	if how == "" {
+		how = "cancel"
+		if answer != nil {
+			how = answer.Action
+		}
 	}
-	s.p.RecordNameConsent(name, approved, how)
+	switch q.key {
+	case nameKey:
+		s.p.RecordNameConsent(q.name, approved, how)
+	case addrKey:
+		s.p.RecordAddrConsent(q.addr, approved, how)
+	}
+	s.mu.Lock()
+	s.answers[q.answerKey()] = answerDeclined
+	if approved {
+		s.answers[q.answerKey()] = answerApproved
+	}
+	s.mu.Unlock()
 	return approved
 }
 
@@ -641,13 +738,32 @@ func nameParams(name, source, configPath string) *mcp.ElicitParams {
 		Message: fmt.Sprintf("whyreach was asked to look up the name %s from %s. A lookup sends the name to the DNS servers of its domain, "+
 			"outside this machine, so whyreach asks you first: otherwise an agent could pass data out through the names it asks for. "+
 			"Allow it only if you expect a lookup of this name. If you allow it, whyreach may look up exactly %s, and no other name, "+
-			"for the rest of this session. (To allow a whole domain without being asked, list it under names in [probe] in %s.) Allow looking up %s?",
-			name, source, name, configPath, name),
+			"up to %d times in this session. (To allow a whole domain without being asked, list it under names in [probe] in %s.) Allow looking up %s?",
+			name, source, name, policy.ApprovalBudget, configPath, name),
 		RequestedSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"allow": map[string]any{
 					"type": "boolean", "title": "Look up " + name + " for this session", "default": false,
+				},
+			},
+			"required": []string{"allow"},
+		},
+	}
+}
+
+func addrParams(a netip.AddrPort, source, configPath string) *mcp.ElicitParams {
+	return &mcp.ElicitParams{
+		Message: fmt.Sprintf("whyreach was asked to connect to %s from %s. It is a private address outside Docker's networks and this machine's own addresses: "+
+			"a connection's address, port and timing can carry data to whoever runs it, so whyreach asks you first. whyreach sends nothing over the connection; it connects and closes. "+
+			"Allow it only if you expect a check of this address. If you allow it, whyreach may connect to exactly %s, and no other address or port, "+
+			"up to %d times in this session. (To allow an address or a range without being asked, add it to allow under [probe] in %s.) Allow connecting to %s?",
+			a, source, a, policy.ApprovalBudget, configPath, a),
+		RequestedSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"allow": map[string]any{
+					"type": "boolean", "title": "Connect to " + a.String() + " for this session", "default": false,
 				},
 			},
 			"required": []string{"allow"},

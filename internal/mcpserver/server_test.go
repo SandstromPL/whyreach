@@ -670,7 +670,7 @@ func TestOutsideNames(t *testing.T) {
 	})
 }
 
-// A session asks about at most maxNameQuestions names; the question
+// A session asks about at most maxQuestions names; the question
 // doesn't pre-approve; past the cap, held-back names are gaps.
 func TestNameQuestionsAreBounded(t *testing.T) {
 	r := newResolving(t)
@@ -684,7 +684,7 @@ func TestNameQuestionsAreBounded(t *testing.T) {
 		asked = append(asked, req.Params.Message)
 		return decline(req)
 	}, "")
-	for i := range maxNameQuestions + 2 {
+	for i := range maxQuestions + 2 {
 		p := structured[report.ProbeResult](t, call(t, cs, "run_probe", map[string]any{"kind": "dns", "target": fmt.Sprintf("n%d.example.com", i), "from": "container:shop-worker-1"}))
 		if !strings.Contains(p.HowToEnable, "names in [probe]") {
 			t.Errorf("probe %d: %+v", i, p)
@@ -695,8 +695,8 @@ func TestNameQuestionsAreBounded(t *testing.T) {
 			t.Errorf("probe %d promises a question whyreach won't ask: %s", i, p.HowToEnable)
 		}
 	}
-	if len(asked) != maxNameQuestions || len(r.queries) != 0 {
-		t.Errorf("asked %d times (want %d), sent %v", len(asked), maxNameQuestions, r.queries)
+	if len(asked) != maxQuestions || len(r.queries) != 0 {
+		t.Errorf("asked %d times (want %d), sent %v", len(asked), maxQuestions, r.queries)
 	}
 }
 
@@ -788,5 +788,157 @@ func TestHeldBackAdviceNotesBoundedSearch(t *testing.T) {
 	got := h.s.advice(e, false)
 	if !strings.Contains(got, engine.NameSearchBounded) || strings.Contains(got, "when whyreach asks") {
 		t.Errorf("advice: %s", got)
+	}
+}
+
+// dialer stands in for probe containers that check the probe's limits as
+// the probe does and connect to literal addresses as given, so the policy
+// counts the connects; a lookup it may send counts as one query.
+type dialer struct {
+	mu    sync.Mutex
+	dials []string
+}
+
+func (d *dialer) Name() string { return evidence.ExecutorProbeContainer }
+
+func (d *dialer) Run(ctx context.Context, _ evidence.ContextRef, specs []probe.Spec) ([]evidence.Evidence, error) {
+	lim := probe.LimitsFrom(ctx)
+	var out []evidence.Evidence
+	for _, s := range specs {
+		if s.Kind == probe.SpecDNS {
+			e := evidence.Evidence{Kind: evidence.KindDNS, Subject: s.Host, Status: evidence.StatusOK,
+				Data: evidence.DNSProbe{Name: s.Host, Via: evidence.ViaDNS, Attempts: []evidence.DNSAttempt{{Query: s.Host, Type: "A", Rcode: "NOERROR", N: 1}}, Answers: []netip.Addr{netip.MustParseAddr("10.9.9.9")}}}
+			if reason, ok := lim.CheckName(s.Host); !ok {
+				e.Status, e.Data = evidence.StatusSkipped, evidence.DNSProbe{Name: s.Host}
+				e.Err = &evidence.Error{Code: evidence.CodePolicyDenied, Message: reason}
+			}
+			out = append(out, e)
+			continue
+		}
+		a, err := netip.ParseAddr(s.Host)
+		if s.Kind != probe.SpecTCP || err != nil {
+			continue
+		}
+		ap := netip.AddrPortFrom(a, s.Port)
+		if reason, ok := lim.CheckConnect(ap); !ok {
+			out = append(out, evidence.Evidence{Kind: evidence.KindTCP, Subject: ap.String(), Status: evidence.StatusSkipped,
+				Err: &evidence.Error{Code: evidence.CodePolicyDenied, Message: reason}, Data: evidence.TCPProbe{Target: ap.String(), Addr: ap, Outcome: evidence.OutcomeBlocked}})
+			continue
+		}
+		d.mu.Lock()
+		d.dials = append(d.dials, ap.String())
+		d.mu.Unlock()
+		out = append(out, evidence.Evidence{Kind: evidence.KindTCP, Subject: ap.String(), Status: evidence.StatusOK,
+			Data: evidence.TCPProbe{Target: ap.String(), Addr: ap, Via: evidence.ViaLiteral, Outcome: evidence.OutcomeConnected}})
+	}
+	return out, nil
+}
+
+func (d *dialer) count() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return len(d.dials)
+}
+
+// Through MCP, a TCP probe to a private address outside Docker's networks
+// asks the user about that address and port, on both protocol paths, with
+// "no" as the default. An approval covers ApprovalBudget connects, then
+// whyreach asks again; a decline isn't asked about again; Docker's networks
+// ask nothing (INITIAL.md §10 Q15).
+func TestPrivateAddressQuestion(t *testing.T) {
+	args := map[string]any{"kind": "tcp", "target": "10.0.5.7:5432", "from": "container:shop-worker-1"}
+	settings := policy.Settings{ProbeContainers: true, Allow: []string{"loopback", "rfc1918", "docker"}}
+	for _, version := range []string{"2025-06-18", ""} {
+		label := version
+		if label == "" {
+			label = "latest"
+		}
+		t.Run(label+"/accept", func(t *testing.T) {
+			d := &dialer{}
+			h := harness{}.build(t, settings, fakeDocker{}, d)
+			var asked []string
+			cs := h.connect(t, func(req *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+				schema, _ := json.Marshal(req.Params.RequestedSchema)
+				if !strings.Contains(string(schema), `"default":false`) {
+					t.Errorf("the address question must not pre-approve: %s", schema)
+				}
+				asked = append(asked, req.Params.Message)
+				return accept(req)
+			}, version)
+			call(t, cs, "run_probe", args)
+			if len(asked) != 1 || !strings.Contains(asked[0], "10.0.5.7:5432") || !strings.Contains(asked[0], fmt.Sprintf("up to %d times", policy.ApprovalBudget)) {
+				t.Fatalf("asked %q", asked)
+			}
+			for range policy.ApprovalBudget - 1 {
+				call(t, cs, "run_probe", args)
+			}
+			if len(asked) != 1 || d.count() != policy.ApprovalBudget {
+				t.Errorf("within the approval: asked %d times, connected %d times", len(asked), d.count())
+			}
+			call(t, cs, "run_probe", args)
+			if len(asked) != 2 || d.count() != policy.ApprovalBudget+1 {
+				t.Errorf("past the approval: asked %d times, connected %d times; want 2 and %d", len(asked), d.count(), policy.ApprovalBudget+1)
+			}
+			call(t, cs, "run_probe", map[string]any{"kind": "tcp", "target": "172.22.0.3:8080", "from": "container:shop-worker-1"})
+			if len(asked) != 2 {
+				t.Errorf("Docker's network asked: %q", asked)
+			}
+			if e := auditEntries(t, h.audit, policy.ToolAddrConsent); len(e) != 2 || e[0].Status != "approved" || e[0].Args["address"] != "10.0.5.7:5432" {
+				t.Errorf("audit: %+v", e)
+			}
+		})
+		t.Run(label+"/decline", func(t *testing.T) {
+			d := &dialer{}
+			h := harness{}.build(t, settings, fakeDocker{}, d)
+			asked := 0
+			cs := h.connect(t, func(req *mcp.ElicitRequest) (*mcp.ElicitResult, error) { asked++; return decline(req) }, version)
+			for range 2 {
+				p := structured[report.ProbeResult](t, call(t, cs, "run_probe", args))
+				if !strings.Contains(p.HowToEnable, "allow under [probe]") || strings.Contains(p.HowToEnable, "when whyreach asks") {
+					t.Errorf("advice: %s", p.HowToEnable)
+				}
+			}
+			if asked != 1 || d.count() != 0 {
+				t.Errorf("asked %d times, connected %d times; want 1 and 0", asked, d.count())
+			}
+		})
+	}
+}
+
+// Questions about names and addresses share the session's limit.
+func TestQuestionsShareTheLimit(t *testing.T) {
+	d := &dialer{}
+	h := harness{}.build(t, policy.Settings{ProbeContainers: true, Allow: []string{"loopback", "rfc1918", "docker"}}, fakeDocker{}, d)
+	asked := 0
+	cs := h.connect(t, func(req *mcp.ElicitRequest) (*mcp.ElicitResult, error) { asked++; return decline(req) }, "")
+	for _, a := range []map[string]any{
+		{"kind": "dns", "target": "a.example.com"}, {"kind": "tcp", "target": "10.0.5.7:5432"},
+		{"kind": "dns", "target": "b.example.com"}, {"kind": "tcp", "target": "10.0.5.8:5432"},
+	} {
+		a["from"] = "container:shop-worker-1"
+		call(t, cs, "run_probe", a)
+	}
+	if asked != maxQuestions {
+		t.Errorf("asked %d questions, want %d", asked, maxQuestions)
+	}
+}
+
+// A name whose approved lookups ran out is asked about again, within the
+// session's limit (INITIAL.md §10 Q14).
+func TestNameAskedAgainAfterItsLookups(t *testing.T) {
+	r := newResolving(t)
+	h := harness{}.build(t, policy.Settings{ProbeContainers: true}, fakeDocker{}, r)
+	asked := 0
+	cs := h.connect(t, func(req *mcp.ElicitRequest) (*mcp.ElicitResult, error) { asked++; return accept(req) }, "")
+	args := map[string]any{"kind": "dns", "target": "example.com", "from": "container:shop-worker-1"}
+	for range policy.ApprovalBudget {
+		call(t, cs, "run_probe", args)
+	}
+	if asked != 1 {
+		t.Fatalf("asked %d times within one approval", asked)
+	}
+	p := structured[report.ProbeResult](t, call(t, cs, "run_probe", args))
+	if asked != 2 || len(p.Results) == 0 || p.Results[0].Status != string(evidence.StatusOK) {
+		t.Errorf("past the approval: asked %d times, result %+v", asked, p)
 	}
 }

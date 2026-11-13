@@ -31,7 +31,7 @@ type guard struct {
 
 func (g *guard) Name() string { return g.name }
 
-func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []probe.Spec) ([]evidence.Evidence, error) {
+func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []probe.Spec) (evs []evidence.Evidence, err error) {
 	if g.tier2b && !g.p.ProbeContainers() {
 		countsFrom(ctx).add(0, len(specs)) // withheld: the audit counts them as denied
 		return executor.Failed(where, g.name, specs, evidence.StatusPermissionDenied, &evidence.Error{
@@ -39,12 +39,20 @@ func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 		}), nil
 	}
 	lim := g.p.limits(ctx)
+	// Connects to approved private addresses are set aside for the batch
+	// before anything is sent, and lookups of approved names once the names
+	// are known; what goes unused returns afterwards (§10 Q14, Q15).
+	var leasedNames []string
+	if lim.AddrsRestricted {
+		lim.Approved = g.p.leaseAddrs(specs)
+	}
+	defer func() { g.p.settle(leasedNames, lim.Approved, evs) }()
 	var refused []evidence.Evidence
 	var send []probe.Spec
 	for _, s := range specs {
 		if s.Kind == probe.SpecTCP {
 			if a, err := netip.ParseAddr(s.Host); err == nil {
-				if reason, ok := lim.Check(a); !ok {
+				if reason, ok := lim.CheckConnect(netip.AddrPortFrom(a, s.Port)); !ok {
 					refused = append(refused, deny(where, g.name, s, reason))
 					continue
 				}
@@ -63,14 +71,14 @@ func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 	if len(send) == 0 {
 		return refused, nil
 	}
-	lim.NamesRestricted, lim.Names = g.p.names(ctx, send)
+	lim.NamesRestricted, lim.Names, leasedNames = g.p.names(ctx, send)
 	ex, err := g.inner()
 	if err != nil {
 		return append(refused, executor.Failed(where, g.name, send, evidence.StatusFailed, &evidence.Error{
 			Code: evidence.CodeDockerUnavailable, Message: err.Error(),
 		})...), err
 	}
-	evs, err := ex.Run(probe.WithLimits(ctx, lim), where, send)
+	evs, err = ex.Run(probe.WithLimits(ctx, lim), where, send)
 	if err != nil && g.fallback != nil && errors.Is(err, executor.ErrCannotEnter) && g.p.ProbeContainers() {
 		if pex, perr := g.fallback(); perr == nil {
 			why := err.Error()
@@ -110,11 +118,12 @@ func queried(e evidence.Evidence) bool {
 
 // names says whether a batch's lookups of outside names are held back, and
 // which outside names among its checks may go to a nameserver anyway: those
-// Docker's metadata knows, those [probe] names covers, and those the user
-// approved this session (INITIAL.md §10 Q11).
-func (p *Policy) names(ctx context.Context, specs []probe.Spec) (restricted bool, allowed []string) {
+// [probe] names covers, those Docker's metadata knows, and those the user
+// approved this session while the approval has lookups left (INITIAL.md
+// §10 Q11, Q14). An approved name takes one lookup for the batch: leased.
+func (p *Policy) names(ctx context.Context, specs []probe.Spec) (restricted bool, allowed, leased []string) {
 	if !p.NamesNeedApproval() {
-		return false, nil
+		return false, nil, nil
 	}
 	known := executor.KnownNamesFrom(ctx)
 	for _, s := range specs {
@@ -125,11 +134,14 @@ func (p *Policy) names(ctx context.Context, specs []probe.Spec) (restricted bool
 		if slices.Contains(allowed, n) {
 			continue
 		}
-		if p.NameAllowed(n) || known(ctx, n) {
+		switch {
+		case target.CoveredBy(n, p.d.Settings.Names), known(ctx, n):
 			allowed = append(allowed, n)
+		case p.leaseName(n):
+			allowed, leased = append(allowed, n), append(leased, n)
 		}
 	}
-	return true, allowed
+	return true, allowed, leased
 }
 
 // deny is the record of a check the policy refused to send.

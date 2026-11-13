@@ -122,6 +122,9 @@ func DefaultEnv() Env {
 // parallel; a name that several specs need is looked up once. The records'
 // Context is left for the caller to fill in.
 func Run(ctx context.Context, env Env, specs []Spec) []evidence.Evidence {
+	// Each connect to an approved private address uses one of the connects
+	// the batch was given (INITIAL.md §10 Q15).
+	env.Limits.allowance = newAllowance(env.Limits.Approved)
 	l := &lookups{env: env, done: map[string]*lookup{}}
 	results := make([][]evidence.Evidence, len(specs))
 	var wg sync.WaitGroup
