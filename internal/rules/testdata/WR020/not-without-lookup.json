@@ -1,0 +1,60 @@
+{
+  "description": "no lookup ran (probe containers off)",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-client-1",
+      "container_id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "to": {
+      "host": "example.com",
+      "port": 443,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "cccccccccccc",
+        "name": "client"
+      },
+      "subject": "container:shop-client-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "name": "shop-client-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 4099,
+        "compose": {
+          "project": "shop",
+          "service": "client"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "names": [
+              "client",
+              "shop-client-1"
+            ],
+            "ipv4": "172.22.0.5"
+          }
+        ]
+      },
+      "id": "ev-01",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    }
+  ],
+  "want": []
+}

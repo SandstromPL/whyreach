@@ -1,0 +1,167 @@
+{
+  "description": "from the host through a published port; nothing in web listens",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "localhost",
+      "port": 18080,
+      "proto": "tcp",
+      "class": "loopback"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "docker0",
+            "up": true,
+            "mtu": 1500,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "mtu": 1500,
+            "addrs": [
+              "192.168.1.10/24"
+            ]
+          }
+        ]
+      },
+      "id": "ev-01",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:18080"
+          }
+        ]
+      },
+      "source": "/proc/<pid>/net/tcp{,6} read from the host",
+      "id": "ev-02",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "eeeeeeeeeeee",
+        "name": "web"
+      },
+      "subject": "container:shop-web-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "name": "shop-web-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 4101,
+        "compose": {
+          "project": "shop",
+          "service": "web"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "names": [
+              "web"
+            ],
+            "ipv4": "172.22.0.4"
+          }
+        ],
+        "ports": [
+          {
+            "container_port": 8080,
+            "proto": "tcp",
+            "host_ip": "0.0.0.0",
+            "host_port": 18080
+          }
+        ]
+      },
+      "id": "ev-03",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "eeeeeeeeeeee",
+        "name": "web"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "data": {
+        "sockets": []
+      },
+      "source": "/proc/<pid>/net/tcp{,6} read from the host",
+      "id": "ev-04",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "localhost:18080",
+      "status": "ok",
+      "data": {
+        "target": "localhost:18080",
+        "addr": "127.0.0.1:18080",
+        "via": "hosts",
+        "outcome": "closed",
+        "rtt_ns": 300000
+      },
+      "source": "TCP connect",
+      "id": "ev-05",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR001",
+      "confidence": "high",
+      "supporting": [
+        "ev-03",
+        "ev-04",
+        "ev-05"
+      ]
+    }
+  ]
+}

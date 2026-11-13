@@ -1,0 +1,93 @@
+{
+  "description": "no lookup ran: metadata alone gives medium",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-worker-1",
+      "container_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "to": {
+      "host": "host.docker.internal",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "worker"
+      },
+      "subject": "container:shop-worker-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "shop-worker-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 4098,
+        "compose": {
+          "project": "shop",
+          "service": "worker"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "names": [
+              "shop-worker-1",
+              "worker"
+            ],
+            "ipv4": "172.22.0.2"
+          }
+        ]
+      },
+      "id": "ev-01",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "daemon_api": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "endpoint": "unix:///var/run/docker.sock",
+        "linux_engine": true
+      },
+      "source": "docker GET /version",
+      "id": "ev-02",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR011",
+      "confidence": "medium",
+      "supporting": [
+        "ev-01",
+        "ev-02"
+      ],
+      "fix_contains": "extra_hosts"
+    }
+  ]
+}

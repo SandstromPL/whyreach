@@ -108,10 +108,10 @@ type Rule interface {
 // the order of the table in INITIAL.md §4.5.
 func All() []Rule {
 	return []Rule{
-		wr008{}, // 1. destination
-		wr007{}, // 2. addressing
-		wr004{}, // 3. naming
-		wr002{}, // 5. listener
+		wr008{}, wr010{}, // 1. destination
+		wr007{}, wr011{}, wr006{}, wr019{}, // 2. addressing
+		wr004{}, wr009{}, wr005{}, wr020{}, // 3. naming
+		wr002{}, wr012{}, wr003{}, wr001{}, // 5. listener
 	}
 }
 

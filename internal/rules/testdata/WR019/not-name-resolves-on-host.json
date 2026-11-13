@@ -1,0 +1,99 @@
+{
+  "description": "the host resolves the name (an /etc/hosts entry)",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "api",
+      "port": 8080,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "api",
+      "status": "ok",
+      "data": {
+        "name": "api",
+        "server": "127.0.0.11:53",
+        "rcode": "NOERROR",
+        "upstream": [
+          "host(127.0.0.53)"
+        ],
+        "answers": [
+          "172.22.0.3"
+        ],
+        "answered": "api",
+        "via": "hosts",
+        "attempts": [
+          {
+            "query": "api",
+            "type": "A",
+            "rcode": "NOERROR",
+            "answers": 0
+          },
+          {
+            "query": "api",
+            "type": "AAAA",
+            "rcode": "NOERROR",
+            "answers": 0
+          }
+        ]
+      },
+      "source": "resolver",
+      "id": "ev-01",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "api"
+      },
+      "subject": "container:shop-api-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "shop-api-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 4097,
+        "compose": {
+          "project": "shop",
+          "service": "api"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "names": [
+              "api",
+              "shop-api-1"
+            ],
+            "ipv4": "172.22.0.3"
+          }
+        ]
+      },
+      "id": "ev-02",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    }
+  ],
+  "want": []
+}

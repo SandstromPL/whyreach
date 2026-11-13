@@ -1,0 +1,72 @@
+{
+  "description": "from the host itself, loopback works",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "127.0.0.1",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "loopback",
+      "addr": "127.0.0.1"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "docker0",
+            "up": true,
+            "mtu": 1500,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "mtu": 1500,
+            "addrs": [
+              "192.168.1.10/24"
+            ]
+          }
+        ]
+      },
+      "id": "ev-01",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "127.0.0.1:5432"
+          }
+        ]
+      },
+      "source": "/proc/<pid>/net/tcp{,6} read from the host",
+      "id": "ev-02",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    }
+  ],
+  "want": []
+}

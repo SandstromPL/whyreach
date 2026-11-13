@@ -186,6 +186,34 @@ func TestRank(t *testing.T) {
 			suppressed: map[string]string{"WR005": "WR004", "WR016": "WR004", "WR001": "WR002"},
 		},
 		{
+			name:       "a starting destination explains nothing listening",
+			in:         []Finding{f("WR001", LayerListener, High), f("WR010", LayerDestination, High), f("WR003", LayerListener, High)},
+			primary:    "WR010",
+			suppressed: map[string]string{"WR001": "WR010", "WR003": "WR010"},
+		},
+		{
+			name:       "an unpublished port explains the empty host",
+			in:         []Finding{f("WR001", LayerListener, High), f("WR019", LayerAddressing, High)},
+			primary:    "WR019",
+			suppressed: map[string]string{"WR001": "WR019"},
+		},
+		{
+			name:       "a published port used between containers",
+			in:         []Finding{f("WR003", LayerListener, High), f("WR006", LayerAddressing, High), f("WR012", LayerListener, High)},
+			primary:    "WR006",
+			suppressed: map[string]string{"WR003": "WR006", "WR012": "WR006"},
+		},
+		{
+			name:    "a missing host-gateway mapping, and a host service on loopback after it",
+			in:      []Finding{f("WR012", LayerListener, High), f("WR011", LayerAddressing, High)},
+			primary: "WR011", also: []string{"WR012"},
+		},
+		{
+			name:    "a typo and a failing upstream: the typo first",
+			in:      []Finding{f("WR020", LayerNaming, High), f("WR005", LayerNaming, High)},
+			primary: "WR005", also: []string{"WR020"},
+		},
+		{
 			name:    "nothing found",
 			in:      nil,
 			primary: "",

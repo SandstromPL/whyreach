@@ -1,0 +1,166 @@
+{
+  "description": "a container's metadata could not be read: one level lower",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-worker-1",
+      "container_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "to": {
+      "host": "apii",
+      "port": 8080,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "worker"
+      },
+      "subject": "container:shop-worker-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "shop-worker-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 4098,
+        "compose": {
+          "project": "shop",
+          "service": "worker"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "names": [
+              "shop-worker-1",
+              "worker"
+            ],
+            "ipv4": "172.22.0.2"
+          }
+        ]
+      },
+      "id": "ev-01",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "api"
+      },
+      "subject": "container:shop-api-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "shop-api-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 4097,
+        "compose": {
+          "project": "shop",
+          "service": "api"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "names": [
+              "api",
+              "shop-api-1"
+            ],
+            "ipv4": "172.22.0.3"
+          }
+        ]
+      },
+      "id": "ev-02",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "xxxxxxxxxxxx",
+        "name": "x"
+      },
+      "subject": "container:shop-x-1",
+      "status": "failed",
+      "source": "docker GET /containers/{id}/json",
+      "error": {
+        "code": "docker_unavailable",
+        "message": "inspect failed"
+      },
+      "id": "ev-03",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "worker",
+        "executor": "probe-container"
+      },
+      "subject": "apii",
+      "status": "ok",
+      "data": {
+        "name": "apii",
+        "server": "127.0.0.11:53",
+        "rcode": "SERVFAIL",
+        "upstream": [
+          "host(127.0.0.53)"
+        ],
+        "attempts": [
+          {
+            "query": "apii",
+            "type": "A",
+            "rcode": "SERVFAIL",
+            "answers": 0
+          },
+          {
+            "query": "apii",
+            "type": "AAAA",
+            "rcode": "SERVFAIL",
+            "answers": 0
+          }
+        ]
+      },
+      "source": "resolver",
+      "id": "ev-04",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR005",
+      "confidence": "medium",
+      "supporting": [
+        "ev-01",
+        "ev-02",
+        "ev-04"
+      ]
+    }
+  ]
+}

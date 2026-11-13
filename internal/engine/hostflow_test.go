@@ -123,3 +123,69 @@ func TestControlLookup(t *testing.T) {
 		}
 	}
 }
+
+// TestNewRulesEndToEnd runs the collect → probe → evaluate pipeline for the
+// M2 rules on fake Docker hosts, with and without probe containers.
+func TestNewRulesEndToEnd(t *testing.T) {
+	type tc struct {
+		name, from, to string
+		w              func() *world
+		top            string // with probes; "" means no finding
+		noProbeTop     string
+		verdict        string
+	}
+	shop := func(mut func(*world)) func() *world {
+		return func() *world {
+			w := shopWorld()
+			mut(w)
+			return w
+		}
+	}
+	tests := []tc{
+		{name: "WR019 not published", from: "host", to: "localhost:28080", top: "WR019", noProbeTop: "WR019", verdict: VerdictCause,
+			w: shop(func(w *world) {
+				w.sockets[200] = []string{"0.0.0.0:28080"}
+				w.tcp["127.0.0.1:28080"] = evidence.OutcomeRefused
+			})},
+		{name: "WR012 host loopback", from: "container:shop-worker-1", to: "host.docker.internal:5432", top: "WR012", noProbeTop: "WR012", verdict: VerdictCause,
+			w: shop(func(w *world) {
+				w.containers[0].ExtraHosts = []string{"host.docker.internal:host-gateway"}
+				w.host = []string{"127.0.0.1:5432"}
+				w.dns["host.docker.internal"] = []string{"172.17.0.1"}
+				w.tcp["172.17.0.1:5432"] = evidence.OutcomeRefused
+			})},
+		{name: "WR011 no mapping", from: "container:shop-worker-1", to: "host.docker.internal:5432", top: "WR011", noProbeTop: "WR011", verdict: VerdictCause,
+			w: shop(func(*world) {})},
+		{name: "WR005 typo", from: "container:shop-worker-1", to: "apii:8080", top: "WR005", noProbeTop: "WR005", verdict: VerdictCause,
+			w: shop(func(w *world) { w.dns["shop-worker-1"] = []string{"172.22.0.2"} })},
+		{name: "WR003 other port", from: "container:shop-worker-1", to: "api:8080", top: "WR003", noProbeTop: "WR003", verdict: VerdictCause,
+			w: shop(func(w *world) {
+				w.sockets[200] = []string{"0.0.0.0:8000"}
+				w.tcp["172.22.0.3:8080"] = evidence.OutcomeRefused
+			})},
+		{name: "WR001 nothing listening", from: "container:shop-worker-1", to: "api:8080", top: "WR001", noProbeTop: "WR001", verdict: VerdictCause,
+			w: shop(func(w *world) {
+				w.sockets[200] = []string{"127.0.0.1:9000"}
+				w.tcp["172.22.0.3:8080"] = evidence.OutcomeRefused
+			})},
+	}
+	for _, tt := range tests {
+		for _, probes := range []bool{true, false} {
+			name := tt.name + map[bool]string{true: "/probe-containers", false: "/default-config"}[probes]
+			t.Run(name, func(t *testing.T) {
+				d := diagnoseWith(t, tt.w(), tt.from, tt.to, probes)
+				want := tt.noProbeTop
+				if probes {
+					want = tt.top
+				}
+				got := ""
+				if p := d.Primary(); p != nil {
+					got = p.RuleID
+				}
+				if got != want || (probes && d.Verdict != tt.verdict) {
+					t.Errorf("primary %q verdict %s, want %q %s\nfindings %+v\ngaps %+v", got, d.Verdict, want, tt.verdict, d.Findings, d.Gaps)
+				}
+			})
+		}
+	}
+}

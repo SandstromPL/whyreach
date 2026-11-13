@@ -1,0 +1,139 @@
+{
+  "description": "NXDOMAIN: the upstream answered, the name doesn't exist",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-client-1",
+      "container_id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "to": {
+      "host": "exmaple.com",
+      "port": 443,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "cccccccccccc",
+        "name": "client"
+      },
+      "subject": "container:shop-client-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "name": "shop-client-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 4099,
+        "compose": {
+          "project": "shop",
+          "service": "client"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "names": [
+              "client",
+              "shop-client-1"
+            ],
+            "ipv4": "172.22.0.5"
+          }
+        ]
+      },
+      "id": "ev-01",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "cccccccccccc",
+        "name": "client",
+        "executor": "probe-container"
+      },
+      "subject": "exmaple.com",
+      "status": "ok",
+      "data": {
+        "name": "exmaple.com",
+        "server": "127.0.0.11:53",
+        "rcode": "NXDOMAIN",
+        "upstream": [
+          "host(127.0.0.53)"
+        ],
+        "attempts": [
+          {
+            "query": "exmaple.com",
+            "type": "A",
+            "rcode": "NXDOMAIN",
+            "answers": 0
+          },
+          {
+            "query": "exmaple.com",
+            "type": "AAAA",
+            "rcode": "NXDOMAIN",
+            "answers": 0
+          }
+        ]
+      },
+      "source": "resolver",
+      "id": "ev-02",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "cccccccccccc",
+        "name": "client",
+        "executor": "probe-container"
+      },
+      "subject": "shop-client-1",
+      "status": "ok",
+      "data": {
+        "name": "shop-client-1",
+        "server": "127.0.0.11:53",
+        "rcode": "NOERROR",
+        "upstream": [
+          "host(127.0.0.53)"
+        ],
+        "answers": [
+          "172.22.0.5"
+        ],
+        "answered": "shop-client-1",
+        "via": "dns",
+        "attempts": [
+          {
+            "query": "shop-client-1",
+            "type": "A",
+            "rcode": "NOERROR",
+            "answers": 0
+          },
+          {
+            "query": "shop-client-1",
+            "type": "AAAA",
+            "rcode": "NOERROR",
+            "answers": 0
+          }
+        ]
+      },
+      "source": "resolver",
+      "id": "ev-03",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    }
+  ],
+  "want": []
+}

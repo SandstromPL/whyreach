@@ -20,19 +20,19 @@ func (wr002) Supersedes() []string      { return []string{"WR001"} }
 
 func (r wr002) Evaluate(v evidence.View) []Finding {
 	q := v.Question()
-	if q.To.Class == evidence.TargetLoopback {
+	if q.To.Class == evidence.TargetLoopback && !v.HostSource() {
 		return nil // reaching loopback from inside the same netns works; WR007 covers the rest
 	}
-	port := q.To.Port
 	probes := fromSource(v)
-	// The target is a name or a non-loopback address, so the connection goes
-	// to the destination's network address. A loopback-bound socket refuses
-	// that even from inside its own network namespace, so the source's
-	// netns doesn't matter.
+	// The connection goes to the destination's network address (or, through
+	// a published port, to the container port behind it). A loopback-bound
+	// socket refuses that even from inside its own network namespace, so the
+	// source's netns doesn't matter.
 	for _, m := range v.Destinations().All() {
 		if m.C.HostNetwork() {
-			continue // its listeners are the host's: WR012's case (M2)
+			continue // its listeners are the host's: WR012's case
 		}
+		port := m.Port
 		l, ok := v.ListenersIn(m.C.ID)
 		if !ok {
 			continue
@@ -49,11 +49,15 @@ func (r wr002) Evaluate(v evidence.View) []Finding {
 		}
 		stale := false
 		for _, t := range probes {
-			if !slices.Contains(addrs, t.P.Addr.Addr()) || t.P.Addr.Port() != port {
+			reaches := slices.Contains(addrs, t.P.Addr.Addr()) && t.P.Addr.Port() == port
+			if m.Published != nil {
+				reaches = t.P.ByName() && t.P.Addr.Port() == m.Published.HostPort
+			}
+			if !reaches {
 				continue
 			}
 			switch t.P.Outcome {
-			case evidence.OutcomeRefused:
+			case evidence.OutcomeRefused, evidence.OutcomeClosed:
 				f.Supporting = append(f.Supporting, t.ID)
 			case evidence.OutcomeConnected:
 				stale = true // something accepted after all: the listener evidence is out of date
@@ -67,6 +71,10 @@ func (r wr002) Evaluate(v evidence.View) []Finding {
 		f.Title = fmt.Sprintf("%s listens only on %s inside its container", name, socketList(socks))
 		f.Explanation = fmt.Sprintf("%s's only %s for port %d %s %s (in %s). A socket bound to loopback accepts connections only from inside %s's own network namespace, so %s can't reach it.",
 			name, plural(len(socks), "listener", "listeners"), port, plural(len(socks), "is", "are"), socketList(socks), name, name, sourceName(v))
+		if m.Published != nil {
+			f.Explanation = fmt.Sprintf("%s publishes %s → its port %d, but its only %s for port %d %s %s (in %s). The published port forwards connections into the container from outside its loopback, so the socket never sees them: the host's connection is refused, or accepted and closed at once by docker-proxy.",
+				name, m.Published.HostAddr(), port, plural(len(socks), "listener", "listeners"), port, plural(len(socks), "is", "are"), socketList(socks), name)
+		}
 		f.Fix = fmt.Sprintf("Make the server in %s listen on 0.0.0.0:%d (or [::]:%d), for example with --host 0.0.0.0 or a HOST=0.0.0.0 setting, then restart %s.", name, port, port, name)
 		return []Finding{f}
 	}
