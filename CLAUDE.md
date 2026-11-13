@@ -138,6 +138,10 @@ The default answer to adding a tool is no. The surface stays at 4 tools: `diagno
 
 ## Working agreements
 
+- **Commit every change as you go, without asking.** This is the project owner's standing instruction.
+  - Make small commits with descriptive messages, after the relevant checks pass.
+  - Work on a task branch, and fast-forward `main` when the task is done.
+  - Never push unless asked.
 - Before starting a milestone, re-read `INITIAL.md` §2, §4 and the relevant ADR in `docs/adr/`.
 - Build the smallest thing that makes the milestone's lab scenario pass. Don't build ahead.
 - When a design decision changes, update `INITIAL.md` or add an ADR in the same change.
