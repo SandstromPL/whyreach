@@ -17,6 +17,14 @@ package e2e
 // The agents work in a temporary directory that stands in for their home;
 // the demo runs as the Compose project whyreach-lab-demo, which the test
 // removes afterwards. Run it with make lab-agent.
+//
+// The first agent may read the sandbox, write only the MCP configuration,
+// and run the few commands the README's steps need; Compose only as the
+// README starts and reads the demo, under the test's project name. That
+// keeps an honest agent in its sandbox. It is no boundary against a hostile
+// checkout: the agent follows the repository's README with the user's
+// Docker access, and, like every make target, the test runs the
+// repository's own code. Run it on a checkout you trust.
 
 import (
 	"archive/tar"
@@ -77,6 +85,8 @@ func TestAgentNewUser(t *testing.T) {
 	copyFile(t, filepath.Join(root, "README.md"), filepath.Join(sandbox, "README.md"))
 	binary := filepath.Join(home, ".local", "bin", "whyreach")
 	mcpConfig := filepath.Join(sandbox, "mcp.json")
+	extract := filepath.Join(sandbox, "whyreach")
+	composeFile := filepath.Join(extract, "demo", "compose.yaml")
 
 	// The demo is the user's to start; whatever happens, it goes.
 	t.Cleanup(func() {
@@ -107,18 +117,23 @@ func TestAgentNewUser(t *testing.T) {
 
 	// 1. Install, connect, start the demo: the README and the release files.
 	install := fmt.Sprintf(`You are a developer trying whyreach for the first time. All you have is its README (%s) and the release files you already downloaded into %s: the archive for this machine and checksums.txt. You have no internet access, so skip the download step. Follow the README to do three things, without asking questions:
-1. Verify the checksum and install whyreach. Your home directory is %s (HOME is set to it): install the binary to %s, and write nothing outside %s.
+1. Verify the checksum, extract the archive into %s, and install whyreach. Your home directory is %s (HOME is set to it): install the binary to %s, and write nothing outside %s.
 2. Connect an MCP client. This machine's client reads the JSON configuration form the README gives, from the file %s. Write that file for the whyreach you installed.
-3. Start the README's demo and leave it running, but name its Compose project %s instead of the name in the file: start every docker compose command with docker compose -p %s.
+3. Start the README's demo from %s and leave it running, but name its Compose project %s instead of the name in the file: start every docker compose command with docker compose -p %s.
 When all three are done, reply with the single line DONE.`,
-		filepath.Join(sandbox, "README.md"), release, home, binary, sandbox, mcpConfig, demoProject, demoProject)
-	// Reads and writes stay in the sandbox, and Compose only touches the
-	// demo's project.
+		filepath.Join(sandbox, "README.md"), release, extract, home, binary, sandbox, mcpConfig, extract, demoProject, demoProject)
+	// Reads stay in the sandbox, the one file written is the MCP
+	// configuration, and Compose runs only as the README starts and reads
+	// the demo, under the test's project name.
 	allowed := []string{
-		"Read(/" + sandbox + "/**)", "Edit(/" + sandbox + "/**)",
-		"Bash(tar:*)", "Bash(sha256sum:*)", "Bash(mkdir:*)", "Bash(install:*)", "Bash(ls:*)", "Bash(cat:*)",
-		"Bash(cd:*)", "Bash(uname:*)", "Bash(chmod:*)", "Bash(cp:*)", "Bash(docker compose -p " + demoProject + ":*)",
+		"Read(/" + sandbox + "/**)", "Edit(/" + mcpConfig + ")",
+		"Bash(tar:*)", "Bash(sha256sum:*)", "Bash(mkdir:*)", "Bash(install:*)", "Bash(ls:*)", "Bash(cd:*)", "Bash(uname:*)",
 		"Bash(" + binary + ":*)",
+	}
+	for _, f := range []string{"demo/compose.yaml", composeFile} {
+		for _, sub := range []string{"up -d --wait", "logs worker", "ps"} {
+			allowed = append(allowed, "Bash(docker compose -p "+demoProject+" -f "+f+" "+sub+")")
+		}
 	}
 	first := runClaude(t, sandbox, env, install, "--tools", "Bash,Read,Write", "--allowedTools", strings.Join(allowed, ","))
 	t.Logf("install: %d turns, $%.4f, %.0f s\ncommands:\n  %s\nanswer: %s", first.turns, first.cost, first.seconds,
@@ -126,9 +141,12 @@ When all three are done, reply with the single line DONE.`,
 
 	// What the first agent left: the binary from the archive, a working
 	// MCP configuration, the demo, and nothing in the real home.
-	want := extractBinary(t, filepath.Join(release, archive))
+	want := fromArchive(t, filepath.Join(release, archive), "whyreach")
 	if got, err := os.ReadFile(binary); err != nil || !bytes.Equal(got, want) {
 		t.Fatalf("the installed binary at %s isn't the archive's: %v", binary, err)
+	}
+	if got, err := os.ReadFile(composeFile); err != nil || !bytes.Equal(got, fromArchive(t, filepath.Join(release, archive), "demo/compose.yaml")) {
+		t.Fatalf("the demo at %s isn't the archive's: %v", composeFile, err)
 	}
 	var cfg struct {
 		MCPServers map[string]struct {
@@ -298,8 +316,8 @@ func buildRelease(t *testing.T, root, dir, archive string) {
 	}
 }
 
-// extractBinary returns the whyreach binary inside an archive.
-func extractBinary(t *testing.T, archive string) []byte {
+// fromArchive returns a file from a release archive.
+func fromArchive(t *testing.T, archive, name string) []byte {
 	t.Helper()
 	f, err := os.Open(archive)
 	if err != nil {
@@ -314,9 +332,9 @@ func extractBinary(t *testing.T, archive string) []byte {
 	for {
 		h, err := tr.Next()
 		if err != nil {
-			t.Fatalf("no whyreach in %s: %v", archive, err)
+			t.Fatalf("no %s in %s: %v", name, archive, err)
 		}
-		if h.Name == "whyreach" {
+		if h.Name == name {
 			b, err := io.ReadAll(tr)
 			if err != nil {
 				t.Fatal(err)
