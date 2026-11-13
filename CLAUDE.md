@@ -16,7 +16,8 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 
 ## Environment
 
-- Ubuntu 24.04.5, kernel 7.0, Go 1.27.0, Docker Engine 29.9.3 (API 1.56), Compose v5.7.0.
+- Ubuntu 24.04.5, kernel 7.0, Docker Engine 29.9.3 (API 1.56), Compose v5.7.0.
+- Go: the system install (`/usr/local/go`, root-owned) is 1.27.0, but `go.mod` pins `toolchain go1.27.4`. The go command downloads and uses that toolchain automatically (`GOTOOLCHAIN=auto`), and CI's `setup-go` reads the same directive. When `make vuln` reports a standard-library vulnerability, bump the `toolchain` line to the patch release that fixes it.
 - The user is in the `docker` group. Root is available only through `sudo`; ask before using it.
 - `golangci-lint` v2.15.0 is installed (via `go install`). `goreleaser` isn't installed yet (it's needed in M4).
 
@@ -28,6 +29,7 @@ These are the Makefile targets; keep this list in sync with the Makefile. Until 
 make build      # CGO_ENABLED=0 go build -o bin/whyreach ./cmd/whyreach
 make test       # go test ./...  (unit + rule fixtures; no Docker, no root, no network)
 make lint       # golangci-lint run
+make vuln       # govulncheck ./...  (pinned version; known CVEs in code we call, stdlib included; needs network)
 make lab        # go test -tags lab ./test/e2e/...  (needs Docker)
 make lab-root   # sudo -E go test -tags lab,privileged ./test/e2e/...  (netns executor)
 make golden     # go test ./internal/report/... -update

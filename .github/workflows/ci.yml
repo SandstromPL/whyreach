@@ -26,6 +26,7 @@ jobs:
       - run: make build
 
   lint:
+    name: lint, vulnerability check
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -35,3 +36,4 @@ jobs:
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.15.0
+      - run: make vuln

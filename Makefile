@@ -6,8 +6,9 @@ SHELL := /usr/bin/env bash
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 CROSS_TARGETS := darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
+GOVULNCHECK := golang.org/x/vuln/cmd/govulncheck@v1.9.0
 
-.PHONY: build test lint lab lab-root golden cross clean
+.PHONY: build test lint vuln lab lab-root golden cross clean
 
 ## build: static binary in bin/whyreach
 build:
@@ -20,6 +21,10 @@ test:
 ## lint: golangci-lint v2 (config in .golangci.yml)
 lint:
 	golangci-lint run
+
+## vuln: known vulnerabilities in code we actually call, standard library included (needs network)
+vuln:
+	go run $(GOVULNCHECK) ./...
 
 ## lab: failure-lab scenarios against Docker (arrive in M1)
 lab:
