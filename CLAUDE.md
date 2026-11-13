@@ -69,6 +69,7 @@ cli / mcpserver → policy → engine → { rules, collect/host, collect/docker,
 - The netns executor runs only on `linux-engine` and `wsl2-engine`, and verifies that the PID belongs to the target container before calling `setns`.
 - Endpoint discovery reads only endpoint fields from Docker's config, never the credential entries.
 - Rules whose meaning depends on the platform read it from the evidence view. Example: WR011 never fires on Docker Desktop, where `host.docker.internal` works by default.
+- In a container (the image, `INITIAL.md` §3.5), whyreach's own network namespace is the host's only with `--network host`. Without it (no Docker bridge visible), host-side checks are unsupported records, never the container's state passed off as the host's.
 
 ## Non-negotiables (safety)
 

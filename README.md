@@ -126,10 +126,10 @@ whyreach is read-only. It never changes containers, networks, routes, firewall r
 Some checks need permissions that are off by default. These are your decisions. An agent can't turn them on, and an agent that can edit files shouldn't change whyreach's config to give itself more.
 
 - **Probe containers.** These run DNS and TCP checks from inside a container. whyreach imports its own binary as the local image `whyreach-probe` (no registry pull) and runs each batch of checks in a short-lived, locked-down container. The container joins the checked container's network namespace, carries the label `io.whyreach.probe=1`, and is removed afterwards. They are off by default because they write to Docker. Through MCP, whyreach asks you once per session when a probe container would change the answer, if your client supports elicitation. To allow them for good, set `probe_containers = true`.
-- **Names outside Docker.** A DNS lookup sends its name to the servers of the name's domain, so through MCP an agent could pass data out through the names it asks whyreach to look up. Some names are always free: names that Docker's metadata knows (containers, Compose services, aliases), names in the source's hosts file, names without a dot, `localhost`, and `host.docker.internal`. Any other name, such as `example.com`, is looked up only after you approve that exact name when whyreach asks, or when its domain is listed under `[probe] names`. Without an approval nothing is sent, and the diagnosis says what it couldn't check. The CLI looks up any name you type.
+- **Names outside Docker.** A DNS lookup sends its name to the servers of the name's domain, so through MCP an agent could pass data out through the names it asks whyreach to look up. Some names are always free: names that Docker's metadata knows (containers, Compose services, aliases), names in the source's hosts file, names without a dot, `localhost`, and `host.docker.internal`. Any other name, such as `example.com`, is looked up only after you approve that exact name when whyreach asks (at most three questions a session; approve only names you expect), or when its domain is listed under `[probe] names`. Without an approval nothing is sent, and the diagnosis says what it couldn't check. The CLI looks up any name you type.
 - **Root.** Run as root (`sudo whyreach …`), whyreach enters containers' network namespaces itself and needs no probe containers. It then reads root's config and writes root's audit log. Use `sudo`, not `sudo -E`, and use root for the CLI only.
 
-TCP probes may go only to the address classes in `[probe] allow`, at most `rate_per_minute` checks a minute. whyreach never contacts link-local or cloud-metadata addresses, and it skips nameservers at those addresses too.
+TCP probes may go only to the address classes in `[probe] allow`, at most `rate_per_minute` checks a minute. whyreach never contacts link-local or cloud-metadata addresses, nameservers included: where the first nameserver is one, as on some cloud VMs, it makes no lookup through it, and `whyreach doctor` warns.
 
 Settings live in `~/.config/whyreach/config.toml`. Every key is optional; an unknown key is an error:
 
@@ -175,15 +175,15 @@ whyreach mcp serve
 There's an image too, for when you'd rather not install the binary:
 
 ```bash
-docker run --rm -i --pid host -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/sandstrompl/whyreach:0.1.0 mcp serve
+docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/sandstrompl/whyreach:0.1.0 mcp serve
 ```
 
-For Claude Code: `claude mcp add whyreach -- docker run --rm -i --pid host -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/sandstrompl/whyreach:0.1.0 mcp serve`. Pass a command instead of `mcp serve` to use the CLI the same way.
+For Claude Code: `claude mcp add whyreach -- docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/sandstrompl/whyreach:0.1.0 mcp serve`. Pass a command instead of `mcp serve` to use the CLI the same way.
 
+- **`--network host`** puts whyreach in the host's network namespace, where it sees the host's interfaces, listening sockets and connections. Without it, the host's side can't be seen from the container, and whyreach reports those checks as unsupported rather than mistake the container for the host.
 - **`--pid host`** lets whyreach read the containers' listening sockets. Without it, causes that depend on listeners drop to lower confidence.
 - **Your config:** mount it with `-v ~/.config/whyreach:/config/whyreach:ro`.
 - **Audit log and reports:** they stay in the container unless you mount `/state` and `/data`.
-- **Host checks** describe the container's own network namespace unless you add `--network host`.
 
 ## Development
 
