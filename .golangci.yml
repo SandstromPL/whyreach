@@ -2,6 +2,8 @@ version: "2"
 
 run:
   timeout: 5m
+  # Lint the lab harness (test/e2e) too; it only builds with this tag.
+  build-tags: [lab]
 
 linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused

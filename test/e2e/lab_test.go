@@ -19,6 +19,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -82,7 +83,7 @@ func TestMain(m *testing.M) {
 }
 
 func run(m *testing.M) int {
-	if err := exec.Command("docker", "version", "--format", "{{.Server.Version}}").Run(); err != nil {
+	if err := exec.CommandContext(context.Background(), "docker", "version", "--format", "{{.Server.Version}}").Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "lab: Docker is not reachable:", err)
 		return 1
 	}
@@ -91,7 +92,7 @@ func run(m *testing.M) int {
 		fmt.Fprintln(os.Stderr, "lab:", err)
 		return 1
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	if err := setup(dir); err != nil {
 		fmt.Fprintln(os.Stderr, "lab setup:", err)
 		return 1
@@ -102,7 +103,7 @@ func run(m *testing.M) int {
 		code = 1
 	}
 	// The images exist only for this run: both are tagged by content.
-	_ = exec.Command("docker", "image", "rm", l.image, l.probeImage).Run()
+	_ = exec.CommandContext(context.Background(), "docker", "image", "rm", l.image, l.probeImage).Run()
 	return code
 }
 
@@ -146,7 +147,7 @@ func setup(dir string) error {
 }
 
 func repoRoot() (string, error) {
-	out, err := exec.Command("go", "env", "GOMOD").Output()
+	out, err := exec.CommandContext(context.Background(), "go", "env", "GOMOD").Output()
 	if err != nil {
 		return "", err
 	}
@@ -158,11 +159,11 @@ func goBuild(root, out, pkg, ldflags string) error {
 	if ldflags != "" {
 		args = append(args, "-ldflags", ldflags)
 	}
-	cmd := exec.Command("go", append(args, pkg)...)
+	cmd := exec.CommandContext(context.Background(), "go", append(args, pkg)...)
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if b, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("go build %s: %v\n%s", pkg, err, b)
+		return fmt.Errorf("go build %s: %w\n%s", pkg, err, b)
 	}
 	return nil
 }
@@ -172,7 +173,7 @@ func sha256File(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err
@@ -197,16 +198,16 @@ func importImage(bin, ref string) error {
 	if err := tw.Close(); err != nil {
 		return err
 	}
-	cmd := exec.Command("docker", "import", "--change", `ENTRYPOINT ["/labserver"]`, "--change", "LABEL "+labLabel, "-", ref)
+	cmd := exec.CommandContext(context.Background(), "docker", "import", "--change", `ENTRYPOINT ["/labserver"]`, "--change", "LABEL "+labLabel, "-", ref)
 	cmd.Stdin = &buf
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("docker import: %v\n%s", err, out)
+		return fmt.Errorf("docker import: %w\n%s", err, out)
 	}
 	return nil
 }
 
 func leftoverProbes() string {
-	out, _ := exec.Command("docker", "ps", "-a", "--filter", "label="+probeLabel, "--format", "{{.Names}} {{.Status}}").Output()
+	out, _ := exec.CommandContext(context.Background(), "docker", "ps", "-a", "--filter", "label="+probeLabel, "--format", "{{.Names}} {{.Status}}").Output()
 	return strings.TrimSpace(string(out))
 }
 
@@ -275,7 +276,7 @@ func projectFor(base, file string) string {
 }
 
 func compose(dir, project, file string, args ...string) *exec.Cmd {
-	cmd := exec.Command("docker", append([]string{"compose", "-p", project, "-f", file}, args...)...)
+	cmd := exec.CommandContext(context.Background(), "docker", append([]string{"compose", "-p", project, "-f", file}, args...)...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "WHYREACH_LAB_IMAGE="+l.image)
 	return cmd
@@ -302,7 +303,7 @@ func settle(t *testing.T, project, service, state string) {
 	t.Helper()
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
-		out, _ := exec.Command("docker", "ps", "-a",
+		out, _ := exec.CommandContext(context.Background(), "docker", "ps", "-a",
 			"--filter", "label=com.docker.compose.project="+project,
 			"--filter", "label=com.docker.compose.service="+service,
 			"--format", "{{.State}}").Output()
@@ -326,7 +327,8 @@ func diagnose(t *testing.T, configHome, from, to string) *engine.Diagnosis {
 	start := time.Now()
 	err := cmd.Run()
 	code := 0
-	if ee, ok := err.(*exec.ExitError); ok {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
 		code = ee.ExitCode()
 	} else if err != nil {
 		t.Fatalf("run whyreach: %v", err)
