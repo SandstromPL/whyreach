@@ -46,7 +46,8 @@ func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 	if lim.AddrsRestricted {
 		lim.Approved = g.p.leaseAddrs(specs)
 	}
-	defer func() { g.p.settle(leasedNames, lim.Approved, evs) }()
+	ran := false // the executor started: a failure since may have sent
+	defer func() { g.p.settle(leasedNames, lim.Approved, evs, ran && err != nil) }()
 	var refused []evidence.Evidence
 	var send []probe.Spec
 	for _, s := range specs {
@@ -78,6 +79,7 @@ func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 			Code: evidence.CodeDockerUnavailable, Message: err.Error(),
 		})...), err
 	}
+	ran = true
 	evs, err = ex.Run(probe.WithLimits(ctx, lim), where, send)
 	if err != nil && g.fallback != nil && errors.Is(err, executor.ErrCannotEnter) && g.p.ProbeContainers() {
 		if pex, perr := g.fallback(); perr == nil {

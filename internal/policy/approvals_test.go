@@ -2,6 +2,7 @@ package policy
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/netip"
 	"os"
@@ -253,9 +254,84 @@ func TestAddressLeasesComeBack(t *testing.T) {
 		t.Fatalf("leased %v, left %d", leased, p.addrs[ap])
 	}
 	used := evidence.Evidence{Kind: evidence.KindTCP, Status: evidence.StatusOK, Data: evidence.TCPProbe{Addr: ap, Outcome: evidence.OutcomeRefused}}
-	p.settle(nil, leased, []evidence.Evidence{used})
+	p.settle(nil, leased, []evidence.Evidence{used}, false)
 	if p.addrs[ap] != 2 {
 		t.Errorf("after one of two used: %d left, want 2", p.addrs[ap])
+	}
+}
+
+// What a batch was given comes back only when its records prove it went
+// unused: a run that failed once started, a connect record that lost its
+// data, or a lookup without its record keeps it (fail closed).
+func TestLeasesFailClosed(t *testing.T) {
+	p, err := New(Deps{Settings: Settings{Docker: true, Allow: []string{"rfc1918"}}, Client: ClientMCP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ap := netip.MustParseAddrPort("10.0.5.7:5432")
+	tcp := []probe.Spec{{Kind: probe.SpecTCP, Host: "10.0.5.7", Port: 5432}}
+	for name, tt := range map[string]struct {
+		evs    []evidence.Evidence
+		failed bool
+	}{
+		"the run failed once started":    {nil, true},
+		"a connect record lost its data": {[]evidence.Evidence{{Kind: evidence.KindTCP, Status: evidence.StatusFailed}}, false},
+	} {
+		p.RecordAddrConsent(ap, true, "accept")
+		leased := p.leaseAddrs(tcp)
+		p.settle(nil, leased, tt.evs, tt.failed)
+		if p.addrs[ap] != ApprovalBudget-1 {
+			t.Errorf("%s: %d connects left, want %d", name, p.addrs[ap], ApprovalBudget-1)
+		}
+	}
+	for name, tt := range map[string]struct {
+		evs    []evidence.Evidence
+		failed bool
+		back   bool
+	}{
+		"the hosts file answered": {[]evidence.Evidence{{Kind: evidence.KindDNS, Subject: "data.example.net", Status: evidence.StatusOK, Data: evidence.DNSProbe{Via: evidence.ViaHosts}}}, false, true},
+		"no record of the lookup": {nil, false, false},
+		"a lookup that failed":    {[]evidence.Evidence{{Kind: evidence.KindDNS, Subject: "data.example.net", Status: evidence.StatusFailed, Data: evidence.DNSProbe{}}}, false, false},
+		"the run failed":          {[]evidence.Evidence{{Kind: evidence.KindDNS, Subject: "data.example.net", Status: evidence.StatusOK, Data: evidence.DNSProbe{Via: evidence.ViaHosts}}}, true, false},
+	} {
+		p.RecordNameConsent("data.example.net", true, "accept")
+		if !p.leaseName("data.example.net") {
+			t.Fatal("no lookup to lease")
+		}
+		p.settle([]string{"data.example.net"}, nil, tt.evs, tt.failed)
+		want := ApprovalBudget - 1
+		if tt.back {
+			want = ApprovalBudget
+		}
+		if p.approved["data.example.net"] != want {
+			t.Errorf("%s: %d lookups left, want %d", name, p.approved["data.example.net"], want)
+		}
+	}
+}
+
+// failing stands in for an executor that started and then lost its batch,
+// as a probe container whose output couldn't be read.
+type failing struct{}
+
+func (failing) Name() string { return evidence.ExecutorHost }
+
+// Its record looks unsent, but the run failed: the lookup stays spent.
+func (failing) Run(_ context.Context, _ evidence.ContextRef, specs []probe.Spec) ([]evidence.Evidence, error) {
+	return []evidence.Evidence{{Kind: evidence.KindDNS, Subject: specs[0].Host, Status: evidence.StatusOK, Data: evidence.DNSProbe{Via: evidence.ViaHosts}}},
+		errors.New("the probe's output was cut short")
+}
+
+func TestFailedRunKeepsItsLease(t *testing.T) {
+	p, err := New(Deps{Settings: Settings{Docker: true, RatePerMinute: 100}, Docker: fakeDocker{}, Listeners: fakeDocker{}, Host: failing{}, Client: ClientMCP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.RecordNameConsent("data.example.net", true, "accept")
+	if _, err := p.Probe(context.Background(), ProbeArgs{Kind: "dns", Target: "data.example.net"}); err != nil {
+		t.Fatal(err)
+	}
+	if left := p.approved["data.example.net"]; left != ApprovalBudget-1 {
+		t.Errorf("%d lookups left after a lost run, want %d", left, ApprovalBudget-1)
 	}
 }
 

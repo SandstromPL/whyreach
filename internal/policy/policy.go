@@ -339,34 +339,46 @@ func (p *Policy) leaseAddrs(specs []probe.Spec) []netip.AddrPort {
 	return out
 }
 
-// settle returns what a batch set aside and didn't use: a lookup of a
-// leased name whose records show no query sent (the hosts file answered,
-// or nothing could be sent), and connects to approved addresses it didn't
-// make. A return never takes an approval past ApprovalBudget.
-func (p *Policy) settle(names []string, addrs []netip.AddrPort, evs []evidence.Evidence) {
-	if len(names) == 0 && len(addrs) == 0 {
+// settle returns what a batch set aside and provably didn't use, and fails
+// closed otherwise: a lookup of a leased name comes back only when its
+// record shows no query sent (the hosts file answered, or the nameservers
+// refused it), and connects to approved addresses only when every connect
+// record kept its data, so the ones made can be counted. A run that failed
+// once started (failed) keeps everything: it may have sent before it lost
+// its records. A return never takes an approval past ApprovalBudget.
+func (p *Policy) settle(names []string, addrs []netip.AddrPort, evs []evidence.Evidence, failed bool) {
+	if failed || (len(names) == 0 && len(addrs) == 0) {
 		return
 	}
-	sent := map[string]bool{}
+	sent, unsent := map[string]bool{}, map[string]bool{}
 	used := map[netip.AddrPort]int{}
+	lost := false
 	for _, e := range evs {
 		switch d := e.Data.(type) {
 		case evidence.DNSProbe:
+			n := target.NormalizeName(e.Subject)
 			if len(d.Attempts) > 0 {
-				sent[target.NormalizeName(e.Subject)] = true
+				sent[n] = true
+			} else if e.Status == evidence.StatusOK || e.Status == evidence.StatusSkipped {
+				unsent[n] = true
 			}
 		case evidence.TCPProbe:
 			if d.Outcome != evidence.OutcomeBlocked && d.Addr.IsValid() {
 				used[unmapped(d.Addr)]++
 			}
+		default:
+			lost = lost || e.Kind == evidence.KindTCP
 		}
 	}
 	p.namesMu.Lock()
 	defer p.namesMu.Unlock()
 	for _, n := range names {
-		if !sent[n] {
+		if unsent[n] && !sent[n] {
 			p.approved[n] = min(p.approved[n]+1, ApprovalBudget)
 		}
+	}
+	if lost {
+		return
 	}
 	for _, ap := range addrs {
 		if used[ap] > 0 {
