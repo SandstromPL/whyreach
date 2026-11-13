@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
@@ -43,7 +44,10 @@ func (e *Engine) Probe(ctx context.Context, from target.From, spec probe.Spec) (
 			r := &run{e: e}
 			evs = []evidence.Evidence{r.hostListeners()}
 		} else {
-			ctx := executor.WithKnownNames(ctx, func(ctx context.Context, name string) bool { return e.knownName(ctx, nil, name) })
+			ctx := executor.WithKnownNames(ctx, func(ctx context.Context, name string) bool {
+				known, _ := e.knownName(ctx, nil, name)
+				return known
+			})
 			out, err := ex.Run(ctx, evidence.Host(), []probe.Spec{spec})
 			if err != nil {
 				e.d.Logger.Warn("probe failed", "executor", ex.Name(), "err", err)
@@ -125,61 +129,87 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 			Code: evidence.CodePermissionDenied, Message: executor.ProbeContainersOff,
 		}), nil
 	}
-	ctx = executor.WithKnownNames(ctx, func(ctx context.Context, name string) bool { return e.knownName(ctx, &owner, name) })
+	var bounded atomic.Bool
+	ctx = executor.WithKnownNames(ctx, func(ctx context.Context, name string) bool {
+		known, complete := e.knownName(ctx, &owner, name)
+		if !known && !complete {
+			bounded.Store(true)
+		}
+		return known
+	})
 	evs, err := ex.Run(ctx, evidence.InContainer(owner), []probe.Spec{spec})
 	if err != nil {
 		e.d.Logger.Warn("probe failed", "executor", ex.Name(), "err", err)
 	}
+	if bounded.Load() {
+		for i := range evs {
+			if evs[i].Err != nil && evs[i].Err.Message == probe.NameNotApproved {
+				evs[i].Limitations = append(evs[i].Limitations, NameSearchBounded)
+			}
+		}
+	}
 	return restamp(evs), nil
 }
+
+// NameSearchBounded is the limitation of a lookup held back for approval
+// when whyreach couldn't inspect every container that shares a network
+// with the source: one of the others may have the name as an alias, and
+// then the lookup needs no approval. It names maxPeers.
+const NameSearchBounded = "whyreach looked for the name among the aliases of the first 64 containers on the source's networks only, so one of the others may answer to it"
 
 // knownName reports whether Docker's metadata knows name, for a check run
 // on its own (INITIAL.md §10 Q11): a container name or Compose service in
 // the container list, or an alias or DNS name of a container on owner's
 // networks (only an inspect shows those; at most maxPeers are read). The
 // policy asks only about outside names it would otherwise hold back, so a
-// check that needs no answer reads nothing.
-func (e *Engine) knownName(ctx context.Context, owner *evidence.Container, name string) bool {
+// check that needs no answer reads nothing. complete is false when the
+// name wasn't found and there were containers past maxPeers to inspect.
+func (e *Engine) knownName(ctx context.Context, owner *evidence.Container, name string) (known, complete bool) {
 	if e.d.Docker == nil {
-		return false
+		return false, true
 	}
 	lctx, cancel := context.WithTimeout(ctx, dockerTimeout)
 	list, err := e.d.Docker.ListContainers(lctx, true)
 	cancel()
 	if err != nil {
 		e.d.Logger.Warn("could not list containers to look for a name", "err", err)
-		return false
+		return false, true
 	}
 	var srcNets []string
 	if owner != nil && !owner.HostNetwork() {
 		srcNets = owner.NetworkNames()
 	}
 	var peers []docker.Summary
+	skipped := false
 	for _, s := range list {
 		if nameMatches(s, name) {
-			return true
+			return true, true
 		}
 		for _, n := range s.Networks() {
 			if prefix, ok := cutNetwork(name, n); ok && evidence.UserDefined(n) && nameMatches(s, prefix) {
-				return true // <container>.<network>, which Docker's DNS answers too
+				return true, true // <container>.<network>, which Docker's DNS answers too
 			}
 		}
-		if shares(s.Networks(), srcNets) && len(peers) < maxPeers {
+		if shares(s.Networks(), srcNets) {
+			if len(peers) == maxPeers {
+				skipped = true
+				continue
+			}
 			peers = append(peers, s)
 		}
 	}
 	for _, s := range peers {
 		if ctx.Err() != nil {
-			return false
+			return false, false
 		}
 		ictx, cancel := context.WithTimeout(ctx, dockerTimeout)
 		c, err := e.d.Docker.InspectContainer(ictx, s.ID)
 		cancel()
 		if err == nil && (c.Matches(name) || answersQualified(c, name)) {
-			return true
+			return true, true
 		}
 	}
-	return false
+	return false, !skipped
 }
 
 func specTarget(s probe.Spec) string {

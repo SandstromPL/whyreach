@@ -20,6 +20,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
+	"github.com/SandstromPL/whyreach/internal/engine"
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/policy"
@@ -772,5 +773,20 @@ func TestToolsGolden(t *testing.T) {
 	}
 	if diff := cmp.Diff(string(want), string(got)); diff != "" {
 		t.Errorf("tools (-want +got):\n%s", diff)
+	}
+}
+
+// A held-back name whyreach looked for among only some of the containers'
+// aliases says so, since the reader sees advice, not limitations.
+func TestHeldBackAdviceNotesBoundedSearch(t *testing.T) {
+	h := newHarness(t, false)
+	e := evidence.Evidence{
+		Kind: evidence.KindDNS, Subject: "far.internal", Status: evidence.StatusSkipped,
+		Err:         &evidence.Error{Code: evidence.CodePolicyDenied, Message: probe.NameNotApproved},
+		Limitations: []string{engine.NameSearchBounded},
+	}
+	got := h.s.advice(e, false)
+	if !strings.Contains(got, engine.NameSearchBounded) || strings.Contains(got, "when whyreach asks") {
+		t.Errorf("advice: %s", got)
 	}
 }

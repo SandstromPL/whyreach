@@ -422,8 +422,12 @@ func (s *Server) advice(e evidence.Evidence, canAsk bool) string {
 		if canAsk && s.mayAskAbout(target.NormalizeName(e.Subject)) {
 			how = "approve the name when whyreach asks, or " + how
 		}
-		return "A lookup sends its name to the DNS servers of the name's domain, so whyreach looks up a name with a dot that Docker doesn't know " +
+		msg := "A lookup sends its name to the DNS servers of the name's domain, so whyreach looks up a name with a dot that Docker doesn't know " +
 			"only with the user's approval. That is the user's decision: " + how
+		if slices.Contains(e.Limitations, engine.NameSearchBounded) {
+			msg += " Note: " + engine.NameSearchBounded + "."
+		}
+		return msg
 	default:
 		return ""
 	}

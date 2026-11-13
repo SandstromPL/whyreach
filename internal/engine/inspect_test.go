@@ -3,11 +3,14 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/netip"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/probe"
 	"github.com/SandstromPL/whyreach/internal/target"
 )
@@ -145,6 +148,59 @@ func TestSelfCheck(t *testing.T) {
 	for _, c := range off.SelfCheck(context.Background()) {
 		if c.Name == "docker" && (c.Status != CheckFail || c.Fix == "") {
 			t.Errorf("an unreachable Docker is a failure with a fix: %+v", c)
+		}
+	}
+}
+
+// asksKnown stands in for the policy's guard and the probe: it asks the
+// engine whether Docker knows a name, and holds the lookup back if not.
+type asksKnown struct{}
+
+func (asksKnown) Name() string { return evidence.ExecutorProbeContainer }
+
+func (asksKnown) Run(ctx context.Context, where evidence.ContextRef, specs []probe.Spec) ([]evidence.Evidence, error) {
+	known := executor.KnownNamesFrom(ctx)
+	var out []evidence.Evidence
+	for _, s := range specs {
+		ev := evidence.Evidence{Kind: evidence.KindDNS, Context: where, Subject: s.Host, Status: evidence.StatusOK, Data: evidence.DNSProbe{Name: s.Host}}
+		if !known(ctx, s.Host) {
+			ev.Status, ev.Err = evidence.StatusSkipped, &evidence.Error{Code: evidence.CodePolicyDenied, Message: probe.NameNotApproved}
+		}
+		out = append(out, ev)
+	}
+	return out, nil
+}
+
+// Past maxPeers containers on the source's networks, a name whyreach didn't
+// find among the aliases it read may still be one: the held-back lookup
+// says so (M4 re-check).
+func TestBoundedNameSearchIsNoted(t *testing.T) {
+	if !strings.Contains(NameSearchBounded, fmt.Sprintf(" %d ", maxPeers)) {
+		t.Fatalf("NameSearchBounded doesn't name maxPeers (%d): %s", maxPeers, NameSearchBounded)
+	}
+	w := shopWorld()
+	for i := range maxPeers + 6 {
+		c := ctr(fmt.Sprintf("%02x", i+16), fmt.Sprintf("shop-svc%02d-1", i), "shop", fmt.Sprintf("svc%02d", i), "shop_default", fmt.Sprintf("172.22.1.%d", i+10), 1000+i)
+		switch i {
+		case 3:
+			c.Networks[0].Names = append(c.Networks[0].Names, "near.internal")
+		case maxPeers + 5:
+			c.Networks[0].Names = append(c.Networks[0].Names, "far.internal")
+		}
+		w.containers = append(w.containers, c)
+	}
+	e := New(Deps{Docker: w, Listeners: w, Host: &scripted{w: w, name: evidence.ExecutorHost}, Probe: asksKnown{}})
+	worker, _ := target.ParseFrom("container:shop-worker-1")
+	for name, bounded := range map[string]bool{"near.internal": false, "far.internal": true, "nowhere.example": true} {
+		res, err := e.Probe(context.Background(), worker, probe.Spec{Kind: probe.SpecDNS, Host: name})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ev := res.Evidence[0]
+		held := ev.Status == evidence.StatusSkipped
+		noted := slices.Contains(ev.Limitations, NameSearchBounded)
+		if held != bounded || noted != bounded {
+			t.Errorf("%s: held back %v, noted %v; want both %v", name, held, noted, bounded)
 		}
 	}
 }
