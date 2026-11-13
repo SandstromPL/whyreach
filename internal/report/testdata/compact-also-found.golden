@@ -1,0 +1,37 @@
+{
+  "verdict": "cause_identified",
+  "summary": "worker can't reach api:8080: worker and api share no network.",
+  "id": "dg-test",
+  "from": "container:shop-worker-1",
+  "to": "api:8080",
+  "findings": [
+    {
+      "rule_id": "WR004",
+      "title": "worker and api share no network",
+      "confidence": "high",
+      "explanation": "api is on network a_default (Compose project a), and worker only on network b_default (Compose project b).",
+      "fix": "Put worker on api's network.",
+      "evidence": [
+        "ev-02",
+        "ev-03"
+      ],
+      "doc": "docs/rules/WR004.md"
+    },
+    {
+      "rule_id": "WR002",
+      "title": "api listens only on 127.0.0.1:8080 inside its container",
+      "confidence": "high",
+      "fix": "Make the server in api listen on 0.0.0.0:8080 (or [::]:8080), for example with --host 0.0.0.0 or a HOST=0.0.0.0 setting, then restart api.",
+      "evidence": [
+        "ev-03",
+        "ev-04",
+        "ev-06"
+      ],
+      "doc": "docs/rules/WR002.md"
+    }
+  ],
+  "facts": [],
+  "next_checks": [],
+  "side_effects": [],
+  "changes_made": false
+}

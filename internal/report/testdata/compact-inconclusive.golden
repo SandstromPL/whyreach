@@ -1,0 +1,20 @@
+{
+  "verdict": "inconclusive",
+  "summary": "No cause found for worker → api:8080, but 1 thing could not be checked (see gaps).",
+  "id": "dg-test",
+  "from": "container:shop-worker-1",
+  "to": "api:8080",
+  "findings": [],
+  "facts": [],
+  "gaps": [
+    {
+      "what": "name lookup and TCP connect from worker",
+      "why": "permission",
+      "detail": "probe containers are off (tier 2b)",
+      "how_to_enable": "Enable probe containers: set probe_containers = true under [permissions] in ~/.config/whyreach/config.toml."
+    }
+  ],
+  "next_checks": [],
+  "side_effects": [],
+  "changes_made": false
+}

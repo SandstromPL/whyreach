@@ -38,12 +38,16 @@ const (
 // Options are the process's environment, injected for tests.
 type Options struct {
 	Version string
+	Stdin   io.Reader // mcp serve reads the protocol here; nil means os.Stdin
 	Stdout  io.Writer
 	Stderr  io.Writer
 	Getenv  func(string) string
 	// NewPolicy builds the policy (and the engine behind it) for a client;
 	// nil means the real one, from the config file.
 	NewPolicy func(o Options, logger *slog.Logger, client string) (*policy.Policy, error)
+	// ServeMCP runs the MCP server until the client disconnects; main wires
+	// it in, so that nothing else imports the mcpserver package.
+	ServeMCP func(ctx context.Context, p *policy.Policy, mo MCPOptions) error
 }
 
 // exitError carries an exit code out of a command.
@@ -152,7 +156,7 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 		},
 	}
 	addDiagnoseFlags(diagnose, &df)
-	root.AddCommand(diagnose, newInspect(o), newProbe(o))
+	root.AddCommand(diagnose, newInspect(o), newProbe(o), newMCP(o))
 
 	root.AddCommand(&cobra.Command{
 		Use:   "version",

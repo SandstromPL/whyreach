@@ -15,7 +15,7 @@ func RenderInspection(w io.Writer, in *engine.Inspection) {
 	writeWrapped(&b, "", "  ", in.Summary)
 	line := func(label string, items []string) {
 		if len(items) > 0 {
-			writeWrapped(&b, fmt.Sprintf("  %-11s", label), "             ", strings.Join(items, ", "))
+			writeWrapped(&b, fmt.Sprintf("  %-12s", label), "              ", strings.Join(items, ", "))
 		}
 	}
 	if h := in.Host; h != nil {
@@ -54,7 +54,7 @@ func RenderInspection(w io.Writer, in *engine.Inspection) {
 			if len(c.Published) > 0 {
 				s += " publishes " + strings.Join(c.Published, ", ")
 			}
-			writeWrapped(&b, fmt.Sprintf("  %-11s", label), "             ", s)
+			writeWrapped(&b, fmt.Sprintf("  %-12s", label), "              ", s)
 		}
 		if h.Omitted > 0 {
 			fmt.Fprintf(&b, "  (%d more left out)\n", h.Omitted)
