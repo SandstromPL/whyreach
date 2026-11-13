@@ -404,11 +404,11 @@ The engine is a staged pipeline per workflow, not a generic DAG engine (YAGNI): 
   | whole diagnosis | 15 s |
 
   Cancellation propagates from the MCP or CLI context. When the deadline hits, the engine evaluates whatever evidence it has and marks the rest as `timeout`.
-- **Verdict:**
-  - any high-confidence finding → `cause_identified`
-  - best finding is medium → `likely_cause`
-  - the TCP connect from the source succeeded → `no_problem_reproduced`, with next checks for app-level, TLS or timing problems
-  - otherwise → `inconclusive`, with gaps
+- **Verdict**, decided in this order:
+  1. The TCP connect from the source succeeded → `no_problem_reproduced`, with next checks for app-level, TLS or timing problems. Any findings that remain, such as advisories, are listed as "also found".
+  2. The primary finding (§4.5) is high → `cause_identified`.
+  3. The primary finding is medium → `likely_cause`.
+  4. Otherwise → `inconclusive`, with gaps.
 
 ### 4.5 Rules
 
@@ -427,12 +427,14 @@ type Rule interface {
 - a lab scenario in `test/lab/wrxxx-<slug>/`
 - a doc page at `docs/rules/WRxxx.md`
 
-**Confidence levels:**
-- **high:** direct evidence of the cause *and* a failing probe. Example: the listener is only on 127.0.0.1, and a connect from another network namespace is refused.
-- **medium:** a failing probe, with the cause inferred and one piece of evidence missing.
+**Confidence levels.** A rule's confidence depends on how much of its key evidence (§4.6) is present. The catalog's **Probe?** column, taken from the experiments (ADR 0002), says what a probe adds:
+- **high:** the evidence settles the cause.
+  - Rules marked Probe? "no" are settled by metadata and listeners alone, so they reach high in the default configuration, with no probe and no Docker write. Example: api's only listener for the port is 127.0.0.1:8080, and worker targets api's network address (WR002). A refused connect from worker confirms it but isn't needed.
+  - Rules marked "partly" or "yes" also need a probe result that matches the cause.
+- **medium:** the cause is inferred, with one piece of evidence missing. Example: a "partly" rule whose DNS check couldn't run because tier 2b is off and whyreach isn't root.
 - **low:** circumstantial evidence only. Example: a timeout and nothing else.
 
-Contradicting evidence lowers the confidence by one level.
+Contradicting evidence lowers the confidence by one level. A rule marked "yes" whose probe can't run isn't evaluated: it becomes a gap that says how to enable the check.
 
 **Precedence (ADR 0002).** Each rule belongs to a layer. The layers follow the order a connection depends on: the destination has to be up before naming matters, naming comes before the path, and the path comes before the listener.
 - The **primary finding** is the highest-confidence finding in the earliest layer that has one.
