@@ -2,6 +2,7 @@ package policy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
 	"sync/atomic"
@@ -20,6 +21,10 @@ type guard struct {
 	name   string
 	tier2b bool
 	inner  func() (executor.Executor, error)
+	// fallback runs a batch the inner executor could not run because it
+	// couldn't enter the namespace (executor.ErrCannotEnter): probe
+	// containers, used only while tier 2b is in effect.
+	fallback func() (executor.Executor, error)
 }
 
 func (g *guard) Name() string { return g.name }
@@ -63,6 +68,16 @@ func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 		})...), err
 	}
 	evs, err := ex.Run(probe.WithLimits(ctx, lim), where, send)
+	if err != nil && g.fallback != nil && errors.Is(err, executor.ErrCannotEnter) && g.p.ProbeContainers() {
+		if pex, perr := g.fallback(); perr == nil {
+			why := err.Error()
+			g.p.d.Logger.Warn("using a probe container instead", "container", where.String(), "err", err)
+			evs, err = pex.Run(probe.WithLimits(ctx, lim), where, send)
+			for i := range evs {
+				evs[i].Limitations = append(evs[i].Limitations, "ran in a probe container: "+why)
+			}
+		}
+	}
 	return append(evs, refused...), err
 }
 

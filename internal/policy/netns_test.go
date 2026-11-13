@@ -2,12 +2,15 @@ package policy
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
+	"github.com/SandstromPL/whyreach/internal/probe"
 )
 
 // TestNetnsExecutorIsGuarded: as root, container checks go through the
@@ -80,5 +83,86 @@ func TestNetnsExecutorNeedsDocker(t *testing.T) {
 	}
 	if got := in.Host.Permissions.Netns; got != "off" {
 		t.Errorf("permissions netns = %q, want off", got)
+	}
+}
+
+// cannotEnter is a netns executor that can't get into any namespace, as
+// when Docker's PIDs aren't this machine's.
+type cannotEnter struct{ runs int }
+
+func (c *cannotEnter) Name() string { return evidence.ExecutorNetns }
+
+func (c *cannotEnter) Run(_ context.Context, where evidence.ContextRef, specs []probe.Spec) ([]evidence.Evidence, error) {
+	c.runs++
+	err := fmt.Errorf("%w: /proc/42/cgroup does not name container %s", executor.ErrCannotEnter, where.Container)
+	return executor.Failed(where, c.Name(), specs, evidence.StatusFailed, &evidence.Error{Code: evidence.CodeNotFound, Message: err.Error()}), err
+}
+
+// TestNetnsFallsBackToProbeContainersOnlyWhenAllowed: when the netns
+// executor can't enter, a probe container runs the checks if the user
+// allows them, and says so; otherwise the records say why and become a gap
+// with advice.
+func TestNetnsFallsBackToProbeContainersOnlyWhenAllowed(t *testing.T) {
+	for _, allowed := range []bool{true, false} {
+		netns, probes := &cannotEnter{}, &recorder{}
+		p, err := New(Deps{
+			Settings: Settings{Docker: true, ProbeContainers: allowed, RatePerMinute: 30, ConfigPath: "/cfg/config.toml"},
+			Docker:   fakeDocker{}, Listeners: fakeDocker{}, Host: &recorder{},
+			NewProbe: func() (executor.Executor, error) { return probes, nil },
+			Netns:    netns,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		d, err := p.Diagnose(context.Background(), DiagnoseArgs{From: "container:shop-worker-1", To: "api:8080"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if netns.runs != 1 {
+			t.Fatalf("allowed %v: the netns executor ran %d times, want 1", allowed, netns.runs)
+		}
+		if !allowed {
+			if probes.count() != 0 {
+				t.Error("without tier 2b no probe container may run")
+			}
+			if len(d.Gaps) == 0 || !strings.Contains(d.Gaps[0].HowToEnable, "probe_containers = true") {
+				t.Errorf("want a gap that says how to let a probe container run them: %+v", d.Gaps)
+			}
+			continue
+		}
+		if probes.count() != 1 || d.Verdict != "no_problem_reproduced" {
+			t.Fatalf("with tier 2b a probe container must run the checks: %d runs, verdict %s", probes.count(), d.Verdict)
+		}
+		for _, ev := range d.Evidence {
+			if ev.Kind == evidence.KindTCP && !slices.ContainsFunc(ev.Limitations, func(l string) bool { return strings.Contains(l, "probe container") }) {
+				t.Errorf("the record must say a probe container ran it: %+v", ev.Limitations)
+			}
+		}
+	}
+}
+
+// TestNetnsOffInTheConfig: netns = false keeps tier 3 off even as root, and
+// the audit log records whether it was on.
+func TestNetnsOffInTheConfig(t *testing.T) {
+	audit := filepath.Join(t.TempDir(), "audit.jsonl")
+	for _, off := range []bool{false, true} {
+		netns := &recorder{}
+		p, err := New(Deps{
+			Settings: Settings{Docker: true, NetnsOff: off, RatePerMinute: 30},
+			Docker:   fakeDocker{}, Listeners: fakeDocker{}, Host: &recorder{}, Netns: netns, Audit: NewAudit(audit),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Diagnose(context.Background(), DiagnoseArgs{From: "container:shop-worker-1", To: "api:8080"}); err != nil {
+			t.Fatal(err)
+		}
+		if ran := netns.count() == 1; ran == off {
+			t.Errorf("netns off %v: the netns executor ran %v", off, ran)
+		}
+	}
+	es := entries(t, audit)
+	if len(es) != 2 || !es[0].Netns || es[1].Netns {
+		t.Errorf("audit netns = %v, %v; want true, then false", es[0].Netns, es[1].Netns)
 	}
 }

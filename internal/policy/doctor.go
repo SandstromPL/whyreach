@@ -7,10 +7,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/SandstromPL/whyreach/internal/engine"
+	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/platform"
 )
@@ -30,7 +32,7 @@ func (p *Policy) Doctor(ctx context.Context) []engine.Check {
 		Detail: fmt.Sprintf("TCP probes may go to %s; at most %d probes a minute; link-local and cloud-metadata addresses are always blocked", allow, p.d.Settings.RatePerMinute)})
 
 	pl := platform.Detect()
-	out = append(out, p.netnsCheck(pl))
+	out = append(out, p.netnsCheck(ctx, pl))
 	if pl.InContainer {
 		out = append(out, engine.Check{Name: "environment", Status: engine.CheckWarn,
 			Detail: "whyreach runs inside a container: host interfaces and listeners describe that container's network namespace, not the host's"})
@@ -43,19 +45,57 @@ func (p *Policy) Doctor(ctx context.Context) []engine.Check {
 }
 
 // netnsCheck says whether container checks enter the containers' network
-// namespaces themselves (tier 3, the netns executor).
-func (p *Policy) netnsCheck(pl platform.Info) engine.Check {
+// namespaces themselves (tier 3, the netns executor), and when they do,
+// enters one running container's namespace once to show that it works. It
+// sends nothing and writes nothing.
+func (p *Policy) netnsCheck(ctx context.Context, pl platform.Info) engine.Check {
 	c := engine.Check{Name: "netns executor", Status: engine.CheckInfo}
 	_, why := pl.NetnsExecutor()
 	switch {
 	case p.d.Netns != nil:
-		c.Detail = "on (root): on Linux Docker Engine, DNS and TCP checks from containers enter their network namespaces directly, with no Docker write. Run whyreach as root for the CLI only; as an MCP server, prefer a regular user (INITIAL.md §3.5)"
+		c.Detail = "on (root): on Linux Docker Engine, DNS and TCP checks from containers enter their network namespaces directly, with no Docker write. Run whyreach as root for the CLI only; as an MCP server, prefer a regular user"
+		p.tryNetns(ctx, &c)
+	case p.d.Settings.NetnsOff && why == "":
+		c.Detail = "off: netns = false under [permissions] in " + p.d.Settings.ConfigPath
 	case why == "":
 		c.Detail = "off: it needs the Docker API"
 	default:
 		c.Detail = "off: " + why + ". whyreach needs no root: without it, container checks use probe containers (tier 2b)"
 	}
 	return c
+}
+
+// tryNetns enters the first running container's namespace, as a diagnosis
+// would, without sending a probe.
+func (p *Policy) tryNetns(ctx context.Context, c *engine.Check) {
+	n, ok := p.d.Netns.(*executor.Netns)
+	if !ok || p.d.Docker == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	v, err := p.d.Docker.Negotiate(ctx)
+	if err != nil {
+		return // the docker check reports it
+	}
+	if runtime.GOOS != "linux" || v.Os != "linux" || v.Desktop() {
+		c.Status = engine.CheckWarn
+		c.Detail += "; not used here: the daemon is not a Linux Docker Engine on this host, so its PIDs aren't this machine's"
+		return
+	}
+	list, err := p.d.Docker.ListContainers(ctx, false)
+	if err != nil || len(list) == 0 {
+		return
+	}
+	s := list[0]
+	if err := n.Check(ctx, evidence.ContextRef{Kind: evidence.ContextContainer, Container: evidence.ShortID(s.ID), Name: s.Name()}); err != nil {
+		c.Status = engine.CheckFail
+		c.Detail = "on (root), but entering " + s.Name() + "'s network namespace failed: " + err.Error()
+		c.Fix = "Set probe_containers = true under [permissions] in " + p.d.Settings.ConfigPath + " for whyreach to use a probe container when it can't enter, or set netns = false there, or run whyreach as a regular user."
+		return
+	}
+	c.Status = engine.CheckOK
+	c.Detail += "; entered " + s.Name() + "'s and read its /etc/resolv.conf (no probe sent)"
 }
 
 func (p *Policy) probeContainerCheck(ctx context.Context) engine.Check {

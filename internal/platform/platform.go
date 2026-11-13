@@ -10,6 +10,7 @@ type Info struct {
 	Arch        string `json:"arch"`
 	Root        bool   `json:"root"`
 	Netns       bool   `json:"netns"`        // may enter other processes' network namespaces (tier 3: the netns executor)
+	Openat2     bool   `json:"openat2"`      // openat2(2) with RESOLVE_IN_ROOT works (Linux 5.6+): the netns executor reads containers' files with it
 	InContainer bool   `json:"in_container"` // host checks then describe the container, not the host
 	WSL         bool   `json:"wsl"`          // host checks then describe the WSL2 VM, not Windows
 }
@@ -28,6 +29,8 @@ func (i Info) NetnsExecutor() (bool, string) {
 		return false, "it needs root (CAP_SYS_ADMIN and CAP_SYS_PTRACE in the host's user namespace)"
 	case i.InContainer:
 		return false, "whyreach runs inside a container, where Docker's PIDs are not its own"
+	case !i.Openat2:
+		return false, "the kernel lacks openat2 (Linux 5.6 or later), which reading a container's files safely needs"
 	}
 	return true, ""
 }

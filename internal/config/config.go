@@ -33,6 +33,10 @@ type Config struct {
 type Permissions struct {
 	Docker          bool `toml:"docker"`           // tier 2a: read Docker metadata
 	ProbeContainers bool `toml:"probe_containers"` // tier 2b: ephemeral probe containers
+	// Netns lets whyreach, when it runs as root, enter containers' network
+	// namespaces itself (tier 3, the netns executor). Root's privilege is
+	// what turns tier 3 on; false keeps it off even then.
+	Netns bool `toml:"netns"`
 }
 
 // Probe narrows probe targets (INITIAL.md §4.9). Allow lists the address
@@ -87,10 +91,10 @@ const (
 )
 
 // Default is the configuration without a file: Docker metadata on, probe
-// containers off.
+// containers off, and the netns executor allowed when whyreach runs as root.
 func Default() Config {
 	return Config{
-		Permissions: Permissions{Docker: true, ProbeContainers: false},
+		Permissions: Permissions{Docker: true, ProbeContainers: false, Netns: true},
 		Probe:       Probe{Allow: []string{AllowLoopback, AllowRFC1918, AllowDocker}, RatePerMinute: DefaultRate},
 		Timeouts:    Timeouts{Diagnosis: Duration{DefaultDiagnosis}},
 	}

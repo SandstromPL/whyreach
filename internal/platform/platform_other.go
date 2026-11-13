@@ -12,3 +12,6 @@ import (
 func Detect() Info {
 	return Info{OS: runtime.GOOS, Arch: runtime.GOARCH, Root: os.Geteuid() == 0}
 }
+
+// OwnedByOther needs Unix file ownership; elsewhere it reports false.
+func OwnedByOther(string) bool { return false }

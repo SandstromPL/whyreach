@@ -48,6 +48,7 @@ const (
 type Settings struct {
 	Docker          bool     // tier 2a: read Docker metadata
 	ProbeContainers bool     // tier 2b: ephemeral probe containers
+	NetnsOff        bool     // [permissions] netns = false: tier 3 stays off, even as root
 	Allow           []string // [probe] allow: classes and CIDRs; empty means no allowlist
 	RatePerMinute   int      // [probe] rate_per_minute
 	ConfigPath      string   // named in advice
@@ -56,7 +57,7 @@ type Settings struct {
 // SettingsFrom reads the settings out of a loaded config.
 func SettingsFrom(c config.Config, path string) Settings {
 	return Settings{
-		Docker: c.Permissions.Docker, ProbeContainers: c.Permissions.ProbeContainers,
+		Docker: c.Permissions.Docker, ProbeContainers: c.Permissions.ProbeContainers, NetnsOff: !c.Permissions.Netns,
 		Allow: c.Probe.Allow, RatePerMinute: c.Probe.RatePerMinute, ConfigPath: path,
 	}
 }
@@ -117,8 +118,8 @@ func New(d Deps) (*Policy, error) {
 	if !d.Settings.Docker {
 		d.Docker, d.DockerErr = nil, nil
 	}
-	if d.Docker == nil {
-		d.Netns = nil // it finds containers through the Docker API
+	if d.Docker == nil || d.Settings.NetnsOff {
+		d.Netns = nil // it finds containers through the Docker API; and the user can turn it off
 	}
 	p := &Policy{d: d, limiter: newLimiter(d.Settings.RatePerMinute, d.Now)}
 	for _, entry := range d.Settings.Allow {
@@ -137,10 +138,11 @@ func New(d Deps) (*Policy, error) {
 	}
 	// The netns executor obeys the same allowlist, block list and rate
 	// limit as the others; it needs no tier 2b, since it writes nothing to
-	// Docker.
+	// Docker. When it can't enter a namespace, a probe container runs the
+	// checks instead, if the user allows them.
 	var netns executor.Executor
 	if d.Netns != nil {
-		netns = &guard{p: p, name: evidence.ExecutorNetns, inner: func() (executor.Executor, error) { return d.Netns, nil }}
+		netns = &guard{p: p, name: evidence.ExecutorNetns, inner: func() (executor.Executor, error) { return d.Netns, nil }, fallback: p.probeExecutor}
 	}
 	p.engine = engine.New(engine.Deps{
 		Docker:     d.Docker,
@@ -417,6 +419,7 @@ func (p *Policy) audit(e Entry, start time.Time, err error) {
 	e.Client = p.d.Client
 	e.DurationMS = evidence.Millis(time.Since(start))
 	e.ProbeContainers = p.ProbeContainers()
+	e.Netns = p.d.Netns != nil
 	if e.Status == "" {
 		e.Status = "ok"
 	}

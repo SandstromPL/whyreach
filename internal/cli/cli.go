@@ -349,6 +349,7 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 	} else {
 		logger.Warn("no audit log", "err", err)
 	}
+	warnForeignDirs(logger)
 	if cfg.Permissions.Docker {
 		endpoint, err := docker.Endpoint(o.Getenv)
 		if err == nil {
@@ -369,13 +370,29 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 				return executor.NewProbeContainer(pc, exe, o.Version, logger), nil
 			}
 			// As root on the host itself, container checks enter the
-			// containers' network namespaces: no Docker write (tier 3).
-			if ok, _ := platform.Detect().NetnsExecutor(); ok {
+			// containers' network namespaces: no Docker write (tier 3),
+			// unless the config turns it off.
+			if ok, _ := platform.Detect().NetnsExecutor(); ok && cfg.Permissions.Netns {
 				deps.Netns = executor.NewNetns(deps.Docker, logger)
 			}
 		}
 	}
 	return policy.New(deps)
+}
+
+// warnForeignDirs warns when whyreach runs as root but its state and data
+// directories belong to another user, as after sudo -E: the root-owned
+// files it would write there (the audit log, reports) would lock that user
+// out of them.
+func warnForeignDirs(logger *slog.Logger) {
+	if !platform.Detect().Root {
+		return
+	}
+	for _, dir := range []func() (string, error){config.StateDir, config.DataDir} {
+		if d, err := dir(); err == nil && platform.OwnedByOther(d) {
+			logger.Warn("running as root with another user's directories (sudo -E?): root-owned files would be written there; use sudo without -E", "dir", d)
+		}
+	}
 }
 
 // procListeners reads listeners from /proc on the host. The host's own come

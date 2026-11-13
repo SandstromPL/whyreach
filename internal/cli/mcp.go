@@ -44,8 +44,8 @@ Add it to Claude Code with:
 				return internalErr(errors.New("this build has no MCP server"))
 			}
 			logger := newLogger(o)
-			if platform.Detect().Root {
-				logger.Warn("the MCP server runs as root: prefer a regular user, and keep root for the CLI (an agent's tool calls then run with root's privileges, within the probe policy)")
+			if pl := platform.Detect(); pl.Root || pl.Netns {
+				logger.Warn("the MCP server runs with root's privileges: an agent's container checks then enter network namespaces (within the probe policy). Prefer a regular user and keep root for the CLI, or set netns = false under [permissions]")
 			}
 			p, err := o.NewPolicy(o, logger, policy.ClientMCP)
 			if err != nil {

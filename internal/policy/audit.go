@@ -28,6 +28,7 @@ type Entry struct {
 	Primary         string            `json:"primary,omitempty"` // the primary finding's rule
 	DiagnosisID     string            `json:"diagnosis_id,omitempty"`
 	ProbeContainers bool              `json:"probe_containers"` // tier 2b was in effect
+	Netns           bool              `json:"netns"`            // tier 3 was in effect: as root, container checks enter their namespaces
 	ProbesSent      int               `json:"probes_sent"`
 	ProbesDenied    int               `json:"probes_denied,omitempty"`
 	SideEffects     []string          `json:"side_effects"`

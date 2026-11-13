@@ -422,6 +422,8 @@ func (r *run) howToEnable(e evidence.Evidence) string {
 		cfg = "the config file"
 	}
 	switch {
+	case executor.CannotEnter(e.Err):
+		return fmt.Sprintf("whyreach runs as root, so it enters containers' network namespaces itself, and couldn't here. Allow probe containers (the user's decision: probe_containers = true under [permissions] in %s) for whyreach to use one instead, or run whyreach as a regular user.", cfg)
 	case e.Status == evidence.StatusPermissionDenied && e.Err.Message == executor.ProbeContainersOff:
 		return fmt.Sprintf("Enable probe containers (the user's decision, not an agent's): approve them when an MCP client asks, or set probe_containers = true under [permissions] in %s. whyreach then imports its own binary as the image whyreach-probe and runs each check in a short-lived, hardened container labeled io.whyreach.probe=1, which it removes afterwards.", cfg)
 	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && strings.Contains(e.Err.Message, "allowlist"):

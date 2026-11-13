@@ -23,7 +23,7 @@ func TestLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.Permissions.Docker || c.Permissions.ProbeContainers || c.Timeouts.Diagnosis.Duration != 15*time.Second {
+	if !c.Permissions.Docker || c.Permissions.ProbeContainers || !c.Permissions.Netns || c.Timeouts.Diagnosis.Duration != 15*time.Second {
 		t.Errorf("defaults = %+v", c)
 	}
 
@@ -51,8 +51,13 @@ redact_private = false
 	}
 
 	c, err = Load(write(t, "[permissions]\nprobe_containers = true\n"))
-	if err != nil || !c.Permissions.Docker || !c.Permissions.ProbeContainers {
+	if err != nil || !c.Permissions.Docker || !c.Permissions.ProbeContainers || !c.Permissions.Netns {
 		t.Errorf("a partial file keeps the other defaults: %+v, %v", c, err)
+	}
+
+	c, err = Load(write(t, "[permissions]\nnetns = false\n"))
+	if err != nil || c.Permissions.Netns || !c.Permissions.Docker {
+		t.Errorf("netns = false turns only the netns executor off: %+v, %v", c, err)
 	}
 }
 
