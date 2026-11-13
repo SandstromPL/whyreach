@@ -56,6 +56,9 @@ func (w *world) ListContainers(_ context.Context, _ bool, labels ...string) ([]d
 			IPAddress         string `json:"IPAddress"`
 			GlobalIPv6Address string `json:"GlobalIPv6Address"`
 		}{}
+		for _, pm := range c.Ports {
+			s.Ports = append(s.Ports, docker.SummaryPort{IP: pm.HostIP, PrivatePort: pm.ContainerPort, PublicPort: pm.HostPort, Type: pm.Proto})
+		}
 		for _, a := range c.Networks {
 			ip := ""
 			if a.IPv4.IsValid() {

@@ -162,10 +162,14 @@ func facts(v evidence.View, complete bool) []Fact {
 		if !owner.C.Running() {
 			add(fmt.Sprintf("%s is %s", owner.C.DisplayName(), owner.C.State), owner.ID)
 		}
-		if dests.HostsEntry != "" {
+		if dests.HostsEntry != "" && dests.Host == nil {
 			add(fmt.Sprintf("%s's extra_hosts map %q to %s, ahead of any DNS", owner.C.DisplayName(), q.To.Host, dests.HostsEntry), owner.ID)
 		}
 		switch {
+		case dests.Host != nil:
+			// The target is the host: say which of its addresses, and what
+			// publishes the port there.
+			hostFact(dests.Host, q, owner.C, add)
 		case len(dests.OnSourceNets) > 0:
 			m := dests.OnSourceNets[0]
 			add(fmt.Sprintf("%s and %s share network %s", owner.C.DisplayName(), m.C.DisplayName(), strings.Join(m.Shared, ", ")), owner.ID, m.ID)
@@ -175,6 +179,12 @@ func facts(v evidence.View, complete bool) []Fact {
 		case q.To.Class == evidence.TargetName && dests.HostsEntry == "" && complete:
 			add(fmt.Sprintf("no container answers to %q in Docker's metadata", q.To.Host), owner.ID)
 		}
+	}
+	if !haveOwner && dests.Host != nil {
+		hostFact(dests.Host, q, evidence.Container{}, add)
+	}
+	for _, m := range dests.Published {
+		add(fmt.Sprintf("%s publishes %s → its port %d", m.C.DisplayName(), m.Published.HostAddr(), m.Port), m.ID)
 	}
 	for _, m := range dests.All() {
 		if !m.C.Running() {
@@ -212,11 +222,16 @@ func facts(v evidence.View, complete bool) []Fact {
 		}
 		add(text, t.ID)
 	}
-	port := q.To.Port
 	for _, e := range v.Of(evidence.KindListeners) {
 		l, ok := e.Data.(evidence.Listeners)
 		if !ok || !e.OK() {
 			continue
+		}
+		port := q.To.Port
+		for _, m := range dests.Published {
+			if e.Context.Container == evidence.ShortID(m.C.ID) {
+				port = m.Port // the container port the published one forwards to
+			}
 		}
 		socks := l.OnPort(port)
 		where := e.Context.String()
@@ -241,11 +256,33 @@ func facts(v evidence.View, complete bool) []Fact {
 	return out
 }
 
+// hostFact says how the target reaches the host.
+func hostFact(h *evidence.HostTarget, q evidence.Question, owner evidence.Container, add func(string, ...string)) {
+	where := ""
+	if h.Addr.IsValid() {
+		where = h.Addr.String()
+		if h.Iface != "" {
+			where += " on " + h.Iface
+		}
+	}
+	switch h.Via {
+	case evidence.HostViaGateway:
+		if where != "" {
+			add(fmt.Sprintf("%q is the host for %s: extra_hosts map it to host-gateway, the host's %s", q.To.Host, owner.DisplayName(), where), h.Evidence...)
+		}
+	case evidence.HostViaAddress:
+		add(fmt.Sprintf("%s is the host's own address", where), h.Evidence...)
+	case evidence.HostViaName:
+		add(fmt.Sprintf("%s has no extra_hosts entry for %s", owner.DisplayName(), q.To.Host))
+	}
+}
+
 // relevantListenerContext limits "nothing listens" facts to the source (for
-// a loopback target) and the destinations.
+// a loopback target), the destinations, and the host when it is the target.
 func relevantListenerContext(v evidence.View, c evidence.ContextRef) bool {
 	if c.Kind == evidence.ContextHost {
-		return false
+		_, ok := v.HostTarget()
+		return ok
 	}
 	if owner, ok := v.NetnsOwner(); ok && evidence.ShortID(owner.C.ID) == c.Container {
 		return true
@@ -346,7 +383,7 @@ func (r *run) gapsFrom(v evidence.View) []Gap {
 		switch {
 		case slices.Equal(kinds[k], []string{kindLabel(evidence.KindListeners)}):
 			prep = "in"
-		case slices.Equal(kinds[k], []string{kindLabel(evidence.KindContainer)}):
+		case slices.Equal(kinds[k], []string{kindLabel(evidence.KindContainer)}), slices.Equal(kinds[k], []string{kindLabel(evidence.KindHostAddrs)}):
 			prep = "of"
 		}
 		g.What = fmt.Sprintf("%s %s %s", joinAnd(kinds[k]), prep, k.ctx)
@@ -410,6 +447,8 @@ func kindLabel(k evidence.Kind) string {
 		return "listening sockets"
 	case evidence.KindContainer:
 		return "container metadata"
+	case evidence.KindHostAddrs:
+		return "the interfaces"
 	default:
 		return string(k)
 	}

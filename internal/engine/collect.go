@@ -17,10 +17,20 @@ import (
 )
 
 // collect gathers metadata for the containers the question involves and
-// reads their listening sockets from the host.
+// reads their listening sockets from the host. When the target is the host
+// itself (localhost from the host, a host address, host.docker.internal),
+// it reads the host's listeners and the containers that publish the port
+// there instead (collectHost).
 func (r *run) collect(ctx context.Context) error {
+	// The host's interfaces say which addresses are the host's.
+	if r.e.d.Interfaces != nil {
+		r.store.Add(r.hostAddrs())
+	}
 	dk := r.docker
 	if dk == nil || (r.q.From.Kind == evidence.SourceContainer && r.q.From.ContainerID == "") {
+		if _, ok := evidence.NewView(r.q, r.store.Snapshot()).HostTarget(); ok {
+			r.store.Add(r.hostListeners())
+		}
 		return nil
 	}
 	lctx, cancel := context.WithTimeout(ctx, dockerTimeout)
@@ -45,6 +55,10 @@ func (r *run) collect(ctx context.Context) error {
 		if c, ok := e.Data.(evidence.Container); ok {
 			have[c.ID] = true
 		}
+	}
+	if _, ok := view.HostTarget(); ok {
+		r.collectHost(ctx, list, have)
+		return nil
 	}
 
 	// What the target means in the container list: a name, or an address
@@ -107,10 +121,12 @@ func (r *run) collect(ctx context.Context) error {
 	}
 
 	// Decide what to record: for a loopback target every peer (WR007 looks
-	// for the service among them); otherwise the destinations and the
-	// containers whose network namespace they use.
+	// for the service among them); for a name that matches nothing, every
+	// peer too (WR005 suggests the closest name); otherwise the destinations
+	// and the containers whose network namespace they use.
 	view = evidence.NewView(r.q, append(slices.Clone(known), inspected...))
 	dests := view.Destinations().All()
+	allPeers := to.Class == evidence.TargetLoopback || (to.Class == evidence.TargetName && len(dests) == 0 && byName)
 	record := map[string]bool{}
 	for _, m := range dests {
 		record[m.C.ID] = true
@@ -127,7 +143,7 @@ func (r *run) collect(ctx context.Context) error {
 	var listenFor []evidence.Container
 	for _, ev := range inspected {
 		c := ev.Data.(evidence.Container)
-		if to.Class == evidence.TargetLoopback || record[c.ID] {
+		if allPeers || record[c.ID] {
 			r.store.Add(ev)
 		}
 		if to.Class == evidence.TargetLoopback && c.NetnsOwner() != ownerID {
@@ -150,6 +166,90 @@ func (r *run) collect(ctx context.Context) error {
 	}
 	r.readListeners(ctx, listenFor)
 	return nil
+}
+
+// maxScan bounds the running containers whose listeners are read to find
+// the one that should answer a host port (WR019).
+const maxScan = 32
+
+// collectHost gathers what a connection to the host itself depends on: the
+// host's listeners on the port, and the containers that publish it, expose
+// it, or publish their own port of that number elsewhere. When the source
+// is the host and nothing there accepts the port, it also reads the
+// listeners of the running containers to find the one that serves it but
+// doesn't publish it (WR019).
+func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[string]bool) {
+	port := r.q.To.Port
+	hostL := r.hostListeners()
+	r.store.Add(hostL)
+	hostAccepts := false
+	if l, ok := hostL.Data.(evidence.Listeners); ok && hostL.OK() {
+		hostAccepts = len(l.OnPort(port)) > 0
+	}
+	var cands, others []docker.Summary
+	for _, s := range list {
+		switch {
+		case have[s.ID]:
+		case s.MentionsPort(port):
+			if len(cands) < maxMatches {
+				cands = append(cands, s)
+			}
+		case s.State == evidence.StateRunning:
+			others = append(others, s)
+		}
+	}
+	inspected, failed := r.inspectAll(ctx, cands)
+	r.store.Add(failed...)
+	r.store.Add(inspected...)
+	var listenFor []evidence.Container
+	for _, ev := range inspected {
+		listenFor = append(listenFor, ev.Data.(evidence.Container))
+	}
+	r.readListeners(ctx, listenFor)
+
+	view := evidence.NewView(r.q, r.store.Snapshot())
+	if !view.HostSource() || hostAccepts || len(view.Destinations().Published) > 0 {
+		return
+	}
+	if len(others) > maxScan {
+		r.gaps = append(r.gaps, Gap{
+			What:   fmt.Sprintf("the listeners of %d more running containers", len(others)-maxScan),
+			Why:    "skipped",
+			Detail: fmt.Sprintf("whyreach reads at most %d containers' listeners to find the one that serves port %d", maxScan, port),
+		})
+		others = others[:maxScan]
+	}
+	scanned, failed := r.inspectAll(ctx, others)
+	if len(failed) > 0 {
+		r.metadataIncomplete = true
+		r.store.Add(failed...)
+	}
+	for _, ev := range scanned {
+		c := ev.Data.(evidence.Container)
+		if c.HostNetwork() || c.NetnsOwner() != "" {
+			continue // its sockets are the host's, or another container's
+		}
+		l := r.containerListeners(ctx, c)
+		socks, ok := l.Data.(evidence.Listeners)
+		if !ok || !l.OK() || len(socks.OnPort(port)) == 0 {
+			continue
+		}
+		r.store.Add(ev, l)
+	}
+}
+
+// hostAddrs reads the host's interfaces.
+func (r *run) hostAddrs() evidence.Evidence {
+	ev := evidence.Evidence{Kind: evidence.KindHostAddrs, Context: evidence.Host(), Subject: "interfaces", Source: "the kernel's interface list (netlink), in whyreach's own network namespace"}
+	start := time.Now()
+	addrs, err := r.e.d.Interfaces()
+	ev.Duration, ev.ObservedAt = time.Since(start), time.Now()
+	if err != nil {
+		ev.Status, ev.Err = probe.Classify(err)
+		return ev
+	}
+	ev.Status, ev.Data = evidence.StatusOK, addrs
+	return ev
 }
 
 func shares(a, b []string) bool {

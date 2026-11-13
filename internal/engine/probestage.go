@@ -102,8 +102,17 @@ func (r *run) specs(view evidence.View) []probe.Spec {
 	if to.Class != evidence.TargetName {
 		return specs
 	}
+	dests := view.Destinations()
+	if len(dests.All()) == 0 && dests.Host == nil && dests.HostsEntry == "" {
+		// The name matches no container. A lookup of a name Docker's DNS
+		// certainly knows, the source's own, shows whether internal names
+		// resolve (WR005, WR020); it never leaves the host.
+		if owner, ok := view.NetnsOwner(); ok && len(owner.C.UserDefinedNetworks()) > 0 && !strings.EqualFold(owner.C.Name, to.Host) {
+			specs = append(specs, probe.Spec{Kind: probe.SpecDNS, Host: owner.C.Name})
+		}
+	}
 	n := 0
-	for _, m := range view.Destinations().Elsewhere {
+	for _, m := range dests.Elsewhere {
 		for _, a := range m.C.Addrs() {
 			if n == maxMetadataIPs {
 				return specs
