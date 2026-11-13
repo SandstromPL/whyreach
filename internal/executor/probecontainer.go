@@ -107,10 +107,11 @@ func (p *ProbeContainer) Run(ctx context.Context, where evidence.ContextRef, spe
 	defer cancel()
 
 	name := "wr-probe-" + randomHex(4)
-	id, err := p.API.Create(ctx, docker.ProbeSpec{
-		Name: name, Image: ref, NetnsOf: where.Container,
-		Cmd: []string{"--spec", specJSON, "--budget", probeBudget(ctx).String()},
-	})
+	cmd := []string{"--spec", specJSON, "--budget", probeBudget(ctx).String()}
+	if lim := probe.LimitsFrom(ctx); lim.Restricted {
+		cmd = append(cmd, "--allow", lim.Flag())
+	}
+	id, err := p.API.Create(ctx, docker.ProbeSpec{Name: name, Image: ref, NetnsOf: where.Container, Cmd: cmd})
 	if err != nil {
 		// The daemon may have created the container although its answer was
 		// lost, for instance when the diagnosis was cancelled mid-request.

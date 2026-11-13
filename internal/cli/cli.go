@@ -148,7 +148,7 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 		},
 	})
 
-	var spec string
+	var spec, allow string
 	var budget time.Duration
 	probeCmd := &cobra.Command{
 		Use:    "__probe",
@@ -156,7 +156,14 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 		Hidden: true,
 		Args:   cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if c := probe.Main(cmd.Context(), spec, budget, cmd.OutOrStdout(), cmd.ErrOrStderr()); c != probe.ExitOK {
+			var lim probe.Limits
+			if cmd.Flags().Changed("allow") {
+				var err error
+				if lim, err = probe.ParseLimits(allow); err != nil {
+					return internalErr(err)
+				}
+			}
+			if c := probe.Main(cmd.Context(), spec, budget, lim, cmd.OutOrStdout(), cmd.ErrOrStderr()); c != probe.ExitOK {
 				return internalErr(errors.New("probe failed"))
 			}
 			return nil
@@ -164,6 +171,7 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 	}
 	probeCmd.Flags().StringVar(&spec, "spec", "", "JSON list of probe specs")
 	probeCmd.Flags().DurationVar(&budget, "budget", probe.Budget, "time the whole batch may take")
+	probeCmd.Flags().StringVar(&allow, "allow", "", "comma-separated prefixes connects are restricted to (absent: no allowlist)")
 	root.AddCommand(probeCmd)
 	return root
 }

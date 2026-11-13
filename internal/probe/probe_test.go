@@ -153,22 +153,117 @@ func TestDialOutcomes(t *testing.T) {
 	_ = ln2.Close()
 	defer func() { _ = ln.Close() }()
 
-	ev := Dial(context.Background(), "x", open, evidence.ViaLiteral)
+	ev := Dial(context.Background(), "x", open, evidence.ViaLiteral, Limits{})
 	if p := ev.Data.(evidence.TCPProbe); ev.Status != evidence.StatusOK || p.Outcome != evidence.OutcomeConnected {
 		t.Errorf("open port: %+v", ev)
 	}
-	ev = Dial(context.Background(), "x", closed, evidence.ViaLiteral)
+	ev = Dial(context.Background(), "x", closed, evidence.ViaLiteral, Limits{})
 	if p := ev.Data.(evidence.TCPProbe); ev.Status != evidence.StatusOK || p.Outcome != evidence.OutcomeRefused || p.Errno != "ECONNREFUSED" {
 		t.Errorf("closed port: %+v", ev)
 	}
-	ev = Dial(context.Background(), "x", netip.MustParseAddrPort("169.254.169.254:80"), evidence.ViaLiteral)
+	ev = Dial(context.Background(), "x", netip.MustParseAddrPort("169.254.169.254:80"), evidence.ViaLiteral, Limits{})
 	if p := ev.Data.(evidence.TCPProbe); ev.Status != evidence.StatusSkipped || p.Outcome != evidence.OutcomeBlocked || ev.Err.Code != evidence.CodePolicyDenied {
 		t.Errorf("metadata address: %+v", ev)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if ev := Dial(ctx, "x", open, evidence.ViaLiteral); ev.Status != evidence.StatusTimeout {
+	if ev := Dial(ctx, "x", open, evidence.ViaLiteral, Limits{}); ev.Status != evidence.StatusTimeout {
 		t.Errorf("cancelled context: status %s, want timeout", ev.Status)
+	}
+}
+
+func TestDialSeesAnImmediateClose(t *testing.T) {
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_ = c.Close() // what docker-proxy does when the container refuses
+		}
+	}()
+	ev := Dial(context.Background(), "x", netip.MustParseAddrPort(ln.Addr().String()), evidence.ViaLiteral, Limits{})
+	if p := ev.Data.(evidence.TCPProbe); ev.Status != evidence.StatusOK || p.Outcome != evidence.OutcomeClosed {
+		t.Errorf("accept-then-close: %+v", ev)
+	}
+
+	// A server that speaks first is open.
+	ln2, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln2.Close() }()
+	go func() {
+		c, err := ln2.Accept()
+		if err != nil {
+			return
+		}
+		_, _ = c.Write([]byte("220 hello\r\n"))
+		time.Sleep(time.Second)
+		_ = c.Close()
+	}()
+	ev = Dial(context.Background(), "x", netip.MustParseAddrPort(ln2.Addr().String()), evidence.ViaLiteral, Limits{})
+	if p := ev.Data.(evidence.TCPProbe); p.Outcome != evidence.OutcomeConnected {
+		t.Errorf("banner server: %+v", ev)
+	}
+}
+
+func TestLimits(t *testing.T) {
+	l, err := ParseLimits("10.0.0.0/8, 172.22.0.0/16,::1/128")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for addr, want := range map[string]bool{
+		"10.1.2.3": true, "172.22.0.3": true, "::1": true, "::ffff:10.0.0.1": true,
+		"172.23.0.1": false, "8.8.8.8": false, "169.254.169.254": false,
+	} {
+		if _, ok := l.Check(netip.MustParseAddr(addr)); ok != want {
+			t.Errorf("Check(%s) = %v, want %v", addr, ok, want)
+		}
+	}
+	if _, ok := (Limits{}).Check(netip.MustParseAddr("8.8.8.8")); !ok {
+		t.Error("no allowlist: a public address must pass")
+	}
+	if _, ok := (Limits{}).Check(netip.MustParseAddr("169.254.169.254")); ok {
+		t.Error("the block list applies without an allowlist too")
+	}
+	empty, err := ParseLimits("")
+	if err != nil || !empty.Restricted || len(empty.Allow) != 0 {
+		t.Errorf("an empty --allow is a restricted, empty allowlist: %+v %v", empty, err)
+	}
+	if _, ok := empty.Check(netip.MustParseAddr("10.0.0.1")); ok {
+		t.Error("an empty allowlist admits nothing")
+	}
+	if back, _ := ParseLimits(l.Flag()); !cmp.Equal(back, l, cmpopts.EquateComparable(netip.Prefix{})) {
+		t.Errorf("flag round trip: %v", back)
+	}
+	if _, err := ParseLimits("10.0.0.0/33"); err == nil {
+		t.Error("a bad prefix must be rejected")
+	}
+	ctx := WithLimits(context.Background(), l)
+	if got := LimitsFrom(ctx); !got.Restricted || len(got.Allow) != 3 {
+		t.Errorf("LimitsFrom = %+v", got)
+	}
+	if got := LimitsFrom(context.Background()); got.Restricted {
+		t.Error("no limits in a plain context")
+	}
+}
+
+func TestDialObeysLimits(t *testing.T) {
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }()
+	only10 := Limits{Restricted: true, Allow: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}}
+	ev := Dial(context.Background(), "x", netip.MustParseAddrPort(ln.Addr().String()), evidence.ViaLiteral, only10)
+	if p := ev.Data.(evidence.TCPProbe); ev.Status != evidence.StatusSkipped || p.Outcome != evidence.OutcomeBlocked || ev.Err.Code != evidence.CodePolicyDenied {
+		t.Errorf("outside the allowlist: %+v", ev)
 	}
 }
 
@@ -505,7 +600,7 @@ func TestDecodeSpecs(t *testing.T) {
 
 func TestMainWritesJSONLines(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := Main(context.Background(), `[{"kind":"listeners"}]`, 0, &stdout, &stderr)
+	code := Main(context.Background(), `[{"kind":"listeners"}]`, 0, Limits{}, &stdout, &stderr)
 	if code != ExitOK {
 		t.Fatalf("exit %d, stderr %s", code, stderr.String())
 	}
@@ -516,7 +611,7 @@ func TestMainWritesJSONLines(t *testing.T) {
 	if ev.Kind != evidence.KindListeners {
 		t.Errorf("kind = %s", ev.Kind)
 	}
-	if code := Main(context.Background(), `nonsense`, time.Second, &stdout, &stderr); code != ExitInternal {
+	if code := Main(context.Background(), `nonsense`, time.Second, Limits{}, &stdout, &stderr); code != ExitInternal {
 		t.Errorf("bad spec: exit %d, want %d", code, ExitInternal)
 	}
 }

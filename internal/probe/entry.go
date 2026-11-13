@@ -26,7 +26,8 @@ const (
 // evidence record per line to stdout. Failed checks are evidence, not errors.
 //
 // budget bounds the whole batch; 0 or anything above Budget means Budget.
-func Main(ctx context.Context, specJSON string, budget time.Duration, stdout, stderr io.Writer) int {
+// lim is the allowlist that whyreach's policy passed with --allow.
+func Main(ctx context.Context, specJSON string, budget time.Duration, lim Limits, stdout, stderr io.Writer) int {
 	specs, err := DecodeSpecs(specJSON)
 	if err != nil {
 		fmt.Fprintln(stderr, "whyreach __probe:", err)
@@ -39,7 +40,9 @@ func Main(ctx context.Context, specJSON string, budget time.Duration, stdout, st
 	defer cancel()
 	netns := SelfNetnsID()
 	enc := json.NewEncoder(stdout)
-	for _, ev := range Run(ctx, DefaultEnv(), specs) {
+	env := DefaultEnv()
+	env.Limits = lim
+	for _, ev := range Run(ctx, env, specs) {
 		ev.Context.NetnsID = netns
 		if err := enc.Encode(ev); err != nil {
 			fmt.Fprintln(stderr, "whyreach __probe: write result:", err)

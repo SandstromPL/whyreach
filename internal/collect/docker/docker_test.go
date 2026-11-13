@@ -217,6 +217,8 @@ func TestInspectContainer(t *testing.T) {
 			{ContainerPort: 9090, Proto: "tcp", HostPort: 19090},
 		},
 		ExtraHosts: []string{"host.docker.internal:host-gateway"},
+		DNS:        []string{"192.0.2.53"},
+		Links:      []string{"/shop-db-1:/shop-api-1/db"},
 	}
 	if diff := cmp.Diff(want, got, netipOpts); diff != "" {
 		t.Errorf("(-want +got):\n%s", diff)
@@ -252,6 +254,66 @@ func TestListContainersFilters(t *testing.T) {
 	last := reqs[len(reqs)-1]
 	if !strings.Contains(last, "all=1") || !strings.Contains(last, "filters=%7B%22label%22%3A%5B%22com.docker.compose.service%3Dworker%22%5D%7D") {
 		t.Errorf("query = %s", last)
+	}
+}
+
+func TestNetworks(t *testing.T) {
+	network := map[string]any{
+		"Name": "shop_default", "Id": "c8b1", "Driver": "bridge", "Scope": "local", "Internal": true, "EnableIPv6": false,
+		"IPAM":   map[string]any{"Config": []map[string]string{{"Subnet": "172.22.0.0/16", "Gateway": "172.22.0.1"}}},
+		"Labels": map[string]string{"com.docker.compose.project": "shop", "com.example.secret": "x"},
+		"Containers": map[string]any{
+			"bbbb": map[string]string{"Name": "shop-worker-1", "MacAddress": "02:42:ac:16:00:02", "IPv4Address": "172.22.0.2/16"},
+			"aaaa": map[string]string{"Name": "shop-api-1", "MacAddress": "02:42:ac:16:00:03", "IPv4Address": "172.22.0.3/16", "IPv6Address": ""},
+		},
+	}
+	f := newFakeDaemon(t, "1.56", func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1.56/networks":
+			writeJSON(w, []any{network, map[string]any{"Name": "bridge", "Id": "b1", "Driver": "bridge",
+				"IPAM": map[string]any{"Config": []map[string]string{{"Subnet": "172.17.0.0/16", "Gateway": "172.17.0.1"}}}}})
+		case "/v1.56/networks/shop_default":
+			writeJSON(w, network)
+		default:
+			notFound(w, r)
+		}
+	})
+	c, _ := New(f.endpoint, ReadRoutes())
+	_, _ = c.Negotiate(context.Background())
+	list, err := c.ListNetworks(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 2 || list[0].Name != "bridge" || list[1].Members != nil {
+		t.Fatalf("want two networks sorted by name, without members: %+v", list)
+	}
+	got, err := c.InspectNetwork(context.Background(), "shop_default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Network{
+		ID: "c8b1", Name: "shop_default", Driver: "bridge", Scope: "local", Internal: true, Compose: "shop",
+		Subnets:  []netip.Prefix{netip.MustParsePrefix("172.22.0.0/16")},
+		Gateways: []netip.Addr{netip.MustParseAddr("172.22.0.1")},
+		Members: []NetworkMember{
+			{ID: "aaaa", Name: "shop-api-1", IPv4: netip.MustParseAddr("172.22.0.3")},
+			{ID: "bbbb", Name: "shop-worker-1", IPv4: netip.MustParseAddr("172.22.0.2")},
+		},
+	}
+	if diff := cmp.Diff(want, got, netipOpts, cmpopts.EquateComparable(netip.Prefix{})); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+	if b, _ := json.Marshal(got); bytes.Contains(b, []byte("02:42")) || bytes.Contains(b, []byte("secret")) {
+		t.Errorf("network metadata leaks MACs or labels: %s", b)
+	}
+}
+
+func TestSummaryPorts(t *testing.T) {
+	s := Summary{Ports: []SummaryPort{{PrivatePort: 8080, Type: "tcp"}, {IP: "127.0.0.1", PrivatePort: 9090, PublicPort: 19090, Type: "tcp"}, {PrivatePort: 53, Type: "udp"}}}
+	for port, want := range map[uint16]bool{8080: true, 9090: true, 19090: true, 53: false, 7000: false} {
+		if got := s.MentionsPort(port); got != want {
+			t.Errorf("MentionsPort(%d) = %v, want %v", port, got, want)
+		}
 	}
 }
 

@@ -34,6 +34,30 @@ type Summary struct {
 			GlobalIPv6Address string `json:"GlobalIPv6Address"`
 		} `json:"Networks"`
 	} `json:"NetworkSettings"`
+	// Ports lists published ports, and exposed ones without a PublicPort.
+	Ports []SummaryPort `json:"Ports"`
+}
+
+// SummaryPort is one entry of a container list's Ports.
+type SummaryPort struct {
+	IP          string `json:"IP"`
+	PrivatePort uint16 `json:"PrivatePort"`
+	PublicPort  uint16 `json:"PublicPort"`
+	Type        string `json:"Type"`
+}
+
+// MentionsPort reports a container that publishes port as a host port, or
+// exposes or publishes it as a container port.
+func (s Summary) MentionsPort(port uint16) bool {
+	for _, p := range s.Ports {
+		if p.Type != "" && p.Type != "tcp" {
+			continue
+		}
+		if p.PublicPort == port || p.PrivatePort == port {
+			return true
+		}
+	}
+	return false
 }
 
 // Networks lists the networks the container is configured on, sorted.
@@ -112,6 +136,8 @@ type containerJSON struct {
 		NetworkMode  string                   `json:"NetworkMode"`
 		PortBindings map[string][]portBinding `json:"PortBindings"`
 		ExtraHosts   []string                 `json:"ExtraHosts"`
+		DNS          []string                 `json:"Dns"`
+		Links        []string                 `json:"Links"`
 	} `json:"HostConfig"`
 	NetworkSettings struct {
 		Networks map[string]struct {
@@ -153,6 +179,8 @@ func (r containerJSON) toEvidence() evidence.Container {
 		RestartCount: r.RestartCount,
 		NetworkMode:  r.HostConfig.NetworkMode,
 		ExtraHosts:   slices.Clone(r.HostConfig.ExtraHosts),
+		DNS:          slices.Clone(r.HostConfig.DNS),
+		Links:        slices.Clone(r.HostConfig.Links),
 	}
 	if r.State.Health != nil && r.State.Health.Status != "none" {
 		c.Health = r.State.Health.Status

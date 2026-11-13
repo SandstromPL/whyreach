@@ -222,6 +222,14 @@ func TestProbeContainerRun(t *testing.T) {
 	if cmd := api.created[0].Cmd; len(cmd) != 4 || cmd[2] != "--budget" || cmd[3] != probe.Budget.String() {
 		t.Errorf("probe command = %q, want the spec and the full budget", cmd)
 	}
+	// The allowlist from policy reaches the probe process.
+	lim := probe.Limits{Restricted: true, Allow: []netip.Prefix{netip.MustParsePrefix("172.22.0.0/16")}}
+	if _, err := pc.Run(probe.WithLimits(context.Background(), lim), worker, specs); err != nil {
+		t.Fatal(err)
+	}
+	if cmd := api.created[len(api.created)-1].Cmd; len(cmd) != 6 || cmd[4] != "--allow" || cmd[5] != "172.22.0.0/16" {
+		t.Errorf("probe command = %q, want --allow 172.22.0.0/16", cmd)
+	}
 	// A second run reuses the image and does not sweep again, and its side
 	// effects are its own.
 	api.calls = nil
@@ -384,6 +392,12 @@ func TestHostRun(t *testing.T) {
 	}
 	if evs[0].Status != evidence.StatusSkipped {
 		t.Errorf("a blocked address must not be dialed: %+v", evs[0])
+	}
+	// The limits in the context apply to the host's probes too.
+	only10 := probe.WithLimits(context.Background(), probe.Limits{Restricted: true, Allow: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}})
+	evs, _ = h.Run(only10, evidence.Host(), []probe.Spec{{Kind: probe.SpecTCP, Host: "127.0.0.1", Port: 9}})
+	if len(evs) != 1 || evs[0].Status != evidence.StatusSkipped || evs[0].Err.Code != evidence.CodePolicyDenied {
+		t.Errorf("an address outside the allowlist must not be dialed: %+v", evs)
 	}
 }
 

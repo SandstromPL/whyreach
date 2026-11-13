@@ -29,6 +29,8 @@
     "NetworkMode": "shop_default",
     "PortBindings": {"8080/tcp": [{"HostIp": "127.0.0.1", "HostPort": "18080"}], "9090/tcp": [{"HostIp": "", "HostPort": "19090"}]},
     "ExtraHosts": ["host.docker.internal:host-gateway"],
+    "Dns": ["192.0.2.53"],
+    "Links": ["/shop-db-1:/shop-api-1/db"],
     "RestartPolicy": {"Name": "no", "MaximumRetryCount": 0}
   },
   "NetworkSettings": {

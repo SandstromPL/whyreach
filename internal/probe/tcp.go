@@ -3,6 +3,7 @@ package probe
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"net/netip"
 	"os"
@@ -10,16 +11,21 @@ import (
 	"time"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
-	"github.com/SandstromPL/whyreach/internal/target"
 )
 
 // DialTimeout bounds one TCP connect (INITIAL.md §4.4).
 const DialTimeout = 2 * time.Second
 
-// Dial connects to addr and closes the connection at once, without sending
-// any payload. subject labels the evidence ("api:8080"); via says how addr was
-// obtained. The record's Context is left for the caller to fill in.
-func Dial(ctx context.Context, subject string, addr netip.AddrPort, via string) evidence.Evidence {
+// AcceptWindow is how long a probe keeps a new connection open to see
+// whether the peer closes it at once (OutcomeClosed). It never sends.
+const AcceptWindow = 100 * time.Millisecond
+
+// Dial connects to addr, waits up to AcceptWindow to see whether the peer
+// closes the connection at once, and closes it, without sending any payload.
+// subject labels the evidence ("api:8080"); via says how addr was obtained;
+// lim is checked before dialing. The record's Context is left for the caller
+// to fill in.
+func Dial(ctx context.Context, subject string, addr netip.AddrPort, via string, lim Limits) evidence.Evidence {
 	addr = netip.AddrPortFrom(addr.Addr().Unmap(), addr.Port())
 	ev := evidence.Evidence{
 		Kind:    evidence.KindTCP,
@@ -27,7 +33,7 @@ func Dial(ctx context.Context, subject string, addr netip.AddrPort, via string) 
 		Source:  "TCP connect, then close (no payload)",
 	}
 	p := evidence.TCPProbe{Target: subject, Addr: addr, Via: via}
-	if reason, blocked := target.Blocked(addr.Addr()); blocked {
+	if reason, ok := lim.Check(addr.Addr()); !ok {
 		p.Outcome = evidence.OutcomeBlocked
 		ev.Status = evidence.StatusSkipped
 		ev.Err = &evidence.Error{Code: evidence.CodePolicyDenied, Message: reason}
@@ -42,8 +48,12 @@ func Dial(ctx context.Context, subject string, addr netip.AddrPort, via string) 
 	ev.Duration = p.RTT
 	ev.ObservedAt = time.Now()
 	if err == nil {
-		_ = conn.Close() // nothing was sent; a close error says nothing about reachability
 		p.Outcome = evidence.OutcomeConnected
+		if closed, errno := closedAtOnce(ctx, conn); closed {
+			p.Outcome, p.Errno = evidence.OutcomeClosed, errno
+			p.Error = "the peer accepted the connection and closed it at once, without sending anything"
+		}
+		_ = conn.Close() // nothing was sent; a close error says nothing about reachability
 		ev.Status = evidence.StatusOK
 		ev.Data = p
 		return ev
@@ -59,6 +69,33 @@ func Dial(ctx context.Context, subject string, addr netip.AddrPort, via string) 
 	ev.Status = evidence.StatusOK
 	ev.Data = p
 	return ev
+}
+
+// closedAtOnce waits up to AcceptWindow for the peer to end a connection it
+// just accepted. Servers wait for the client to speak, or speak first, so
+// either a timeout or data means the connection is open. An immediate EOF or
+// reset is what docker-proxy does when the published container's port
+// refuses, and what a server does that rejects the client right away.
+func closedAtOnce(ctx context.Context, conn net.Conn) (bool, string) {
+	deadline := time.Now().Add(AcceptWindow)
+	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
+		deadline = d
+	}
+	if err := conn.SetReadDeadline(deadline); err != nil {
+		return false, ""
+	}
+	var b [1]byte
+	n, err := conn.Read(b[:])
+	switch {
+	case n > 0:
+		return false, ""
+	case errors.Is(err, io.EOF):
+		return true, ""
+	case errors.Is(err, syscall.ECONNRESET):
+		return true, "ECONNRESET"
+	default:
+		return false, ""
+	}
 }
 
 // classifyDial keeps refused, timeout and unreachable apart: they point at

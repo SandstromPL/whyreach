@@ -38,6 +38,7 @@ const (
 	KindListeners     Kind = "netns.listeners"  // Listeners
 	KindDNS           Kind = "probe.dns"        // DNSProbe
 	KindTCP           Kind = "probe.tcp"        // TCPProbe
+	KindHostAddrs     Kind = "host.addrs"       // HostAddrs
 )
 
 // kindOrder fixes the order in which evidence is numbered, so that the same
@@ -45,9 +46,10 @@ const (
 var kindOrder = map[Kind]int{
 	KindDockerVersion: 0,
 	KindContainer:     1,
-	KindListeners:     2,
-	KindDNS:           3,
-	KindTCP:           4,
+	KindHostAddrs:     2,
+	KindListeners:     3,
+	KindDNS:           4,
+	KindTCP:           5,
 }
 
 // Context kinds and executor names for ContextRef.
@@ -194,6 +196,8 @@ func decodePayload(k Kind, raw json.RawMessage) (any, error) {
 		return decodeAs[DNSProbe](raw)
 	case KindTCP:
 		return decodeAs[TCPProbe](raw)
+	case KindHostAddrs:
+		return decodeAs[HostAddrs](raw)
 	default:
 		return nil, fmt.Errorf("unknown evidence kind %q", k)
 	}

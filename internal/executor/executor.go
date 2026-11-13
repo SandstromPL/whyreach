@@ -38,9 +38,11 @@ func NewHost() *Host { return &Host{Env: probe.DefaultEnv()} }
 // Name is "host".
 func (h *Host) Name() string { return evidence.ExecutorHost }
 
-// Run executes specs in-process.
+// Run executes specs in-process, within the limits in ctx (probe.WithLimits).
 func (h *Host) Run(ctx context.Context, where evidence.ContextRef, specs []probe.Spec) ([]evidence.Evidence, error) {
-	evs := probe.Run(ctx, h.Env, specs)
+	env := h.Env
+	env.Limits = probe.LimitsFrom(ctx)
+	evs := probe.Run(ctx, env, specs)
 	netns := probe.SelfNetnsID()
 	for i := range evs {
 		evs[i].Context = where

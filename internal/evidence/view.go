@@ -182,12 +182,19 @@ type Match struct {
 	// Networks are where the target applies to it: the user-defined networks
 	// where Docker's DNS answers the target name, or the networks where it
 	// holds the target address. Empty for a container on the default bridge
-	// only, whose name resolves nowhere.
+	// only, whose name resolves nowhere, and for a published match.
 	Networks []string
 	// Shared are the networks of any kind, the default bridge included, that
 	// it and the source's netns are both attached to. For a container in
 	// network_mode container:X, X's networks count.
 	Shared []string
+	// Port is the port the connection arrives on inside the container: the
+	// target's port, or for a published match the container port that the
+	// host port forwards to.
+	Port uint16
+	// Published is the binding the connection goes through when the target
+	// is a host address and port that the container publishes.
+	Published *PortMap
 }
 
 // Destinations is what the target refers to in Docker metadata, as seen
@@ -199,29 +206,49 @@ type Destinations struct {
 	// ("192.168.1.50", "host-gateway"). /etc/hosts answers before any DNS, so
 	// only a container holding that address is a destination.
 	HostsEntry string
+	// Host is set when the target is the host's network namespace (see
+	// View.HostTarget); Published then lists the containers whose published
+	// ports the connection reaches there.
+	Host      *HostTarget
+	Published []Match
 }
 
-// All returns the matches on the source's networks, or else the others.
+// All returns the matches on the source's networks, or else the others, or
+// else the containers reached through a published port.
 func (d Destinations) All() []Match {
-	if len(d.OnSourceNets) > 0 {
+	switch {
+	case len(d.OnSourceNets) > 0:
 		return d.OnSourceNets
+	case len(d.Elsewhere) > 0:
+		return d.Elsewhere
+	default:
+		return d.Published
 	}
-	return d.Elsewhere
 }
 
 // Destinations resolves the target against the observed containers: a name
 // target matches container names, Compose services, aliases and DNSNames
 // (unless the source's extra_hosts map the name), and an IP target matches
-// the container that holds the address. A loopback target refers to the
-// source itself, so it has no destinations. Matches are ordered with the
-// source's Compose project first, then by container name.
+// the container that holds the address. A target that is the host (see
+// HostTarget) matches the containers that publish the port there. Any other
+// loopback target refers to the source itself, so it has no destinations.
+// Matches are ordered with the source's Compose project first, then by
+// container name.
 func (v View) Destinations() Destinations {
 	t := v.q.To
 	var d Destinations
+	owner, haveOwner := v.NetnsOwner()
+	if t.Class == TargetName && haveOwner {
+		d.HostsEntry, _ = owner.C.HostsEntry(t.Host)
+	}
+	if ht, ok := v.HostTarget(); ok {
+		d.Host = &ht
+		d.Published = v.publishedMatches(ht)
+		return d
+	}
 	if t.Class == TargetLoopback {
 		return d
 	}
-	owner, haveOwner := v.NetnsOwner()
 	srcNets := map[string]bool{}
 	if haveOwner && !owner.C.HostNetwork() {
 		for _, n := range owner.C.NetworkNames() {
@@ -231,22 +258,19 @@ func (v View) Destinations() Destinations {
 		}
 	}
 	addr := t.Addr
-	if t.Class == TargetName && haveOwner {
-		if entry, ok := owner.C.HostsEntry(t.Host); ok {
-			d.HostsEntry = entry
-			a, err := netip.ParseAddr(entry)
-			if err != nil {
-				return d // host-gateway: the name means the host, not a container
-			}
-			addr = a.Unmap()
+	if d.HostsEntry != "" {
+		a, err := netip.ParseAddr(d.HostsEntry)
+		if err != nil {
+			return d // host-gateway: the name means the host, not a container
 		}
+		addr = a.Unmap()
 	}
 	srcProject := ""
 	if src, ok := v.Source(); ok && src.C.Compose != nil {
 		srcProject = src.C.Compose.Project
 	}
 	for _, c := range v.Containers() {
-		var m Match
+		m := Match{Port: t.Port}
 		switch {
 		case addr.IsValid():
 			m.Networks = holdsAddr(c.C, addr)
@@ -277,6 +301,26 @@ func (v View) Destinations() Destinations {
 	slices.SortFunc(d.OnSourceNets, order)
 	slices.SortFunc(d.Elsewhere, order)
 	return d
+}
+
+// publishedMatches lists the containers that publish the target port on the
+// host address ht stands for, in container-name order.
+func (v View) publishedMatches(ht HostTarget) []Match {
+	port := v.q.To.Port
+	var out []Match
+	for _, c := range v.Containers() {
+		for _, pm := range c.C.PublishedAs(port) {
+			if !ht.coveredBy(pm) {
+				continue
+			}
+			out = append(out, Match{ContainerEv: c, Port: pm.ContainerPort, Published: &pm})
+			break
+		}
+	}
+	slices.SortFunc(out, func(a, b Match) int {
+		return cmp.Or(strings.Compare(a.C.Name, b.C.Name), strings.Compare(a.C.ID, b.C.ID))
+	})
+	return out
 }
 
 // networksOf lists the networks a container is reachable on: its own, or,
@@ -317,4 +361,198 @@ func otherProject(c Container, project string) int {
 		return 0
 	}
 	return 1
+}
+
+// HostAddrsEv is a host.addrs observation with its record ID.
+type HostAddrsEv struct {
+	ID string
+	H  HostAddrs
+}
+
+// HostAddrs returns the observed host interfaces.
+func (v View) HostAddrs() (HostAddrsEv, bool) {
+	for _, e := range v.items {
+		if h, ok := e.Data.(HostAddrs); ok && e.Kind == KindHostAddrs && e.OK() {
+			return HostAddrsEv{ID: e.ID, H: h}, true
+		}
+	}
+	return HostAddrsEv{}, false
+}
+
+// HostDockerInternal is the name Docker Desktop gives the host. On Docker
+// Engine a container has it only through extra_hosts (host-gateway).
+const HostDockerInternal = "host.docker.internal"
+
+// IsHostDockerInternal reports the name host.docker.internal.
+func IsHostDockerInternal(name string) bool { return normalizeName(name) == HostDockerInternal }
+
+// How a target can refer to the host's network namespace.
+const (
+	HostViaLoopback = "loopback"     // localhost, from the host itself or a host-network container
+	HostViaAddress  = "address"      // one of the host's own addresses
+	HostViaGateway  = "host-gateway" // a name the source's extra_hosts map to Docker's host-gateway
+	HostViaName     = "name"         // host.docker.internal without a mapping: the host by convention
+)
+
+// HostTarget is how the target refers to the host.
+type HostTarget struct {
+	Via      string
+	Addr     netip.Addr // the host address the connection goes to, when known
+	Iface    string     // the host interface holding Addr, when known
+	Evidence []string   // the records that show it
+}
+
+// coveredBy reports whether a port binding accepts connections to the host
+// address the target stands for.
+func (h HostTarget) coveredBy(pm PortMap) bool {
+	switch {
+	case h.Addr.IsValid():
+		return pm.Covers(h.Addr)
+	case h.Via == HostViaLoopback: // "localhost": 127.0.0.1 or ::1
+		return pm.Covers(netip.AddrFrom4([4]byte{127, 0, 0, 1})) || pm.Covers(netip.IPv6Loopback())
+	default:
+		return false
+	}
+}
+
+// HostSource reports a source that runs in the host's network namespace:
+// the host itself, or a container with network_mode host.
+func (v View) HostSource() bool {
+	if v.q.From.Kind == SourceHost {
+		return true
+	}
+	owner, ok := v.NetnsOwner()
+	return ok && owner.C.HostNetwork()
+}
+
+// HostTarget reports whether the target is the host's network namespace,
+// and how: localhost from the host itself, one of the host's addresses, a
+// name that extra_hosts map to host-gateway, host.docker.internal, or a name
+// that resolved from the source to a host address.
+func (v View) HostTarget() (HostTarget, bool) {
+	t := v.q.To
+	ha, haveAddrs := v.HostAddrs()
+	owned := func(a netip.Addr, ids ...string) (HostTarget, bool) {
+		a = a.Unmap()
+		if !haveAddrs || a.IsLoopback() {
+			return HostTarget{}, false
+		}
+		if i, ok := ha.H.Owner(a); ok {
+			return HostTarget{Via: HostViaAddress, Addr: a, Iface: i.Name, Evidence: append([]string{ha.ID}, ids...)}, true
+		}
+		return HostTarget{}, false
+	}
+	if v.HostSource() {
+		switch {
+		case t.Class == TargetLoopback:
+			return HostTarget{Via: HostViaLoopback, Addr: t.Addr}, true
+		case t.Addr.IsValid():
+			return owned(t.Addr)
+		}
+		// A name: a container name doesn't resolve on the host, so a name
+		// that matches a container is about that container.
+		for _, c := range v.Containers() {
+			if c.C.Matches(t.Host) {
+				return HostTarget{}, false
+			}
+		}
+		if d, ok := v.SourceDNS(t.Host); ok {
+			for _, a := range d.P.Answers {
+				if a.IsLoopback() {
+					return HostTarget{Via: HostViaLoopback, Addr: a, Evidence: []string{d.ID}}, true
+				}
+				if ht, ok := owned(a, d.ID); ok {
+					return ht, true
+				}
+			}
+		}
+		return HostTarget{}, false
+	}
+	owner, ok := v.NetnsOwner()
+	if !ok {
+		return HostTarget{}, false
+	}
+	switch t.Class {
+	case TargetLoopback:
+		return HostTarget{}, false
+	case TargetIP:
+		return owned(t.Addr)
+	}
+	if entry, ok := owner.C.HostsEntry(t.Host); ok {
+		a, err := netip.ParseAddr(entry)
+		if err == nil {
+			return owned(a, owner.ID)
+		}
+		if !strings.EqualFold(entry, "host-gateway") {
+			return HostTarget{}, false
+		}
+		ht := HostTarget{Via: HostViaGateway, Evidence: []string{owner.ID}}
+		if d, ok := v.SourceDNS(t.Host); ok && len(d.P.Answers) > 0 {
+			ht.Addr = d.P.Answers[0]
+			ht.Evidence = append(ht.Evidence, d.ID)
+		} else if haveAddrs {
+			if i, ok := ha.H.Interface(DefaultBridge); ok {
+				ht.Addr, _ = i.IPv4()
+			}
+		}
+		if haveAddrs && ht.Addr.IsValid() {
+			if i, ok := ha.H.Owner(ht.Addr); ok {
+				ht.Iface = i.Name
+				ht.Evidence = append(ht.Evidence, ha.ID)
+			}
+		}
+		return ht, true
+	}
+	if IsHostDockerInternal(t.Host) {
+		return HostTarget{Via: HostViaName}, true
+	}
+	if d, ok := v.SourceDNS(t.Host); ok {
+		for _, a := range d.P.Answers {
+			if ht, ok := owned(a, d.ID); ok {
+				return ht, true
+			}
+		}
+	}
+	return HostTarget{}, false
+}
+
+// InSource reports whether a check ran in the source's network namespace,
+// as recorded under the source's context.
+func (v View) InSource(c ContextRef) bool {
+	if v.q.From.Kind == SourceHost {
+		return c.Kind == ContextHost
+	}
+	return c.Kind == ContextContainer && c.Container == ShortID(v.q.From.ContainerID)
+}
+
+// SourceTCP returns the TCP connects that ran in the source's netns.
+func (v View) SourceTCP() []TCPEv {
+	var out []TCPEv
+	for _, t := range v.TCP() {
+		if v.InSource(t.Context) {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// SourceDNS returns the source's lookup of name, if one ran.
+func (v View) SourceDNS(name string) (DNSEv, bool) {
+	for _, d := range v.DNS() {
+		if strings.EqualFold(d.P.Name, name) && v.InSource(d.Context) {
+			return d, true
+		}
+	}
+	return DNSEv{}, false
+}
+
+// Incomplete reports container metadata that could not be read: claims that
+// no container has some name can't be made then.
+func (v View) Incomplete() bool {
+	for _, e := range v.items {
+		if e.Kind == KindContainer && !e.OK() {
+			return true
+		}
+	}
+	return false
 }

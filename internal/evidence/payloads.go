@@ -3,6 +3,7 @@ package evidence
 import (
 	"net/netip"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -50,6 +51,8 @@ type Container struct {
 	Networks     []NetAttachment `json:"networks,omitempty"` // sorted by network name
 	Ports        []PortMap       `json:"ports,omitempty"`
 	ExtraHosts   []string        `json:"extra_hosts,omitempty"`
+	DNS          []string        `json:"dns,omitempty"`   // resolvers set on the container itself (Compose dns:, --dns)
+	Links        []string        `json:"links,omitempty"` // legacy --link entries, which add /etc/hosts names
 }
 
 // ComposeRef is the Compose project and service, from the container's labels.
@@ -75,6 +78,69 @@ type PortMap struct {
 	Proto         string `json:"proto"`
 	HostIP        string `json:"host_ip,omitempty"`
 	HostPort      uint16 `json:"host_port,omitempty"`
+}
+
+// PublishesPort returns the bindings that publish the container's port on
+// the host, in the container's order.
+func (c Container) PublishesPort(containerPort uint16) []PortMap {
+	var out []PortMap
+	for _, p := range c.Ports {
+		if p.ContainerPort == containerPort && p.Proto == "tcp" && p.HostPort != 0 {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// PublishedAs returns the bindings that publish some container port as the
+// host port hostPort.
+func (c Container) PublishedAs(hostPort uint16) []PortMap {
+	var out []PortMap
+	for _, p := range c.Ports {
+		if p.HostPort == hostPort && p.Proto == "tcp" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// Covers reports whether a binding accepts connections to the host address
+// addr: an empty or unspecified HostIP of the same family covers every
+// address, a specific HostIP only itself.
+func (p PortMap) Covers(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	if p.HostIP == "" {
+		return true
+	}
+	h, err := netip.ParseAddr(p.HostIP)
+	if err != nil {
+		return false
+	}
+	h = h.Unmap()
+	if h.IsUnspecified() {
+		return h.Is4() == addr.Is4()
+	}
+	return h == addr
+}
+
+// LoopbackOnly reports a binding on a loopback host address, which only
+// the host itself can use.
+func (p PortMap) LoopbackOnly() bool {
+	h, err := netip.ParseAddr(p.HostIP)
+	return err == nil && h.Unmap().IsLoopback()
+}
+
+// HostAddr is the binding's host side as host:port, "*" standing for every
+// address.
+func (p PortMap) HostAddr() string {
+	ip := p.HostIP
+	if ip == "" || ip == "0.0.0.0" {
+		ip = "0.0.0.0"
+	}
+	if a, err := netip.ParseAddr(ip); err == nil && a.Is6() && !a.Is4In6() {
+		return "[" + ip + "]:" + strconv.Itoa(int(p.HostPort))
+	}
+	return ip + ":" + strconv.Itoa(int(p.HostPort))
 }
 
 // DisplayName is the name users know the container by: its Compose service,
@@ -342,8 +408,13 @@ const (
 	OutcomeTimeout     = "timeout"
 	OutcomeUnreachable = "unreachable"
 	OutcomeReset       = "reset"
-	OutcomeBlocked     = "blocked" // whyreach's probe policy refused to send it
-	OutcomeError       = "error"
+	// OutcomeClosed is a connection the peer accepted and then closed at
+	// once, before sending anything: typical of docker-proxy when the
+	// published container's port refuses, and of servers that reject the
+	// client right after accept. It does not count as reaching the service.
+	OutcomeClosed  = "closed"
+	OutcomeBlocked = "blocked" // whyreach's probe policy refused to send it
+	OutcomeError   = "error"
 )
 
 // TCPProbe is one connect-then-close attempt to one address.
@@ -355,6 +426,58 @@ type TCPProbe struct {
 	Errno   string         `json:"errno,omitempty"` // ECONNREFUSED, EHOSTUNREACH, …
 	Error   string         `json:"error,omitempty"`
 	RTT     time.Duration  `json:"rtt_ns"`
+}
+
+// HostAddrs is the host's network interfaces that have addresses, as
+// whyreach's own network namespace sees them (the host's when whyreach runs
+// natively).
+type HostAddrs struct {
+	Interfaces []Interface `json:"interfaces"` // sorted by name
+}
+
+// Interface is one network interface and its addresses.
+type Interface struct {
+	Name  string         `json:"name"`
+	Up    bool           `json:"up"`
+	MTU   int            `json:"mtu,omitempty"`
+	Addrs []netip.Prefix `json:"addrs"`
+}
+
+// DefaultBridge is the interface of Docker's default bridge network, whose
+// address Docker's host-gateway stands for unless the daemon sets another.
+const DefaultBridge = "docker0"
+
+// Owner returns the interface that holds addr.
+func (h HostAddrs) Owner(addr netip.Addr) (Interface, bool) {
+	addr = addr.Unmap()
+	for _, i := range h.Interfaces {
+		for _, p := range i.Addrs {
+			if p.Addr().Unmap() == addr {
+				return i, true
+			}
+		}
+	}
+	return Interface{}, false
+}
+
+// Interface returns the interface with a name.
+func (h HostAddrs) Interface(name string) (Interface, bool) {
+	for _, i := range h.Interfaces {
+		if i.Name == name {
+			return i, true
+		}
+	}
+	return Interface{}, false
+}
+
+// IPv4 is the interface's first IPv4 address.
+func (i Interface) IPv4() (netip.Addr, bool) {
+	for _, p := range i.Addrs {
+		if p.Addr().Unmap().Is4() {
+			return p.Addr().Unmap(), true
+		}
+	}
+	return netip.Addr{}, false
 }
 
 // ByName reports whether the address came from resolving the target the way

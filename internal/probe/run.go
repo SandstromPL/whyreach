@@ -81,6 +81,7 @@ func (s Spec) subject() string {
 type Env struct {
 	ProcDir  string // "/proc"
 	Resolver *Resolver
+	Limits   Limits // where connects may go, beyond the block list
 }
 
 // DefaultEnv reads the standard paths.
@@ -131,7 +132,7 @@ func runOne(ctx context.Context, env Env, l *lookups, s Spec) []evidence.Evidenc
 		l.resolve(ctx, s.Host)
 		return nil
 	default:
-		return connect(ctx, l, s)
+		return connect(ctx, env, l, s)
 	}
 }
 
@@ -152,14 +153,14 @@ func listeners(procDir string) evidence.Evidence {
 }
 
 // connect dials every address the spec's host stands for, in parallel.
-func connect(ctx context.Context, l *lookups, s Spec) []evidence.Evidence {
+func connect(ctx context.Context, env Env, l *lookups, s Spec) []evidence.Evidence {
 	subject := s.subject()
 	if a, err := netip.ParseAddr(s.Host); err == nil {
 		via := evidence.ViaLiteral
 		if s.Via == evidence.ViaMetadata {
 			via = evidence.ViaMetadata
 		}
-		return []evidence.Evidence{Dial(ctx, subject, netip.AddrPortFrom(a, s.Port), via)}
+		return []evidence.Evidence{Dial(ctx, subject, netip.AddrPortFrom(a, s.Port), via, env.Limits)}
 	}
 	lk := l.resolve(ctx, s.Host)
 	p, _ := lk.ev.Data.(evidence.DNSProbe)
@@ -177,7 +178,7 @@ func connect(ctx context.Context, l *lookups, s Spec) []evidence.Evidence {
 	out := make([]evidence.Evidence, len(addrs))
 	var wg sync.WaitGroup
 	for i, a := range addrs {
-		wg.Go(func() { out[i] = Dial(ctx, subject, netip.AddrPortFrom(a, s.Port), p.Via) })
+		wg.Go(func() { out[i] = Dial(ctx, subject, netip.AddrPortFrom(a, s.Port), p.Via, env.Limits) })
 	}
 	wg.Wait()
 	return out

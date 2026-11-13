@@ -3,6 +3,7 @@ package evidence
 import (
 	"encoding/json"
 	"net/netip"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -60,6 +61,10 @@ func TestEvidenceJSONRoundTrip(t *testing.T) {
 			Kind: KindTCP, Context: Host(), Subject: "api:8080", Status: StatusPermissionDenied, ObservedAt: at,
 			Err: &Error{Code: CodePermissionDenied, Message: "probe containers are off"},
 		},
+		{
+			Kind: KindHostAddrs, Context: Host(), Subject: "interfaces", Status: StatusOK, ObservedAt: at,
+			Data: HostAddrs{Interfaces: []Interface{{Name: "docker0", Up: true, MTU: 1500, Addrs: []netip.Prefix{netip.MustParsePrefix("172.17.0.1/16")}}}},
+		},
 	}
 	for _, want := range tests {
 		t.Run(string(want.Kind)+"/"+string(want.Status), func(t *testing.T) {
@@ -71,7 +76,7 @@ func TestEvidenceJSONRoundTrip(t *testing.T) {
 			if err := json.Unmarshal(b, &got); err != nil {
 				t.Fatalf("unmarshal %s: %v", b, err)
 			}
-			if diff := cmp.Diff(want, got, netipOpts); diff != "" {
+			if diff := cmp.Diff(want, got, netipOpts, cmpopts.EquateComparable(netip.Prefix{})); diff != "" {
 				t.Errorf("round trip mismatch (-want +got):\n%s\njson: %s", diff, b)
 			}
 		})
@@ -353,5 +358,161 @@ func TestHostsEntry(t *testing.T) {
 	}
 	if _, ok := c.HostsEntry("api"); ok {
 		t.Error("HostsEntry(api) matched")
+	}
+}
+
+// hostView is viewWith plus the host's interfaces and extra records.
+func hostView(q Question, extra []Evidence, cs ...Container) View {
+	var s Store
+	for _, c := range cs {
+		s.Add(Evidence{Kind: KindContainer, Context: InContainer(c), Subject: "container:" + c.Name, Status: StatusOK, Data: c})
+	}
+	s.Add(Evidence{Kind: KindHostAddrs, Context: Host(), Subject: "interfaces", Status: StatusOK, Data: HostAddrs{Interfaces: []Interface{
+		{Name: "docker0", Up: true, Addrs: []netip.Prefix{netip.MustParsePrefix("172.17.0.1/16")}},
+		{Name: "eth0", Up: true, Addrs: []netip.Prefix{netip.MustParsePrefix("192.168.1.10/24")}},
+		{Name: "lo", Up: true, Addrs: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/8")}},
+	}}})
+	s.Add(extra...)
+	return NewView(q, s.Finalize())
+}
+
+func TestHostTarget(t *testing.T) {
+	worker := container("wwwwwwwwwwwwwwww", "shop-worker-1", "shop", "worker", att("shop_default", "172.22.0.2", "worker"))
+	gw := worker
+	gw.ExtraHosts = []string{"host.docker.internal:host-gateway"}
+	hostnet := container("hhhhhhhhhhhhhhhh", "agent", "", "")
+	hostnet.NetworkMode = "host"
+	api := container("aaaaaaaaaaaaaaaa", "shop-api-1", "shop", "api", att("shop_default", "172.22.0.3", "api"))
+
+	fromC := func(src Container, host string) Question {
+		class, addr := ClassifyHost(host)
+		return Question{From: Source{Kind: SourceContainer, ContainerID: src.ID}, To: Target{Host: host, Port: 5432, Class: class, Addr: addr}}
+	}
+	fromHost := func(host string) Question {
+		class, addr := ClassifyHost(host)
+		return Question{From: Source{Kind: SourceHost, Ref: "host"}, To: Target{Host: host, Port: 5432, Class: class, Addr: addr}}
+	}
+	resolved := func(ctx ContextRef, name, addr string) Evidence {
+		return Evidence{Kind: KindDNS, Context: ctx, Subject: name, Status: StatusOK, Data: DNSProbe{Name: name, Answers: []netip.Addr{netip.MustParseAddr(addr)}}}
+	}
+	tests := []struct {
+		name     string
+		v        View
+		ok       bool
+		via      string
+		addr     string
+		iface    string
+		hostsRef bool
+	}{
+		{"localhost from the host", hostView(fromHost("localhost"), nil), true, HostViaLoopback, "", "", false},
+		{"127.0.0.1 from the host", hostView(fromHost("127.0.0.1"), nil), true, HostViaLoopback, "127.0.0.1", "", false},
+		{"the host's LAN address from the host", hostView(fromHost("192.168.1.10"), nil), true, HostViaAddress, "192.168.1.10", "eth0", false},
+		{"a container address from the host", hostView(fromHost("172.22.0.3"), nil, api), false, "", "", "", false},
+		{"a container name from the host", hostView(fromHost("api"), nil, api), false, "", "", "", false},
+		{"localhost from a host-network container", hostView(fromC(hostnet, "localhost"), nil, hostnet), true, HostViaLoopback, "", "", false},
+		{"localhost from a container is the container", hostView(fromC(worker, "localhost"), nil, worker), false, "", "", "", false},
+		{"host.docker.internal mapped to host-gateway", hostView(fromC(gw, "host.docker.internal"), nil, gw), true, HostViaGateway, "172.17.0.1", "docker0", true},
+		{"host-gateway as the source resolved it", hostView(fromC(gw, "host.docker.internal"), []Evidence{resolved(InContainer(gw), "host.docker.internal", "172.17.0.1")}, gw), true, HostViaGateway, "172.17.0.1", "docker0", true},
+		{"host.docker.internal without a mapping", hostView(fromC(worker, "host.docker.internal"), nil, worker), true, HostViaName, "", "", false},
+		{"the docker0 address from a container", hostView(fromC(worker, "172.17.0.1"), nil, worker), true, HostViaAddress, "172.17.0.1", "docker0", false},
+		{"a name that resolves to the host", hostView(fromC(worker, "db.lan"), []Evidence{resolved(InContainer(worker), "db.lan", "192.168.1.10")}, worker), true, HostViaAddress, "192.168.1.10", "eth0", false},
+		{"a container name from a container", hostView(fromC(worker, "api"), nil, worker, api), false, "", "", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := tt.v.HostTarget()
+			if ok != tt.ok {
+				t.Fatalf("HostTarget() ok = %v, want %v (%+v)", ok, tt.ok, got)
+			}
+			if !ok {
+				return
+			}
+			addr := ""
+			if got.Addr.IsValid() {
+				addr = got.Addr.String()
+			}
+			if got.Via != tt.via || addr != tt.addr || got.Iface != tt.iface {
+				t.Errorf("HostTarget() = %+v, want via %s addr %q iface %q", got, tt.via, tt.addr, tt.iface)
+			}
+			if d := tt.v.Destinations(); d.Host == nil || (d.HostsEntry != "") != tt.hostsRef {
+				t.Errorf("Destinations() = %+v", d)
+			}
+		})
+	}
+}
+
+func TestPublishedDestinations(t *testing.T) {
+	web := container("eeeeeeeeeeeeeeee", "shop-web-1", "shop", "web", att("shop_default", "172.22.0.4", "web"))
+	web.Ports = []PortMap{
+		{ContainerPort: 8080, Proto: "tcp", HostIP: "0.0.0.0", HostPort: 18080},
+		{ContainerPort: 8080, Proto: "tcp", HostIP: "::", HostPort: 18080},
+	}
+	lo := container("llllllllllllllll", "shop-admin-1", "shop", "admin", att("shop_default", "172.22.0.5", "admin"))
+	lo.Ports = []PortMap{{ContainerPort: 9000, Proto: "tcp", HostIP: "127.0.0.1", HostPort: 19000}}
+	worker := container("wwwwwwwwwwwwwwww", "shop-worker-1", "shop", "worker", att("shop_default", "172.22.0.2", "worker"))
+	worker.ExtraHosts = []string{"host.docker.internal:host-gateway"}
+
+	q := func(src Source, host string, port uint16) Question {
+		class, addr := ClassifyHost(host)
+		return Question{From: src, To: Target{Host: host, Port: port, Class: class, Addr: addr}}
+	}
+	hostSrc := Source{Kind: SourceHost, Ref: "host"}
+	workerSrc := Source{Kind: SourceContainer, ContainerID: worker.ID}
+	tests := []struct {
+		name string
+		q    Question
+		want string // "name:port" of the published match, or ""
+	}{
+		{"localhost from the host", q(hostSrc, "localhost", 18080), "shop-web-1:8080"},
+		{"the LAN address from the host", q(hostSrc, "192.168.1.10", 18080), "shop-web-1:8080"},
+		{"loopback-only binding from the host", q(hostSrc, "127.0.0.1", 19000), "shop-admin-1:9000"},
+		{"loopback-only binding through the LAN address", q(hostSrc, "192.168.1.10", 19000), ""},
+		{"host-gateway from a container", q(workerSrc, "host.docker.internal", 18080), "shop-web-1:8080"},
+		{"loopback-only binding through host-gateway", q(workerSrc, "host.docker.internal", 19000), ""},
+		{"an unpublished port", q(hostSrc, "localhost", 8080), ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := hostView(tt.q, nil, web, lo, worker).Destinations()
+			got := ""
+			if len(d.Published) > 0 {
+				m := d.Published[0]
+				got = m.C.Name + ":" + strconv.Itoa(int(m.Port))
+				if m.Published == nil || len(d.All()) == 0 {
+					t.Errorf("match without its binding: %+v", m)
+				}
+			}
+			if got != tt.want {
+				t.Errorf("published = %q, want %q (%+v)", got, tt.want, d)
+			}
+		})
+	}
+}
+
+func TestPortMapCovers(t *testing.T) {
+	a := func(s string) netip.Addr { return netip.MustParseAddr(s) }
+	tests := []struct {
+		hostIP string
+		addr   string
+		want   bool
+	}{
+		{"", "127.0.0.1", true},
+		{"0.0.0.0", "192.168.1.10", true},
+		{"0.0.0.0", "::1", false},
+		{"::", "::1", true},
+		{"127.0.0.1", "127.0.0.1", true},
+		{"127.0.0.1", "172.17.0.1", false},
+		{"192.168.1.10", "192.168.1.10", true},
+	}
+	for _, tt := range tests {
+		if got := (PortMap{HostIP: tt.hostIP, HostPort: 1}).Covers(a(tt.addr)); got != tt.want {
+			t.Errorf("Covers(%q, %s) = %v, want %v", tt.hostIP, tt.addr, got, tt.want)
+		}
+	}
+	if !(PortMap{HostIP: "127.0.0.1"}).LoopbackOnly() || (PortMap{HostIP: "0.0.0.0"}).LoopbackOnly() || (PortMap{}).LoopbackOnly() {
+		t.Error("LoopbackOnly")
+	}
+	if got := (PortMap{HostIP: "::", HostPort: 80}).HostAddr(); got != "[::]:80" {
+		t.Errorf("HostAddr = %s", got)
 	}
 }

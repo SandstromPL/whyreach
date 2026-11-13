@@ -2,8 +2,12 @@
 // It plays a distroless app: a static binary on a FROM-scratch image, with no
 // shell and no tools inside the container. Promoted from spikes/probe.
 //
-//	labserver serve [--delay 0s] ADDR...   listen on each TCP address and accept forever
-//	labserver check HOST:PORT              exit 0 if a TCP connect succeeds (healthchecks)
+//	labserver serve [--delay 0s] [--close] ADDR...   listen on each TCP address and accept forever
+//	labserver check HOST:PORT                        exit 0 if a TCP connect succeeds (healthchecks)
+//
+// Like a real server, serve keeps each connection open until the client
+// closes it; --close instead closes every connection right after accepting
+// it, like a server that rejects its clients.
 //
 // Any other mode exits with status 1, which the lab uses as a crashing service.
 package main
@@ -47,6 +51,7 @@ func main() {
 func serve(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	delay := fs.Duration("delay", 0, "wait this long before listening")
+	closeAtOnce := fs.Bool("close", false, "close each connection right after accepting it")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -73,19 +78,36 @@ func serve(args []string) error {
 			fmt.Fprintf(os.Stderr, "labserver: listen %s: %v\n", a, err)
 			continue
 		}
-		go accept(ln)
+		go accept(ln, *closeAtOnce)
 	}
 	<-ctx.Done()
 	return nil
 }
 
-func accept(ln net.Listener) {
+func accept(ln net.Listener, closeAtOnce bool) {
 	for {
 		c, err := ln.Accept()
 		if err != nil {
 			return
 		}
-		_ = c.Close()
+		if closeAtOnce {
+			_ = c.Close()
+			continue
+		}
+		go hold(c)
+	}
+}
+
+// hold keeps a connection open until the client closes it, for at most a
+// minute, discarding whatever it sends.
+func hold(c net.Conn) {
+	defer func() { _ = c.Close() }()
+	_ = c.SetReadDeadline(time.Now().Add(time.Minute))
+	buf := make([]byte, 512)
+	for {
+		if _, err := c.Read(buf); err != nil {
+			return
+		}
 	}
 }
 
