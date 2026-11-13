@@ -9,11 +9,12 @@ This directory exists to answer the M0 open questions in `INITIAL.md` §10. The 
 | MCP hello tool (official Go SDK, structured output) | `go test ./spikes/mcphello/` and `spikes/mcphello/claude-check.sh` | MCP SDK fit |
 | Rule experiments: reproduce the top real-world failures and record what whyreach can observe | `spikes/experiments.sh` (scenarios in `spikes/experiments/`) | `docs/research/rule-experiments.md`, ADR 0002 |
 | Probe lifecycle through the Docker API: can whyreach read a probe's output when it uses AutoRemove? | `spikes/probelifecycle.sh` | ADR 0001 amendment |
+| Q13–Q15 experiments: a link-local DNS server, repeated lookups of one name (a query-counting DNS server, `spikes/dnscount`), TCP probes to the host's LAN address | `spikes/q13q15.sh` | `docs/research/q13-q15-experiments.md`, §10 Q13–Q15 |
 
 The Docker resources the scripts create:
 - **Names:** `whyreach-spike-*`, plus `whyreach-exp-*` for the experiments' Compose projects and containers
 - **Labels:** `io.whyreach.spike=1`, plus `io.whyreach.probe=1` on probe containers
 
-The scripts remove these resources when they exit and sweep leftovers when they start. Nothing else on the machine is touched, and no image is pulled from a registry: the probe image is built locally from `spikes/probe` with `docker import`.
+The scripts remove these resources when they exit and sweep leftovers when they start. Nothing else on the machine is touched, and no image is pulled from a registry: the images are built locally (from `spikes/probe`, `spikes/dnscount` and `test/labserver`) with `docker import`. Besides its own resources, `spikes/q13q15.sh` removes only the probe images whyreach imported during the run.
 
 Raw outputs go to `spikes/out/`, which git ignores.
