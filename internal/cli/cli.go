@@ -100,8 +100,9 @@ func Execute(ctx context.Context, args []string, o Options) int {
 }
 
 type diagnoseFlags struct {
-	from string
-	json bool
+	from   string
+	json   bool
+	report bool
 }
 
 func newRoot(o Options, code *int) *cobra.Command {
@@ -157,7 +158,7 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 		},
 	}
 	addDiagnoseFlags(diagnose, &df)
-	root.AddCommand(diagnose, newInspect(o), newProbe(o), newDoctor(o, code), newMCP(o))
+	root.AddCommand(diagnose, newInspect(o), newProbe(o), newDoctor(o, code), newMCP(o), newReport(o), newRules())
 
 	root.AddCommand(&cobra.Command{
 		Use:   "version",
@@ -211,6 +212,7 @@ func newProbeEntry() *cobra.Command {
 func addDiagnoseFlags(cmd *cobra.Command, f *diagnoseFlags) {
 	cmd.Flags().StringVar(&f.from, "from", "host", "where the connection starts: host, container:<name|id> or service:<name>[@<project>]")
 	cmd.Flags().BoolVar(&f.json, "json", false, "print the diagnosis as JSON")
+	cmd.Flags().BoolVar(&f.report, "report", false, "also save the diagnosis, with all its evidence, as a report bundle (not redacted; share it with whyreach report export)")
 }
 
 func runDiagnose(cmd *cobra.Command, o Options, f diagnoseFlags, to string, code *int) error {
@@ -229,6 +231,12 @@ func runDiagnose(cmd *cobra.Command, o Options, f diagnoseFlags, to string, code
 		}
 	} else {
 		report.RenderText(out, d)
+	}
+	if f.report {
+		// stderr: with --json, stdout holds the JSON alone.
+		if err := saveBundle(cmd.ErrOrStderr(), o, d); err != nil {
+			return internalErr(err)
+		}
 	}
 	*code = d.ExitCode()
 	return nil
