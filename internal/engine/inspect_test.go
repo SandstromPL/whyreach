@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 	"strings"
 	"testing"
@@ -124,5 +125,26 @@ func TestSingleProbe(t *testing.T) {
 	nope, _ := target.ParseFrom("container:nope")
 	if _, err := e.Probe(ctx, nope, probe.Spec{Kind: probe.SpecListeners}); !IsUsage(err) {
 		t.Errorf("unknown source: %v", err)
+	}
+}
+
+func TestSelfCheck(t *testing.T) {
+	w := inspectWorld()
+	e := New(Deps{Docker: w, Listeners: w, Interfaces: hostIfaces})
+	got := map[string]string{}
+	for _, c := range e.SelfCheck(context.Background()) {
+		got[c.Name] = c.Status
+	}
+	want := map[string]string{"docker": CheckOK, "interfaces": CheckOK, "host listeners": CheckOK, "container listeners": CheckOK}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %q, want %q (all: %v)", k, got[k], v, got)
+		}
+	}
+	off := New(Deps{DockerErr: errors.New("no socket"), Listeners: w})
+	for _, c := range off.SelfCheck(context.Background()) {
+		if c.Name == "docker" && (c.Status != CheckFail || c.Fix == "") {
+			t.Errorf("an unreachable Docker is a failure with a fix: %+v", c)
+		}
 	}
 }

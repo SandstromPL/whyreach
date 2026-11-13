@@ -131,6 +131,9 @@ func TestCommands(t *testing.T) {
 		{name: "probe from a container needs tier 2b", args: []string{"probe", "tcp", "api:8080", "--from", "container:shop-worker-1"}, code: ExitNoProblem, stdout: "permission_denied: probe containers are"},
 		{name: "probe with a bad kind", args: []string{"probe", "icmp", "api"}, code: ExitUsage, stderr: "want: probe tcp"},
 		{name: "probe a CIDR", args: []string{"probe", "tcp", "10.0.0.0/8:80"}, code: ExitUsage, stderr: "one host:port per call"},
+		{name: "doctor", args: []string{"doctor"}, code: ExitNoProblem, stdout: "whyreach is ready"},
+		{name: "doctor json", args: []string{"doctor", "--json"}, code: ExitNoProblem, stdout: `"name": "container listeners"`},
+		{name: "mcp without a server", args: []string{"mcp", "serve"}, code: ExitInternal, stderr: "no MCP server"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

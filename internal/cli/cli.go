@@ -156,7 +156,7 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 		},
 	}
 	addDiagnoseFlags(diagnose, &df)
-	root.AddCommand(diagnose, newInspect(o), newProbe(o), newMCP(o))
+	root.AddCommand(diagnose, newInspect(o), newProbe(o), newDoctor(o, code), newMCP(o))
 
 	root.AddCommand(&cobra.Command{
 		Use:   "version",

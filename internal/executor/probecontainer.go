@@ -317,6 +317,40 @@ func (p *ProbeContainer) ensureImage(ctx context.Context) (string, error) {
 	return ref, nil
 }
 
+// Readiness is what running a probe container needs, checked without any
+// Docker write: for whyreach doctor.
+type Readiness struct {
+	Image    string `json:"image"`    // whyreach-probe:<version>-<digest>
+	Imported bool   `json:"imported"` // the image exists; otherwise the first probe imports it
+}
+
+// Readiness checks that the daemon's platform matches, that the binary is a
+// static ELF that can run on scratch, and whether the image is imported. It
+// never imports, sweeps or creates anything.
+func (p *ProbeContainer) Readiness(ctx context.Context) (Readiness, error) {
+	v, err := p.API.Negotiate(ctx)
+	if err != nil {
+		return Readiness{}, err
+	}
+	if v.Os != "linux" || v.Arch != runtime.GOARCH || runtime.GOOS != "linux" {
+		return Readiness{}, fmt.Errorf("the daemon runs %s/%s and this whyreach is %s/%s; probe binaries for other platforms arrive in v0.3: %w",
+			v.Os, v.Arch, runtime.GOOS, runtime.GOARCH, probe.ErrUnsupported)
+	}
+	digest, err := checkBinary(p.Binary)
+	if err != nil {
+		return Readiness{}, err
+	}
+	r := Readiness{Image: docker.ProbeImageRepo + ":" + ImageTag(p.Version, digest)}
+	img, err := p.API.ImageInspect(ctx, r.Image)
+	switch {
+	case err == nil:
+		r.Imported = img.Config.Labels[docker.ProbeLabel] == "1"
+	case !errors.Is(err, docker.ErrNotFound):
+		return r, fmt.Errorf("inspect %s: %w", r.Image, err)
+	}
+	return r, nil
+}
+
 // checkBinary verifies that the executable can run on scratch: a static
 // Linux ELF for this architecture. It returns the file's SHA-256.
 func checkBinary(path string) (string, error) {
