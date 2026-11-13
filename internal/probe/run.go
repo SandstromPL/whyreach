@@ -80,7 +80,7 @@ func (s Spec) subject() string {
 // container the defaults are the target container's own files, which Docker
 // shares with the probe (ADR 0001).
 type Env struct {
-	ProcDir  string // "/proc"; "/proc/thread-self" with Enter
+	ProcDir  string // "/proc/thread-self": the namespace of the thread that reads it
 	Resolver *Resolver
 	Limits   Limits // where connects may go, beyond the block list
 	// Enter, when set, runs every socket the batch creates, and its
@@ -107,10 +107,12 @@ func (e Enter) run(f func()) error {
 	return e(f)
 }
 
-// DefaultEnv reads the standard paths.
+// DefaultEnv reads the standard paths. Listeners come from the calling
+// thread's view of /proc (thread-self), which is where the probe runs;
+// /proc/net would show the main thread's namespace.
 func DefaultEnv() Env {
 	return Env{
-		ProcDir:  "/proc",
+		ProcDir:  "/proc/thread-self",
 		Resolver: &Resolver{HostsPath: "/etc/hosts", ResolvPath: "/etc/resolv.conf"},
 	}
 }
@@ -192,10 +194,17 @@ func connect(ctx context.Context, env Env, l *lookups, s Spec) []evidence.Eviden
 	lk := l.resolve(ctx, s.Host)
 	p, _ := lk.ev.Data.(evidence.DNSProbe)
 	if len(p.Answers) == 0 {
+		// The lookup's own record says why; this one only says that no
+		// connect was made, without claiming the name doesn't exist when
+		// the lookup couldn't even run.
+		why := &evidence.Error{Code: evidence.CodeNotFound, Message: s.Host + " did not resolve, so there was no address to connect to"}
+		if !lk.ev.OK() && lk.ev.Err != nil {
+			why = &evidence.Error{Code: lk.ev.Err.Code, Errno: lk.ev.Err.Errno,
+				Message: "the lookup of " + s.Host + " could not be made (" + lk.ev.Err.Message + "), so there was no address to connect to"}
+		}
 		return []evidence.Evidence{{
 			Kind: evidence.KindTCP, Subject: subject, Status: evidence.StatusSkipped, ObservedAt: time.Now(),
-			Err:    &evidence.Error{Code: evidence.CodeNotFound, Message: s.Host + " did not resolve, so there was no address to connect to"},
-			Source: "TCP connect, then close (no payload)",
+			Err: why, Source: "TCP connect, then close (no payload)",
 		}}
 	}
 	addrs := p.Answers

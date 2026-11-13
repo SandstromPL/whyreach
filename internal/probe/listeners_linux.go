@@ -16,12 +16,13 @@ import (
 )
 
 // ReadListeners returns the listening TCP sockets of the network namespace
-// that procDir belongs to: "/proc" for the caller's own netns, "/proc/<pid>"
-// for another process's. A missing tcp6 table (IPv6 disabled) is not an error.
+// that procDir belongs to: "/proc/thread-self" for the calling thread's,
+// "/proc/<pid>" for another process's. A missing tcp6 table (IPv6 disabled)
+// is not an error.
 func ReadListeners(procDir string) ([]evidence.Socket, error) {
 	var out []evidence.Socket
 	for _, proto := range []string{"tcp", "tcp6"} {
-		f, err := os.Open(filepath.Join(procDir, "net", proto)) //nolint:gosec // G304: procDir is "/proc" or "/proc/<pid>", built from an integer PID
+		f, err := os.Open(filepath.Join(procDir, "net", proto)) //nolint:gosec // G304: procDir is "/proc/thread-self" or "/proc/<pid>", built from an integer PID
 		if err != nil {
 			if proto == "tcp6" && errors.Is(err, fs.ErrNotExist) {
 				continue
@@ -86,9 +87,11 @@ func checkCgroup(dir, containerID string) error {
 }
 
 // SelfNetnsID returns the inode of the caller's network namespace, which
-// identifies it: two checks with the same ID ran in the same netns.
+// identifies it: two checks with the same ID ran in the same netns. It reads
+// the calling thread's (/proc/thread-self), not the main thread's
+// (/proc/self): only the thread a check runs on says where it ran.
 func SelfNetnsID() uint64 {
-	link, err := os.Readlink("/proc/self/ns/net")
+	link, err := os.Readlink("/proc/thread-self/ns/net")
 	if err != nil {
 		return 0
 	}

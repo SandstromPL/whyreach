@@ -25,8 +25,14 @@ import (
 
 // Bounds of the netns executor.
 const (
-	inspectTimeout  = 3 * time.Second // the container lookup before entering (INITIAL.md §4.4)
-	maxResolverFile = 1 << 20         // bytes read of a container's /etc/hosts or /etc/resolv.conf
+	inspectTimeout = 3 * time.Second // the container lookup before entering (INITIAL.md §4.4)
+	// maxResolverFile bounds a container's /etc/hosts or /etc/resolv.conf;
+	// ad-blocking hosts files run to a few megabytes.
+	maxResolverFile = 16 << 20
+	// fileTimeout bounds reading one of those files. A regular file on a
+	// local disk takes microseconds; a slower one is on a file system that
+	// waits for something.
+	fileTimeout = 2 * time.Second
 )
 
 // Run executes specs inside the network namespace of where, a running
@@ -45,24 +51,17 @@ func (n *Netns) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 	failWith := func(status evidence.Status, code string, err error) ([]evidence.Evidence, error) {
 		return fail(status, &evidence.Error{Code: code, Message: err.Error()}, err)
 	}
-	if where.Kind != evidence.ContextContainer || where.Container == "" {
-		return failWith(evidence.StatusError, evidence.CodeInternal, errors.New("the netns executor can only enter a container's network namespace"))
-	}
-	ictx, cancel := context.WithTimeout(ctx, inspectTimeout)
-	c, err := n.Docker.InspectContainer(ictx, where.Container)
-	cancel()
-	switch {
-	case errors.Is(err, docker.ErrNotFound):
-		return failWith(evidence.StatusFailed, evidence.CodeNotFound, fmt.Errorf("%s no longer exists: %w", where, err))
-	case err != nil:
-		return failWith(statusOf(ctx, err), evidence.CodeDockerUnavailable, fmt.Errorf("look up %s before entering its network namespace: %w", where, err))
-	case !strings.HasPrefix(c.ID, where.Container):
-		return failWith(evidence.StatusError, evidence.CodeInternal, fmt.Errorf("asked Docker for container %s, got %s", where.Container, evidence.ShortID(c.ID)))
-	case !c.Running() || c.Pid <= 0:
-		return failWith(evidence.StatusFailed, evidence.CodeNotFound, fmt.Errorf("%s is %s, so nothing can be tested from its network namespace; start it first", c.DisplayName(), c.State))
+	c, err := n.lookUp(ctx, where)
+	if err != nil {
+		var ce *containerError
+		if errors.As(err, &ce) {
+			return failWith(ce.status, ce.code, err)
+		}
+		return failWith(statusOf(ctx, err), evidence.CodeDockerUnavailable, err)
 	}
 	ns, err := openNetns(c.Pid, c.ID, n.logger())
 	if err != nil {
+		err = fmt.Errorf("%w: %w", ErrCannotEnter, err)
 		status, e := probe.Classify(err)
 		return fail(status, e, err)
 	}
@@ -89,6 +88,56 @@ func (n *Netns) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 		evs[i].Source = src
 	}
 	return evs, nil
+}
+
+// Check enters the network namespace of a running container once, and reads
+// its /etc/resolv.conf, without sending anything: for whyreach doctor.
+func (n *Netns) Check(ctx context.Context, where evidence.ContextRef) error {
+	c, err := n.lookUp(ctx, where)
+	if err != nil {
+		return err
+	}
+	ns, err := openNetns(c.Pid, c.ID, n.logger())
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrCannotEnter, err)
+	}
+	defer ns.close()
+	f, err := ns.open(ctx, "/etc/resolv.conf")
+	if err != nil {
+		return fmt.Errorf("read %s's /etc/resolv.conf: %w", where, err)
+	}
+	return f.Close()
+}
+
+// containerError is a container that is there but can't be entered as it
+// is: stopped, gone, or another one.
+type containerError struct {
+	status evidence.Status
+	code   string
+	msg    string
+}
+
+func (e *containerError) Error() string { return e.msg }
+
+// lookUp inspects where's container again for its current state and PID.
+func (n *Netns) lookUp(ctx context.Context, where evidence.ContextRef) (evidence.Container, error) {
+	if where.Kind != evidence.ContextContainer || where.Container == "" {
+		return evidence.Container{}, &containerError{evidence.StatusError, evidence.CodeInternal, "the netns executor can only enter a container's network namespace"}
+	}
+	ictx, cancel := context.WithTimeout(ctx, inspectTimeout)
+	c, err := n.Docker.InspectContainer(ictx, where.Container)
+	cancel()
+	switch {
+	case errors.Is(err, docker.ErrNotFound):
+		return c, &containerError{evidence.StatusFailed, evidence.CodeNotFound, fmt.Sprintf("%s no longer exists: %v", where, err)}
+	case err != nil:
+		return c, fmt.Errorf("look up %s before entering its network namespace: %w", where, err)
+	case !strings.HasPrefix(c.ID, where.Container):
+		return c, &containerError{evidence.StatusError, evidence.CodeInternal, fmt.Sprintf("asked Docker for container %s, got %s", where.Container, evidence.ShortID(c.ID))}
+	case !c.Running() || c.Pid <= 0:
+		return c, &containerError{evidence.StatusFailed, evidence.CodeNotFound, fmt.Sprintf("%s is %s, so nothing can be tested from its network namespace; start it first", c.DisplayName(), c.State)}
+	}
+	return c, nil
 }
 
 func (n *Netns) logger() *slog.Logger {
@@ -169,19 +218,32 @@ func (h *netnsHandle) close() {
 // namespace (probe.Enter). Each call gets a goroutine of its own, so calls
 // can run in parallel, each on its own thread. It returns an error only
 // when f did not run.
+//
+// The main thread never enters: /proc/self and /proc/net describe its
+// namespace, whichever thread reads them, so host-side reads elsewhere in
+// whyreach (another MCP call) would see the container's; and Go can't end
+// the main thread if it ever failed to come back. A goroutine that lands
+// there holds it while another goroutine, which then has to run on some
+// other thread, does the work.
 func (h *netnsHandle) enter(f func()) error {
 	errc := make(chan error, 1)
 	go func() {
 		runtime.LockOSThread()
+		if unix.Gettid() == unix.Getpid() {
+			errc <- h.enter(f)
+			runtime.UnlockOSThread()
+			return
+		}
 		errc <- h.onThread(f)
 	}()
 	return <-errc
 }
 
-// onThread is enter's work on the locked thread. The thread goes back to
-// the namespace it came from before it is unlocked. If that fails, it stays
-// locked: Go ends a thread whose goroutine exits while locked to it, so no
-// other goroutine ever runs in the container's namespace.
+// onThread is enter's work on a locked thread other than the main one. The
+// thread goes back to the namespace it came from before it is unlocked. If
+// that fails, it stays locked: Go ends a thread whose goroutine exits while
+// locked to it, so no other goroutine ever runs in the container's
+// namespace.
 func (h *netnsHandle) onThread(f func()) error {
 	home, err := unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
 	if err != nil {
@@ -206,20 +268,43 @@ func (h *netnsHandle) onThread(f func()) error {
 }
 
 // open reads one of the container's resolver files (probe.Resolver.Open)
-// through its root directory, as the container sees it.
-func (h *netnsHandle) open(path string) (io.ReadCloser, error) {
-	b, err := readInRoot(h.root, path, maxResolverFile)
+// through its root directory, as the container sees it, within
+// fileTimeout. The read works on its own copy of the root descriptor, so a
+// read that is given up on can't use the batch's after it is closed.
+func (h *netnsHandle) open(ctx context.Context, path string) (io.ReadCloser, error) {
+	root, err := unix.FcntlInt(uintptr(h.root), unix.F_DUPFD_CLOEXEC, 0)
 	if err != nil {
-		return nil, err
+		return nil, &fs.PathError{Op: "dup", Path: "/proc/<pid>/root", Err: err}
 	}
-	return io.NopCloser(bytes.NewReader(b)), nil
+	type result struct {
+		b   []byte
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		defer func() { _ = unix.Close(root) }()
+		b, err := readInRoot(root, path, maxResolverFile)
+		done <- result{b, err}
+	}()
+	ctx, cancel := context.WithTimeout(ctx, fileTimeout)
+	defer cancel()
+	select {
+	case r := <-done:
+		if r.err != nil {
+			return nil, r.err
+		}
+		return io.NopCloser(bytes.NewReader(r.b)), nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("reading %s in the container took too long: %w", path, ctx.Err())
+	}
 }
 
 // readInRoot reads path inside the directory root as if root were "/":
 // openat2 with RESOLVE_IN_ROOT resolves every symlink and ".." inside it, so
 // a link in a container can't lead whyreach, as root, to the host's files.
-// Only a regular file of at most limit bytes is read; anything else, such
-// as a FIFO or a device, is opened with O_PATH alone and never for reading.
+// Only a regular file of at most limit bytes, on a file system whose reads
+// have no side effects, is read; anything else (a FIFO, a device,
+// /proc/kmsg) is opened with O_PATH alone and never for reading.
 func readInRoot(root int, path string, limit int64) ([]byte, error) {
 	fd, err := unix.Openat2(root, path, &unix.OpenHow{
 		Flags:   unix.O_PATH | unix.O_CLOEXEC,
@@ -239,6 +324,13 @@ func readInRoot(root int, path string, limit int64) ([]byte, error) {
 	if st.Mode&unix.S_IFMT != unix.S_IFREG {
 		return nil, fmt.Errorf("%s is not a regular file", path)
 	}
+	var sfs unix.Statfs_t
+	if err := unix.Fstatfs(fd, &sfs); err != nil {
+		return nil, &fs.PathError{Op: "statfs", Path: path, Err: err}
+	}
+	if name, ok := pseudoFS(uint32(sfs.Type)); ok { //nolint:gosec // G115: f_type is a 32-bit magic number
+		return nil, fmt.Errorf("%s is on %s, whose files whyreach doesn't read", path, name)
+	}
 	if st.Size > limit {
 		return nil, fmt.Errorf("%s is larger than %d bytes", path, limit)
 	}
@@ -256,4 +348,41 @@ func readInRoot(root int, path string, limit int64) ([]byte, error) {
 		return nil, fmt.Errorf("%s is larger than %d bytes", path, limit)
 	}
 	return b, nil
+}
+
+// configfsMagic is configfs's f_type, which golang.org/x/sys doesn't name.
+const configfsMagic = 0x62656570
+
+// pseudoFS names the file systems whose "regular" files are not files: a
+// read has side effects or waits for data (/proc/kmsg drains the kernel
+// log; sysfs attributes talk to drivers; FUSE asks a process). Docker's
+// /etc/hosts and /etc/resolv.conf are bind mounts from the host's disk, and
+// an image's own are on its overlay, so a container whose files resolve to
+// one of these has pointed them there.
+func pseudoFS(t uint32) (string, bool) {
+	switch t {
+	case unix.PROC_SUPER_MAGIC:
+		return "procfs", true
+	case unix.SYSFS_MAGIC:
+		return "sysfs", true
+	case unix.CGROUP_SUPER_MAGIC, unix.CGROUP2_SUPER_MAGIC:
+		return "cgroupfs", true
+	case unix.DEBUGFS_MAGIC:
+		return "debugfs", true
+	case unix.TRACEFS_MAGIC:
+		return "tracefs", true
+	case unix.SECURITYFS_MAGIC:
+		return "securityfs", true
+	case configfsMagic:
+		return "configfs", true
+	case unix.BPF_FS_MAGIC:
+		return "bpffs", true
+	case unix.EFIVARFS_MAGIC:
+		return "efivarfs", true
+	case unix.PSTOREFS_MAGIC:
+		return "pstore", true
+	case unix.FUSE_SUPER_MAGIC:
+		return "a FUSE file system", true
+	}
+	return "", false
 }

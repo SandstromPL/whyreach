@@ -2,7 +2,9 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"strings"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
 )
@@ -13,6 +15,18 @@ type Inspector interface {
 	InspectContainer(ctx context.Context, idOrName string) (evidence.Container, error)
 }
 
+// ErrCannotEnter is why a netns batch could not run although the container
+// does: its PID failed the check (Docker's PIDs aren't this machine's), or a
+// privilege is missing. The policy then uses a probe container instead, if
+// the user allows them.
+var ErrCannotEnter = errors.New("cannot enter the container's network namespace")
+
+// CannotEnter reports a record of a netns batch that failed with
+// ErrCannotEnter, for the gap's advice.
+func CannotEnter(e *evidence.Error) bool {
+	return e != nil && strings.HasPrefix(e.Message, ErrCannotEnter.Error())
+}
+
 // Netns runs probes inside a container's network namespace by entering it
 // with setns(2) on a locked OS thread (INITIAL.md §3.3, §4.7). It needs root
 // and makes no Docker write. It only works where Docker's PIDs are this
@@ -21,7 +35,7 @@ type Inspector interface {
 // the container. The probes are the same as the other executors' and obey
 // the same limits.
 //
-// Outside Linux, Run answers every check with Status unsupported.
+// Outside Linux, Run and Check answer unsupported.
 type Netns struct {
 	Docker Inspector
 	Logger *slog.Logger

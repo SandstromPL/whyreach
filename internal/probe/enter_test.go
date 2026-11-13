@@ -125,7 +125,7 @@ func TestResolverReadsItsFilesThroughOpen(t *testing.T) {
 	}
 	var mu sync.Mutex
 	var opened []string
-	open := func(path string) (io.ReadCloser, error) {
+	open := func(_ context.Context, path string) (io.ReadCloser, error) {
 		mu.Lock()
 		opened = append(opened, path)
 		mu.Unlock()
@@ -148,5 +148,60 @@ func TestResolverReadsItsFilesThroughOpen(t *testing.T) {
 	}
 	if want := []string{"/etc/hosts", "/etc/hosts", "/etc/resolv.conf"}; !slices.Equal(opened, want) {
 		t.Errorf("opened %v, want %v", opened, want)
+	}
+}
+
+// TestUnreadableHostsFileFailsTheLookup: the app reads /etc/hosts before any
+// DNS, so a hosts file that exists but can't be read makes the lookup fail
+// (a gap) rather than fall through to an answer the app wouldn't get. Only
+// a missing file means there is none.
+func TestUnreadableHostsFileFailsTheLookup(t *testing.T) {
+	f := &fakeDNS{answers: map[string]string{"db. A": "10.1.2.3", "db. AAAA": "nodata"}}
+	for _, tt := range []struct {
+		name       string
+		hostsErr   error
+		wantStatus evidence.Status
+	}{
+		{"missing", fmt.Errorf("open /etc/hosts: %w", syscall.ENOENT), evidence.StatusOK},
+		{"unreadable", fmt.Errorf("open /etc/hosts: %w", syscall.EACCES), evidence.StatusPermissionDenied},
+		{"too large", fmt.Errorf("/etc/hosts is larger than 16777216 bytes"), evidence.StatusError},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			open := func(_ context.Context, path string) (io.ReadCloser, error) {
+				if path == "/etc/hosts" {
+					return nil, tt.hostsErr
+				}
+				return io.NopCloser(strings.NewReader("nameserver 127.0.0.11\noptions ndots:0\n")), nil
+			}
+			r := &Resolver{HostsPath: "/etc/hosts", ResolvPath: "/etc/resolv.conf", Exchange: f.exchange, Open: open}
+			ev := r.Lookup(context.Background(), "db")
+			if ev.Status != tt.wantStatus {
+				t.Errorf("status %s (%+v), want %s", ev.Status, ev.Err, tt.wantStatus)
+			}
+			if p := ev.Data.(evidence.DNSProbe); tt.wantStatus != evidence.StatusOK && (p.Rcode != "" || len(p.Answers) != 0) {
+				t.Errorf("a failed lookup reports %+v", p)
+			}
+		})
+	}
+}
+
+// TestConnectAfterAFailedLookup: when the lookup itself couldn't be made,
+// the TCP record says so instead of claiming the name doesn't resolve.
+func TestConnectAfterAFailedLookup(t *testing.T) {
+	rp, hp := writeFiles(t, "nameserver 127.0.0.11\noptions ndots:0\n", "")
+	f := &fakeDNS{answers: map[string]string{"api. A": "10.0.0.7"}}
+	rec := &recordingEnter{fail: fmt.Errorf("enter the network namespace: %w", syscall.EPERM)}
+	env := Env{ProcDir: "/proc", Resolver: &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange, Enter: rec.enter}, Enter: rec.enter}
+	evs := Run(context.Background(), env, []Spec{{Kind: SpecTCP, Host: "api", Port: 8080}})
+	var tcp *evidence.Evidence
+	for i := range evs {
+		if evs[i].Kind == evidence.KindTCP {
+			tcp = &evs[i]
+		}
+	}
+	if tcp == nil || tcp.Status != evidence.StatusSkipped || tcp.Err == nil ||
+		tcp.Err.Code != evidence.CodePermissionDenied || strings.Contains(tcp.Err.Message, "did not resolve") ||
+		!strings.Contains(tcp.Err.Message, "could not be made") {
+		t.Errorf("tcp record %+v, want skipped: the lookup could not be made (permission_denied)", tcp)
 	}
 }

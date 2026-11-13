@@ -378,10 +378,14 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 	return policy.New(deps)
 }
 
-// procListeners reads listeners from /proc on the host.
+// procListeners reads listeners from /proc on the host. The host's own come
+// from the reading thread's view (/proc/thread-self): /proc/net shows the
+// main thread's namespace, whatever thread reads it.
 type procListeners struct{}
 
-func (procListeners) Host() ([]evidence.Socket, error) { return probe.ReadListeners("/proc") }
+func (procListeners) Host() ([]evidence.Socket, error) {
+	return probe.ReadListeners("/proc/thread-self")
+}
 
 func (procListeners) Container(pid int, id string) ([]evidence.Socket, error) {
 	return probe.ContainerListeners(pid, id)

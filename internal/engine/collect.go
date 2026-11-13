@@ -442,7 +442,7 @@ func (r *run) containerListeners(ctx context.Context, c evidence.Container) evid
 func (r *run) hostListeners() evidence.Evidence {
 	ev := evidence.Evidence{
 		Kind: evidence.KindListeners, Context: evidence.Host(), Subject: "listeners",
-		Source: "/proc/net/tcp{,6} in whyreach's own network namespace",
+		Source: "/proc/thread-self/net/tcp{,6} in whyreach's own network namespace",
 	}
 	start := time.Now()
 	socks, err := r.e.d.Listeners.Host()

@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -328,4 +329,90 @@ func newNetns(t *testing.T) (int, uint64) {
 		t.Fatal(&fs.PathError{Op: "create a network namespace", Path: "/proc/thread-self/ns/net", Err: r.err})
 	}
 	return r.fd, r.inode
+}
+
+// TestReadInRootRefusesPseudoFiles: procfs and sysfs files pass a
+// regular-file check, but reading them can drain or block (/proc/kmsg), so
+// a container that points its resolver files there gets a refusal.
+func TestReadInRootRefusesPseudoFiles(t *testing.T) {
+	fd, err := unix.Open("/", unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = unix.Close(fd) }()
+	for _, path := range []string{"/proc/version", "/sys/kernel/uevent_seqnum"} {
+		if _, err := os.Stat(path); err != nil {
+			continue
+		}
+		b, err := readInRoot(fd, path, 1<<20)
+		if err == nil || !strings.Contains(err.Error(), "whyreach doesn't read") {
+			t.Errorf("readInRoot(%s) = %q, %v; want a refusal", path, b, err)
+		}
+	}
+}
+
+// TestNetnsEnterNeverMovesTheMainThread needs root, or a user namespace
+// (unshare -Urn): with every enter holding a thread inside another
+// namespace for a while, /proc/self, which describes the main thread for
+// every reader, must keep showing whyreach's own namespace, and no f may
+// run on the main thread.
+func TestNetnsEnterNeverMovesTheMainThread(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("needs root: make lab-root runs it")
+	}
+	home, err := os.Readlink("/proc/self/ns/net")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fd, inode := newNetns(t)
+	h := &netnsHandle{ns: fd, root: -1, inode: inode, logger: slog.New(slog.DiscardHandler)}
+	defer h.close()
+
+	// One P makes it likely that an enter goroutine is scheduled on the
+	// main thread, which is where the bug was.
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	stop := make(chan struct{})
+	readerDone := make(chan int)
+	go func() {
+		moved := 0
+		for {
+			select {
+			case <-stop:
+				readerDone <- moved
+				return
+			default:
+			}
+			if link, err := os.Readlink("/proc/self/ns/net"); err == nil && link != home {
+				moved++
+			}
+			if id := probe.SelfNetnsID(); id != 0 && id == inode {
+				moved++ // a host-side reader stamped the container's namespace
+			}
+			runtime.Gosched()
+		}
+	}()
+	// Whether a burst's goroutines land on the main thread depends on
+	// which thread holds the one P at the time, so try many bursts.
+	var onMain atomic.Int64
+	for range 30 {
+		var wg sync.WaitGroup
+		for range 50 {
+			wg.Go(func() {
+				err := h.enter(func() {
+					if unix.Gettid() == unix.Getpid() {
+						onMain.Add(1)
+					}
+					time.Sleep(time.Millisecond) // stands for a connect being awaited
+				})
+				if err != nil {
+					t.Errorf("enter: %v", err)
+				}
+			})
+		}
+		wg.Wait()
+	}
+	close(stop)
+	if moved := <-readerDone; moved != 0 || onMain.Load() != 0 {
+		t.Errorf("the main thread left whyreach's namespace: %d reads saw the container's, %d calls ran on it", moved, onMain.Load())
+	}
 }

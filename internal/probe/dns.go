@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/netip"
 	"os"
@@ -45,7 +46,7 @@ type Resolver struct {
 	// Open opens HostsPath and ResolvPath; nil means os.Open. The netns
 	// executor reads a container's own files with it, since entering a
 	// network namespace leaves whyreach's file system as it is.
-	Open func(path string) (io.ReadCloser, error)
+	Open func(ctx context.Context, path string) (io.ReadCloser, error)
 	// Enter runs each query, and so creates its socket, inside another
 	// network namespace (Env.Enter); nil means the caller's own.
 	Enter Enter
@@ -54,9 +55,9 @@ type Resolver struct {
 func (r *Resolver) timeout() time.Duration { return cmp.Or(r.Timeout, QueryTimeout) }
 func (r *Resolver) budget() time.Duration  { return cmp.Or(r.Budget, LookupBudget) }
 
-func (r *Resolver) open(path string) (io.ReadCloser, error) {
+func (r *Resolver) open(ctx context.Context, path string) (io.ReadCloser, error) {
 	if r.Open != nil {
-		return r.Open(path)
+		return r.Open(ctx, path)
 	}
 	return os.Open(path) //nolint:gosec // G304: the resolver file paths are fixed by Env, never user input
 }
@@ -91,11 +92,17 @@ func (r *Resolver) Lookup(ctx context.Context, name string) evidence.Evidence {
 
 func (r *Resolver) lookup(ctx context.Context, name string) (evidence.DNSProbe, error) {
 	p := evidence.DNSProbe{Name: name}
-	if addrs, err := r.hostsLookup(name); err == nil && len(addrs) > 0 {
+	addrs, err := r.hostsLookup(ctx, name)
+	switch {
+	case err == nil && len(addrs) > 0:
 		p.Via, p.Answered, p.Answers = evidence.ViaHosts, name, addrs
 		return p, nil
+	case err != nil && !errors.Is(err, fs.ErrNotExist):
+		// The app reads this file before any DNS: without it, an answer
+		// from DNS would describe a lookup the app doesn't make.
+		return p, fmt.Errorf("read the hosts file: %w", err)
 	}
-	conf, err := r.readResolvConf()
+	conf, err := r.readResolvConf(ctx)
 	if err != nil {
 		return p, fmt.Errorf("read resolver config: %w", err)
 	}
@@ -324,8 +331,8 @@ type resolvConf struct {
 	extServers []string
 }
 
-func (r *Resolver) readResolvConf() (resolvConf, error) {
-	f, err := r.open(r.ResolvPath)
+func (r *Resolver) readResolvConf(ctx context.Context) (resolvConf, error) {
+	f, err := r.open(ctx, r.ResolvPath)
 	if err != nil {
 		return resolvConf{}, err
 	}
@@ -369,8 +376,8 @@ func parseResolvConf(r io.Reader) (resolvConf, error) {
 }
 
 // hostsLookup returns the addresses /etc/hosts lists for name, in file order.
-func (r *Resolver) hostsLookup(name string) ([]netip.Addr, error) {
-	f, err := r.open(r.HostsPath)
+func (r *Resolver) hostsLookup(ctx context.Context, name string) ([]netip.Addr, error) {
+	f, err := r.open(ctx, r.HostsPath)
 	if err != nil {
 		return nil, err
 	}
