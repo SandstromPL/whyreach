@@ -1,6 +1,6 @@
-// Command netdoctor diagnoses container and host network connectivity.
+// Command whyreach diagnoses container and host network connectivity.
 //
-// Milestone M0: only `netdoctor version` exists. The real CLI and the MCP
+// Milestone M0: only `whyreach version` exists. The real CLI and the MCP
 // server arrive in M1 and M2 (see INITIAL.md §7).
 package main
 
@@ -25,9 +25,9 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 1 && (args[0] == "version" || args[0] == "--version") {
-		fmt.Fprintf(stdout, "netdoctor %s\n", version)
+		fmt.Fprintf(stdout, "whyreach %s\n", version)
 		return exitOK
 	}
-	fmt.Fprintln(stderr, "netdoctor: nothing here yet (milestone M0). Try `netdoctor version`.")
+	fmt.Fprintln(stderr, "whyreach: nothing here yet (milestone M0). Try `whyreach version`.")
 	return exitUsage
 }

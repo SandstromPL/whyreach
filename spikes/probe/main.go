@@ -1,9 +1,12 @@
-// Command probe is the M0 spike for NetDoctor's probe container (INITIAL.md §3.3).
+// Command probe is the M0 spike for whyreach's probe container (INITIAL.md §3.3).
 //
-//	probe serve ADDR...   listen on each TCP address and accept forever
-//	                      (a stand-in for a distroless service)
+//	probe serve [--delay 0s] ADDR...   listen on each TCP address and accept forever
+//	                                   (a stand-in for a distroless service)
+//	probe check HOST:PORT              exit 0 if a TCP connect succeeds (for healthchecks)
 //	probe report [--dns NAME]... [--tcp HOST:PORT]... [--timeout 2s] [--proc-dir /proc]
-//	                      print what this network namespace looks like, as JSON
+//	                                   print what this network namespace looks like, as JSON
+//
+// Any other mode exits with status 1, which the experiments use as a crashing service.
 //
 // The image is FROM scratch, so the binary must not rely on anything inside it.
 package main
@@ -23,7 +26,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/SandstromPL/netdoctor/spikes/internal/procnet"
+	"github.com/SandstromPL/whyreach/spikes/internal/procnet"
 )
 
 func main() {
@@ -37,6 +40,8 @@ func main() {
 		err = serve(os.Args[2:])
 	case "report":
 		err = report(os.Args[2:])
+	case "check":
+		err = check(os.Args[2:])
 	default:
 		err = fmt.Errorf("unknown mode %q", os.Args[1])
 	}
@@ -47,11 +52,24 @@ func main() {
 }
 
 // serve listens on every address it can and keeps going if one fails (for
-// example when IPv6 is disabled in the container).
-func serve(addrs []string) error {
+// example when IPv6 is disabled in the container). --delay simulates a
+// service that takes a while to start listening.
+func serve(args []string) error {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	delay := fs.Duration("delay", 0, "wait this long before listening")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
-	for _, a := range addrs {
+	if *delay > 0 {
+		select {
+		case <-time.After(*delay):
+		case <-ctx.Done():
+			return nil
+		}
+	}
+	for _, a := range fs.Args() {
 		ap, err := netip.ParseAddrPort(a)
 		if err != nil {
 			return err
@@ -79,6 +97,19 @@ func serve(addrs []string) error {
 	return nil
 }
 
+// check exits 0 when HOST:PORT accepts a TCP connection within a second.
+func check(args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: probe check HOST:PORT")
+	}
+	d := net.Dialer{Timeout: time.Second}
+	c, err := d.Dial("tcp", args[0])
+	if err != nil {
+		return err
+	}
+	return c.Close()
+}
+
 type multiFlag []string
 
 func (m *multiFlag) String() string     { return strings.Join(*m, ",") }
@@ -89,6 +120,7 @@ type dnsResult struct {
 	Addrs   []string `json:"addrs,omitempty"`
 	Outcome string   `json:"outcome"` // ok | not_found | timeout | error
 	Error   string   `json:"error,omitempty"`
+	Ms      float64  `json:"ms"`
 }
 
 type tcpResult struct {
@@ -148,8 +180,9 @@ func report(args []string) error {
 func lookup(name string, timeout time.Duration) dnsResult {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	start := time.Now()
 	addrs, err := net.DefaultResolver.LookupNetIP(ctx, "ip", name)
-	r := dnsResult{Name: name, Outcome: "ok"}
+	r := dnsResult{Name: name, Outcome: "ok", Ms: float64(time.Since(start).Microseconds()) / 1000}
 	if err != nil {
 		r.Error = err.Error()
 		var de *net.DNSError

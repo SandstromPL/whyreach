@@ -1,4 +1,4 @@
-# NetDoctor — keep these targets in sync with the "Commands" section of CLAUDE.md.
+# whyreach — keep these targets in sync with the "Commands" section of CLAUDE.md.
 
 SHELL := /usr/bin/env bash
 .SHELLFLAGS := -eu -o pipefail -c
@@ -9,9 +9,9 @@ CROSS_TARGETS := darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 
 .PHONY: build test lint lab lab-root golden cross clean
 
-## build: static binary in bin/netdoctor
+## build: static binary in bin/whyreach
 build:
-	CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/netdoctor ./cmd/netdoctor
+	CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/whyreach ./cmd/whyreach
 
 ## test: unit tests and rule fixtures (no Docker, no root, no network)
 test:

@@ -1,0 +1,14 @@
+# E2, project B: `worker` is in a different Compose project and tries to reach `api` (WR004).
+x-probe: &probe
+  image: whyreach-spike-probe:dev
+  pull_policy: never
+  labels: { io.whyreach.spike: "1" }
+
+services:
+  worker:
+    <<: *probe
+    command: ["serve", "0.0.0.0:7000"]
+
+networks:
+  default:
+    labels: { io.whyreach.spike: "1" }

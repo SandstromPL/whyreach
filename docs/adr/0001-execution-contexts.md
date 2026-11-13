@@ -1,4 +1,4 @@
-# ADR 0001: Execution contexts — where NetDoctor's checks run
+# ADR 0001: Execution contexts — where whyreach's checks run
 
 - **Status:** accepted (M0, 2026-11-13)
 - **Answers:** `INITIAL.md` §3.3 and §10 Q1, Q2, Q4
@@ -6,7 +6,7 @@
 
 ## Context
 
-To answer "why can't `worker` reach `api:8080`?", NetDoctor needs three kinds of evidence, each from the right network namespace:
+To answer "why can't `worker` reach `api:8080`?", whyreach needs three kinds of evidence, each from the right network namespace:
 
 1. **DNS from the source's view:** what `api` resolves to inside `worker`, through Docker's embedded resolver at 127.0.0.11.
 2. **A TCP connect from the source's netns.**
@@ -16,7 +16,7 @@ Usually the containers are distroless, so there are no tools inside them to run.
 
 ## Decision
 
-1. **The probe container is the default executor for container-side DNS and TCP probes.** It is a FROM-scratch image of NetDoctor's own static binary, imported with `docker import` (no registry pull) and run with `--network container:<target>`. It is hardened: AutoRemove, `--cap-drop ALL`, `--user 65534:65534`, `--read-only`, `no-new-privileges`, a pids limit, a memory limit, and the label `io.netdoctor.probe=1`. Every part of this was verified (below).
+1. **The probe container is the default executor for container-side DNS and TCP probes.** It is a FROM-scratch image of whyreach's own static binary, imported with `docker import` (no registry pull) and run with `--network container:<target>`. It is hardened: AutoRemove, `--cap-drop ALL`, `--user 65534:65534`, `--read-only`, `no-new-privileges`, a pids limit, a memory limit, and the label `io.whyreach.probe=1`. Every part of this was verified (below).
 2. **New: on Linux Docker Engine, read the destination's listeners from the host** via `/proc/<pid>/net/tcp{,6}`. This needs no root and no Docker write.
    - Before trusting the PID, verify that `/proc/<pid>/cgroup` contains the full container ID. Re-check it after the read to rule out PID reuse.
    - On Docker Desktop, where the PIDs belong to the VM, read the listeners inside the probe container instead (also verified).
@@ -27,11 +27,11 @@ Usually the containers are distroless, so there are no tools inside them to run.
 ### What v0.1 can conclude without probe containers (tier 2b off, no root)
 
 On Linux Docker Engine, Docker metadata plus host-read listeners are enough for:
-- **ND002 (loopback bind):** if every listener for the port in the destination's netns is on 127.0.0.1/::1, no other netns can reach it.
-- **ND001 and ND003:** nothing listening on the port, or listening on a different port.
-- **ND004 (no shared network), ND006 (published port used internally) and ND008 (destination not running).**
+- **WR002 (loopback bind):** if every listener for the port in the destination's netns is on 127.0.0.1/::1, no other netns can reach it.
+- **WR001 and WR003:** nothing listening on the port, or listening on a different port.
+- **WR004 (no shared network), WR006 (published port used internally) and WR008 (destination not running).**
 
-DNS-view rules (ND005, ND009) and confirming actual reachability from the source still need the probe container or root. Without them, NetDoctor reports those as gaps (§3.6).
+DNS-view rules (WR005, WR009) and confirming actual reachability from the source still need the probe container or root. Without them, whyreach reports those as gaps (§3.6).
 
 ## Evidence
 
@@ -43,9 +43,9 @@ DNS-view rules (ND005, ND009) and confirming actual reachability from the source
 | Does `/proc/net/tcp{,6}` inside the probe list X's sockets? | **Yes:** `127.0.0.1:8080`, `0.0.0.0:9090` and `[::]:9091`, plus Docker's embedded-DNS listener (see findings). |
 | Does it work hardened (uid 65534, `CapEff` 0, read-only rootfs, `no-new-privileges`, pids 32, 32 MB)? | **Yes.** `/proc` reads, DNS via 127.0.0.11, and TCP connects all worked. |
 | DNS from the source's view | Network alias → IP ✓, container name → IP ✓, `extra_hosts` entry ✓. A nonexistent name came back NXDOMAIN, from `127.0.0.11:53`. |
-| Reproduces ND002? | **Yes.** From worker's netns: `api:8080` refused (loopback-only bind), `api:9090` connected. |
-| Reproduces ND014? | **Yes, by accident.** A v6-only `[::]:9091` listener refused an IPv4 connect. |
-| Joining a stopped container | The daemon refuses with `cannot join network namespace of a non running container: container … is exited`. That's a clean ND008 signal. |
+| Reproduces WR002? | **Yes.** From worker's netns: `api:8080` refused (loopback-only bind), `api:9090` connected. |
+| Reproduces WR014? | **Yes, by accident.** A v6-only `[::]:9091` listener refused an IPv4 connect. |
+| Joining a stopped container | The daemon refuses with `cannot join network namespace of a non running container: container … is exited`. That's a clean WR008 signal. |
 | Timing (local daemon) | `docker import` of the 3.3 MB binary: **78 ms**; of an ~18 MB tarball: **69 ms**. Image-exists check: **20 ms**. Probe run: **656 ms** cold, then **125–132 ms**. Two probe runs per diagnosis fit easily inside §3.6's p50 < 3 s. |
 
 ### What a `docker`-group user can do without root (`spikes/privileges.sh`, Q1)
@@ -76,7 +76,7 @@ DNS-view rules (ND005, ND009) and confirming actual reachability from the source
 
 ## Findings that change the design
 
-1. **Docker's embedded DNS listens inside every container on a user-defined network,** on `127.0.0.11:<random port>` (TCP, plus UDP). Listener-based rules must ignore it, or ND003 would "suggest" a random DNS port.
+1. **Docker's embedded DNS listens inside every container on a user-defined network,** on `127.0.0.11:<random port>` (TCP, plus UDP). Listener-based rules must ignore it, or WR003 would "suggest" a random DNS port.
 2. **Go's `LookupNetIP` returns `/etc/hosts` entries as IPv4-mapped IPv6** (`::ffff:10.9.8.7`). Always `Unmap()` addresses before comparing or reporting them.
 3. **The container's `resolv.conf` carries the host's DNS search domain and Docker's comments** (`ExtServers: [host(127.0.0.53)]`). The search domain can identify the user's organisation, so report redaction must cover search domains. The comments are useful DNS evidence: they show the upstream servers and whether the host uses a local stub resolver.
 4. **The structured result is what the agent reads in Claude Code.** The `Diagnosis` structured output must lead with `verdict` and `summary`, carry short facts plus evidence IDs, and leave raw evidence out (it goes into report bundles).

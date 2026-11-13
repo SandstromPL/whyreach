@@ -1,0 +1,18 @@
+# E1: `localhost` inside a container (WR007), loopback-only bind (WR002),
+# a mistyped service name (WR005) and IPv6 `localhost` (WR014).
+x-probe: &probe
+  image: whyreach-spike-probe:dev
+  pull_policy: never
+  labels: { io.whyreach.spike: "1" }
+
+services:
+  app:
+    <<: *probe
+    command: ["serve", "0.0.0.0:3000"]
+  db:
+    <<: *probe
+    command: ["serve", "0.0.0.0:5432", "127.0.0.1:9000"]
+
+networks:
+  default:
+    labels: { io.whyreach.spike: "1" }

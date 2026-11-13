@@ -1,11 +1,11 @@
 # Shared helpers for the M0 spike scripts. Source it from the repo root; don't run it.
 # shellcheck shell=bash
 
-SPIKE_LABEL=io.netdoctor.spike=1
-PROBE_LABEL=io.netdoctor.probe=1
-SPIKE_IMG=netdoctor-spike-probe:dev
-SPIKE_BIG_IMG=netdoctor-spike-big:dev
-SPIKE_NET=netdoctor-spike-net
+SPIKE_LABEL=io.whyreach.spike=1
+PROBE_LABEL=io.whyreach.probe=1
+SPIKE_IMG=whyreach-spike-probe:dev
+SPIKE_BIG_IMG=whyreach-spike-big:dev
+SPIKE_NET=whyreach-spike-net
 OUT=spikes/out
 
 now_ms() { echo $(( $(date +%s%N) / 1000000 )); }
@@ -38,11 +38,11 @@ build_probe_image() {
 # api also gets an extra hosts entry and a DNS search domain, used as markers.
 start_services() {
   docker network create --label "$SPIKE_LABEL" "$SPIKE_NET" >/dev/null
-  docker run -d --name netdoctor-spike-api --label "$SPIKE_LABEL" \
+  docker run -d --name whyreach-spike-api --label "$SPIKE_LABEL" \
     --network "$SPIKE_NET" --network-alias api \
     --add-host spike-extra:10.9.8.7 --dns-search spike.example \
     "$SPIKE_IMG" serve 127.0.0.1:8080 0.0.0.0:9090 '[::]:9091' >/dev/null
-  docker run -d --name netdoctor-spike-worker --label "$SPIKE_LABEL" \
+  docker run -d --name whyreach-spike-worker --label "$SPIKE_LABEL" \
     --network "$SPIKE_NET" \
     "$SPIKE_IMG" serve 0.0.0.0:7000 >/dev/null
 }

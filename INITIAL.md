@@ -1,7 +1,8 @@
-# NetDoctor — INITIAL.md
+# whyreach — INITIAL.md
 
-> **What this is:** the build brief for NetDoctor's first release: the decisions that came out of the critique, the HLD, the LLD, MVP scope, and the test plan.
+> **What this is:** the build brief for whyreach's first release: the decisions that came out of the critique, the HLD, the LLD, MVP scope, and the test plan.
 > Where this file and the original project proposal (not published) disagree, this file wins. The proposal stays as background and rationale.
+> **Name:** the project was renamed from NetDoctor to **whyreach** on 2026-11-13 because of a trademark conflict (§10 Q5). The original proposal keeps the old name.
 >
 > **Status:** M0 done (scaffold, spikes, ADR 0001); next is M1 · **Updated:** 2026-11-13
 > **Dev box:** Ubuntu 24.04.5, kernel 7.0, Go 1.27.0, Docker Engine 29.9.3 (API 1.56), Compose v5.7.0
@@ -12,9 +13,9 @@
 
 - **What we build:** a single Go binary that diagnoses network connectivity between containers and between containers and the host. It is read-only and works both as a CLI and as an MCP server.
 - **Who it's for:** backend developers whose Docker runs on Linux (on their own machine, a remote dev box or a remote devcontainer, and in CI from v0.2), who run multi-service Compose stacks and use an AI coding agent (§2.1). Docker Desktop users on Windows and macOS come next (§3.7).
-- **Where it has an edge:** a tested catalog of the Docker networking mistakes developers actually make (`ND001`, `ND002`, …). Each one is detected by a deterministic rule that correlates several pieces of evidence. NetDoctor is not a wrapper around `ping` or `ss`.
+- **Where it has an edge:** a tested catalog of the Docker networking mistakes developers actually make (`WR001`, `WR002`, …). Each one is detected by a deterministic rule that correlates several pieces of evidence. whyreach is not a wrapper around `ping` or `ss`.
 - **The key design decision:** checks that must run inside a container go through a pluggable **Executor**. The default executor starts a short-lived, hardened *probe container* that shares the target container's network namespace. This needs only the Docker API. The result is no root requirement and support for distroless images. Later, the same path covers Docker Desktop on macOS and Windows without a rewrite.
-- **How we prove it:** a failure lab with one Compose scenario per rule, plus a benchmark that compares an agent using plain bash against an agent using only NetDoctor (§6.4).
+- **How we prove it:** a failure lab with one Compose scenario per rule, plus a benchmark that compares an agent using plain bash against an agent using only whyreach (§6.4).
 
 ---
 
@@ -24,13 +25,13 @@ Each row is a weakness in the original proposal and the decision that replaces i
 
 | # | Weakness in the proposal | Decision |
 |---|---|---|
-| D1 | It names linux-mcp-server as the main competitor. The real competitor is a coding agent (Claude Code, Codex) running `docker inspect`, `docker exec` and `ss` through its shell. Docker's own Gordon (`docker ai`) also competes, though it requires Docker Desktop and a Docker account. | NetDoctor has to win where shell loses: distroless containers (no `ss`, `curl` or `nslookup` inside), DNS seen from the container's own resolver (`127.0.0.11`), correlation across layers, and one tool call where the shell needs about ten. The benchmark in §6.4 must show this before v1.0. |
+| D1 | It names linux-mcp-server as the main competitor. The real competitor is a coding agent (Claude Code, Codex) running `docker inspect`, `docker exec` and `ss` through its shell. Docker's own Gordon (`docker ai`) also competes, though it requires Docker Desktop and a Docker account. | whyreach has to win where shell loses: distroless containers (no `ss`, `curl` or `nslookup` inside), DNS seen from the container's own resolver (`127.0.0.11`), correlation across layers, and one tool call where the shell needs about ten. The benchmark in §6.4 must show this before v1.0. |
 | D2 | The failure catalog is textbook (refused vs. timeout), not what developers actually run into. | Build the catalog from real pitfalls (§4.6): `localhost` used inside a container, an app bound to 127.0.0.1, the published port used instead of the container port, separate Compose networks, `host.docker.internal` on Linux, startup races, Docker subnets overlapping a VPN or LAN, IPv6 `localhost`. **The catalog is the product.** |
 | D3 | "Run checks from the container's namespace, where supported" hides the hardest problem in the project. | Define an explicit `Executor` abstraction with three strategies (§3.3). Settle the choice in M0 with spikes, not halfway through implementation. |
-| D4 | It promises least privilege, but Docker socket access is effectively root, `setns` needs `CAP_SYS_ADMIN`, and reading nftables needs `CAP_NET_ADMIN`. | Say plainly in the docs that the read-only guarantee comes from NetDoctor's code (a Docker client that only allows listed endpoints, and no shell), not from OS privileges. Detect capabilities at runtime and report what could not be checked. Recommend `docker-socket-proxy` for users who want OS-level enforcement. |
-| D5 | Linux-only conflicts with the stated target user. Probably most Compose users run Docker Desktop on macOS or Windows, where container PIDs and network namespaces live inside a VM. Docker Desktop for Linux uses a VM too. | Make the Docker-API-only path (the probe container) the default for container checks, and keep Linux-only code behind build tags from day one. Windows via WSL2 follows in v0.2 and native macOS/Windows builds in v0.3; `docker run … netdoctor` gives a zero-install option. Host-level checks stay Linux-only unless users ask (§3.7). |
+| D4 | It promises least privilege, but Docker socket access is effectively root, `setns` needs `CAP_SYS_ADMIN`, and reading nftables needs `CAP_NET_ADMIN`. | Say plainly in the docs that the read-only guarantee comes from whyreach's code (a Docker client that only allows listed endpoints, and no shell), not from OS privileges. Detect capabilities at runtime and report what could not be checked. Recommend `docker-socket-proxy` for users who want OS-level enforcement. |
+| D5 | Linux-only conflicts with the stated target user. Probably most Compose users run Docker Desktop on macOS or Windows, where container PIDs and network namespaces live inside a VM. Docker Desktop for Linux uses a VM too. | Make the Docker-API-only path (the probe container) the default for container checks, and keep Linux-only code behind build tags from day one. Windows via WSL2 follows in v0.2 and native macOS/Windows builds in v0.3; `docker run … whyreach` gives a zero-install option. Host-level checks stay Linux-only unless users ask (§3.7). |
 | D6 | 13 fine-grained MCP tools. Every tool schema costs context tokens on every turn, and agents choose worse among many similar tools. | Expose 4 tools (§4.10). The engine runs the workflows; the low-level primitives are escape hatches. |
-| D7 | It never decides whether the LLM or the engine runs the investigation. | The engine runs it, deterministically and with tests. The agent works out what to diagnose (from where to where), reads the diagnosis, and follows the machine-readable `next_checks`. NetDoctor never calls an LLM itself. |
+| D7 | It never decides whether the LLM or the engine runs the investigation. | The engine runs it, deterministically and with tests. The agent works out what to diagnose (from where to where), reads the diagnosis, and follows the machine-readable `next_checks`. whyreach never calls an LLM itself. |
 | D8 | Demand validation is only 5–10 interviews. | Also collect the top ~20 failure signatures from StackOverflow, the Docker forums and GitHub issues. That list becomes both the rule backlog and the lab. |
 | D9 | Probes can be abused: a prompt-injected agent could scan the LAN or reach the cloud metadata service. | Policy (§4.9): one host:port per call, no CIDRs or ranges, block link-local and metadata addresses, rate limits, and an audit log. **Tool arguments can narrow permissions but never widen them.** |
 | D10 | The 8–10 week estimate. | Plausible for the MVP full-time. Part-time, plan for about twice that. The failure lab takes longest, so start it in week 1. |
@@ -49,12 +50,12 @@ Each row is a weakness in the original proposal and the decision that replaces i
 | Segment | Where Docker runs | Served from | Notes |
 |---|---|---|---|
 | Linux laptop and desktop developers | local Docker Engine | v0.1 | smallest segment; most willing to try a new Go CLI; easiest to reach |
-| Remote and cloud dev environments: GitHub Codespaces, remote devcontainers, cloud VMs, SSH dev boxes | a Linux machine or VM | v0.1 | includes many Mac users whose Docker actually runs on remote Linux, as long as NetDoctor and the agent run on that machine (Remote-SSH, Codespaces). A macOS binary that talks to a remote daemon through `DOCKER_HOST` or `docker context` comes in v0.3 (§3.7) |
-| CI pipelines with Compose-based integration tests | Linux runners | v0.2 (CI mode) | run `netdoctor diagnose --from <source> <target> --json` when tests fail; also useful to AI agents that fix CI |
+| Remote and cloud dev environments: GitHub Codespaces, remote devcontainers, cloud VMs, SSH dev boxes | a Linux machine or VM | v0.1 | includes many Mac users whose Docker actually runs on remote Linux, as long as whyreach and the agent run on that machine (Remote-SSH, Codespaces). A macOS binary that talks to a remote daemon through `DOCKER_HOST` or `docker context` comes in v0.3 (§3.7) |
+| CI pipelines with Compose-based integration tests | Linux runners | v0.2 (CI mode) | run `whyreach diagnose --from <source> <target> --json` when tests fail; also useful to AI agents that fix CI |
 | Docker Desktop users on Windows and macOS | a Linux VM managed by Docker Desktop | v0.2 (Windows via WSL2), v0.3 (native builds) | likely the biggest segment. In the 2025 Stack Overflow survey (professional use, multi-select), Windows was at 49.5% and macOS at 32.9%, against 27.7% for Ubuntu, the top Linux distro. The survey doesn't measure Docker Desktop itself. See §3.7 |
 
 **Indirect beneficiaries:**
-- Open-source maintainers: they can ask people who report "can't connect to the database" to attach a report bundle from `netdoctor diagnose … --report` (exported with `netdoctor report export <id>`), the way `flutter doctor` output is used.
+- Open-source maintainers: they can ask people who report "can't connect to the database" to attach a report bundle from `whyreach diagnose … --report` (exported with `whyreach report export <id>`), the way `flutter doctor` output is used.
 - Platform teams: redacted report bundles help them triage "works on my machine" tickets.
 
 **Not target users:** network engineers managing routers and switches, people running Kubernetes in production (Hubble, k8sgpt and `kubectl debug` serve them), and anyone who wants a network scanner. Feature requests from these groups are out of scope by default.
@@ -78,8 +79,8 @@ Each row is a weakness in the original proposal and the decision that replaces i
   - DNS as the source container sees it
   - a bounded TCP connect from the source's context
   - host interfaces and routes, via netlink
-- Rules ND001–ND010 (§4.6, the rows marked MVP).
-- A CLI (`netdoctor diagnose …`) and an MCP stdio server, both running the same engine.
+- The 14 rules marked v0.1 in §4.6 (WR001–WR012, WR019, WR020), built in the order set by ADR 0002.
+- A CLI (`whyreach diagnose …`) and an MCP stdio server, both running the same engine.
 - Text and JSON output, plus a Markdown report bundle with redaction.
 - A failure lab with at least one scenario per MVP rule. CI runs it.
 
@@ -87,13 +88,13 @@ Each row is a weakness in the original proposal and the decision that replaces i
 
 ### 2.3 First vertical slice (exit criterion for M1)
 
-Scenario: `worker` cannot reach `api:8080`. Each of three injected variants must produce the correct top finding:
+Scenario: `worker` cannot reach `api`. Following ADR 0002, the three injected variants are the two most frequent real-world failures plus the classic bind bug. Each must produce the correct primary finding:
 
-1. `api` listens on `127.0.0.1:8080` → **ND002** (high)
-2. `api` and `worker` are on different networks → **ND004** (high)
-3. `worker` calls `api:8081`, the host-published port, while the container port is 8080 → **ND006** (high, and it supersedes ND003)
+1. `worker` is configured with `localhost:8080` → **WR007** (high), with the fix `api:8080`.
+2. `api` and `worker` are in different Compose projects → **WR004** (high). The timeout seen when connecting by IP must not surface as WR016.
+3. `api` listens on `127.0.0.1:8080` → **WR002** (high).
 
-There is also a control scenario where everything works. It must return the verdict `no_problem_reproduced`.
+There is also a control scenario where everything works. It must return the verdict `no_problem_reproduced`. Experiments E1 and E2 in `spikes/experiments/` are the starting point for these lab scenarios.
 
 ---
 
@@ -106,7 +107,7 @@ Developer ─► MCP client (Claude Code, Codex, Cursor, …)
                  │ stdio JSON-RPC          ◄─ UNTRUSTED: tool args may be prompt-injected
                  ▼
    ┌──────────────────────────────┐
-   │ netdoctor (one Go binary)    │        ◄─ TRUSTED CODE that holds
+   │ whyreach (one Go binary)    │        ◄─ TRUSTED CODE that holds
    │ cli · mcpserver · policy     │           root-equivalent Docker access
    │ engine · rules · executors   │
    └───────┬──────────────┬───────┘
@@ -147,7 +148,7 @@ To answer "can worker reach api:8080?", the DNS lookup and TCP connect have to h
 
 | Strategy | How it works | Privilege needed | Works on distroless images? | Docker Desktop / remote daemon? | Docker writes | Latency |
 |---|---|---|---|---|---|---|
-| **probe-container** (default) | Create a tiny container with `NetworkMode: container:<target>`, run the netdoctor probe in it, read its stdout, remove it | Docker API only | ✅ | ✅ (later) | creates, starts and removes 1 labeled container | ~0.5–2 s |
+| **probe-container** (default) | Create a tiny container with `NetworkMode: container:<target>`, run the whyreach probe in it, read its stdout, remove it | Docker API only | ✅ | ✅ (later) | creates, starts and removes 1 labeled container | ~0.5–2 s |
 | **netns** (fast path) | `setns()` into `/proc/<pid>/ns/net` on a locked OS thread | root or `CAP_SYS_ADMIN` | ✅ | ❌ (Linux Engine only) | none | ms |
 | `docker exec` | Run `ss` or `nslookup` inside the target | Docker API | ❌ (the tools are missing) | ✅ | an exec | ~0.3 s |
 
@@ -156,15 +157,15 @@ To answer "can worker reach api:8080?", the DNS lookup and TCP connect have to h
 Why probe-container is the right default:
 - A container started with `--network container:X` shares X's network namespace. Docker also gives it **X's own `/etc/resolv.conf` and `/etc/hosts`**, so the probe's DNS view matches the app's exactly: the embedded DNS at 127.0.0.11, `extra_hosts`, and aliases. *(To be verified in an M0 spike.)*
 - Reading `/proc/net/tcp` and `/proc/net/tcp6` from inside the probe lists X's sockets. That checks the bind address without root and without any tools inside X.
-- No registry pull is needed. On Linux, netdoctor imports its own static binary as a `FROM scratch` image named `netdoctor-probe:<version>`. When netdoctor itself runs as a container, it reuses its own image.
-- The probe is hardened: AutoRemove, `CapDrop: ALL`, `ReadonlyRootfs`, `User: 65534`, `no-new-privileges`, no mounts, no environment, a pids limit and a memory limit, the label `io.netdoctor.probe=1`, and a hard timeout. Leftover probes are cleaned up at startup.
+- No registry pull is needed. On Linux, whyreach imports its own static binary as a `FROM scratch` image named `whyreach-probe:<version>`. When whyreach itself runs as a container, it reuses its own image.
+- The probe is hardened: AutoRemove, `CapDrop: ALL`, `ReadonlyRootfs`, `User: 65534`, `no-new-privileges`, no mounts, no environment, a pids limit and a memory limit, the label `io.whyreach.probe=1`, and a hard timeout. Leftover probes are cleaned up at startup.
 
-**Trade-off:** creating a container is a Docker write. Probe containers are therefore **tier 2b** (§4.9): off unless the user enables them in config, or approves through MCP elicitation where the client supports it. Every result reports them in `side_effects` (for example: `"ephemeral probe container nd-probe-3f2a (removed)"`). `changes_made` stays `false`.
+**Trade-off:** creating a container is a Docker write. Probe containers are therefore **tier 2b** (§4.9): off unless the user enables them in config, or approves through MCP elicitation where the client supports it. Every result reports them in `side_effects` (for example: `"ephemeral probe container wr-probe-3f2a (removed)"`). `changes_made` stays `false`.
 
 **Verified in M0 (ADR 0001):** the probe container works exactly as described above, hardened and without a registry pull.
 - **Listeners from the host:** on Linux Docker Engine, the destination's listeners can also be read from the host through `/proc/<pid>/net/tcp{,6}`. This needs no root and no Docker write, once `/proc/<pid>/cgroup` confirms that the PID belongs to the container.
-- **Without tier 2b:** v0.1 can still conclude ND001–ND004, ND006 and ND008.
-- **Still needs the probe container or root:** the DNS-view rules (ND005, ND009) and confirming reachability from the source.
+- **Without tier 2b:** v0.1 can still conclude most of its rules. The rule experiments (`docs/research/rule-experiments.md`) show that, of the v0.1 rules, only WR020 depends on the probe container. WR005 and WR011 just lose their DNS confirmation.
+- **Still needs the probe container or root:** WR020, WR014, WR016, and confirming reachability from the source.
 
 ### 3.4 Main flow: `diagnose_connection(from=container:worker, to=api:8080)`
 
@@ -179,10 +180,10 @@ Why probe-container is the right default:
 
 | Mode | How it runs | Sees the host's netns? | Container checks | Notes |
 |---|---|---|---|---|
-| Native (default) | `netdoctor mcp serve` / `netdoctor diagnose …` | ✅ | ✅ via probe-container | Linux only |
-| Native as root | `sudo netdoctor diagnose …` | ✅ | ✅ via the netns fast path, no Docker writes | for CLI use; avoid as an MCP server |
+| Native (default) | `whyreach mcp serve` / `whyreach diagnose …` | ✅ | ✅ via probe-container | Linux only |
+| Native as root | `sudo whyreach diagnose …` | ✅ | ✅ via the netns fast path, no Docker writes | for CLI use; avoid as an MCP server |
 | As a container | `docker run --rm -i -v /var/run/docker.sock:/var/run/docker.sock <image> mcp serve` | ❌ (unless `--network host --pid host`) | ✅ | zero-install; the route to macOS and Windows (v0.3+) |
-| Inside WSL2 (Windows) | the MCP client on Windows launches it with `wsl.exe -d <distro> --exec /abs/path/netdoctor mcp serve` (§3.7, item 6) | describes the WSL2 VM, not Windows | ✅ via probe-container, through the socket that Docker Desktop's WSL integration provides (WSL 2 backend and Linux-containers mode only) | v0.2; the Linux build runs unchanged |
+| Inside WSL2 (Windows) | the MCP client on Windows launches it with `wsl.exe -d <distro> --exec /abs/path/whyreach mcp serve` (§3.7, item 6) | describes the WSL2 VM, not Windows | ✅ via probe-container, through the socket that Docker Desktop's WSL integration provides (WSL 2 backend and Linux-containers mode only) | v0.2; the Linux build runs unchanged |
 
 ### 3.6 Non-functional requirements
 
@@ -193,12 +194,12 @@ Why probe-container is the right default:
 - **Degradation:**
   - Without Docker access, only host checks run.
   - Without root, the netns executor is unavailable.
-  - Without probe permission, NetDoctor names the gap and says how to enable it.
+  - Without probe permission, whyreach names the gap and says how to enable it.
   - Missing evidence is **never** treated as a negative result.
 
 ### 3.7 Platform support (Linux, Windows, macOS)
 
-**Why container checks can be portable:** containers always run on a Linux kernel. On macOS and Windows, Docker Desktop (or OrbStack, or Colima) runs a hidden Linux VM. NetDoctor on the host can't see inside that VM (no `/proc`, no network namespaces), but the probe container runs *inside* it, next to the user's containers, and reports back through the Docker API. Host-level checks have no such shortcut: each OS needs its own code.
+**Why container checks can be portable:** containers always run on a Linux kernel. On macOS and Windows, Docker Desktop (or OrbStack, or Colima) runs a hidden Linux VM. whyreach on the host can't see inside that VM (no `/proc`, no network namespaces), but the probe container runs *inside* it, next to the user's containers, and reports back through the Docker API. Host-level checks have no such shortcut: each OS needs its own code.
 
 | Capability | Linux (Docker Engine) | Windows (Docker Desktop + WSL2) | macOS (Docker Desktop, OrbStack, Colima) |
 |---|---|---|---|
@@ -209,7 +210,7 @@ Why probe-container is the right default:
 | Direct namespace entry (`setns`, needs root) | ✅ | ❌ the engine's PIDs mean nothing in the user's distro | ❌ the containers are inside a VM |
 | Windows containers | n/a | ❌ out of scope | n/a |
 
-Docker Engine installed directly inside a WSL2 distro (without Docker Desktop) is supported from v0.2. It behaves like the Linux column, including the netns fast path, except that host checks describe the WSL2 VM. Docker itself recommends Docker Desktop over this setup, and WSL shuts down idle distros (which stops `dockerd`), so `netdoctor doctor` should report both.
+Docker Engine installed directly inside a WSL2 distro (without Docker Desktop) is supported from v0.2. It behaves like the Linux column, including the netns fast path, except that host checks describe the WSL2 VM. Docker itself recommends Docker Desktop over this setup, and WSL shuts down idle distros (which stops `dockerd`), so `whyreach doctor` should report both.
 
 **Other runtimes:**
 - Docker Desktop for Linux also runs a VM, so it behaves like the macOS column: the probe container works, direct namespace entry doesn't, and host checks describe the Linux host rather than the VM. Planned for v0.3.
@@ -240,19 +241,19 @@ Docker Engine installed directly inside a WSL2 distro (without Docker Desktop) i
    - `windows-desktop`
 
    The engine records the result as a `platform` evidence record, and rules read it from the evidence view; rules still import only `evidence` (§4.1). Examples:
-   - `host.docker.internal` works out of the box on Docker Desktop, so ND011 must never fire there. On Docker Engine it needs a `host-gateway` mapping.
+   - `host.docker.internal` works out of the box on Docker Desktop, so WR011 must never fire there. On Docker Engine it needs a `host-gateway` mapping.
    - On Docker Desktop, `network_mode: host` puts the container in the VM's network namespace, not the developer's machine's.
      - Since Desktop 4.34, an opt-in "Enable host networking" setting forwards TCP and UDP (only) between the machine and such containers. Detect whether it's active rather than assuming either way.
      - Under ECI, host networking is refused outright.
-   - Under WSL2, host-level evidence describes the WSL2 VM. On `wsl2-desktop`, rules that need Windows-side host state (ND012's host listeners, ND013's host routes) record a gap instead of drawing conclusions from the VM's state.
-   - WSL2 detection: `-microsoft-standard` in `/proc/sys/kernel/osrelease` is only a hint (current kernels end in `-microsoft-standard-WSL2`). Containers on a WSL2 kernel report the same string, and custom kernels may not. Confirm with `/proc/sys/fs/binfmt_misc/WSLInterop`, and check that NetDoctor isn't itself running inside a container.
+   - Under WSL2, host-level evidence describes the WSL2 VM. On `wsl2-desktop`, rules that need Windows-side host state (WR012's host listeners, WR013's host routes) record a gap instead of drawing conclusions from the VM's state.
+   - WSL2 detection: `-microsoft-standard` in `/proc/sys/kernel/osrelease` is only a hint (current kernels end in `-microsoft-standard-WSL2`). Containers on a WSL2 kernel report the same string, and custom kernels may not. Confirm with `/proc/sys/fs/binfmt_misc/WSLInterop`, and check that whyreach isn't itself running inside a container.
 5. **Testing.** GitHub-hosted runners can't be the macOS/Windows gate.
    - macOS runners don't ship Docker. The Apple-silicon ones can't run it at all (no nested virtualization). The Intel labels can run it in a Lima VM only on a best-effort basis, and they are being phased out.
    - Windows runners ship Docker for Windows containers only. Linux containers inside WSL2 on `windows-2025` are possible but unreliable.
 
    Linux CI stays the release gate. macOS, Windows and WSL2 are validated with manual lab runs or self-hosted runners.
 6. **Launching from Windows MCP clients.**
-   - Use `wsl.exe -d <distro> --exec /abs/path/netdoctor mcp serve`. Without `--exec`, the command runs through a non-login shell and misses PATH entries set in profile files.
+   - Use `wsl.exe -d <distro> --exec /abs/path/whyreach mcp serve`. Without `--exec`, the command runs through a non-login shell and misses PATH entries set in profile files.
    - The server runs as the distro's default user.
    - Env vars in the client's MCP config don't cross into WSL unless they're listed in `WSLENV`, so pass settings as flags.
    - The server must exit promptly on stdin EOF.
@@ -271,8 +272,8 @@ Build them only if users ask.
 ### 4.1 Repository layout
 
 ```
-netdoctor/
-├── cmd/netdoctor/          main.go: wires cli + mcpserver
+whyreach/
+├── cmd/whyreach/          main.go: wires cli + mcpserver
 ├── internal/
 │   ├── cli/                cobra commands; text/json rendering
 │   ├── mcpserver/          tool registration, In/Out types, annotations
@@ -280,7 +281,7 @@ netdoctor/
 │   ├── engine/             workflows (diagnose_connection, …), deadlines
 │   ├── target/             "from"/"to" grammar → typed Endpoint / ContextRef
 │   ├── evidence/           Evidence, Store, View, IDs, typed payloads
-│   ├── rules/              Rule interface, registry, nd0xx_*.go, testdata/
+│   ├── rules/              Rule interface, registry, wr0xx_*.go, testdata/
 │   ├── collect/
 │   │   ├── host/           netlink links/addrs/routes/neigh; /proc/net parsers
 │   │   └── docker/         allowlisted Engine API client; minimal typed structs
@@ -295,7 +296,7 @@ netdoctor/
 ├── docs/
 │   ├── adr/                architecture decision records (0001-execution-contexts.md, …)
 │   ├── research/           background research (failure-signatures.md)
-│   └── rules/ND001.md …    one page per rule (pitfall, evidence, fix), ShellCheck-wiki style
+│   └── rules/WR001.md …    one page per rule (pitfall, evidence, fix), ShellCheck-wiki style
 ├── spikes/                 M0 throwaway spikes; not product code (ADR 0001)
 ├── Makefile · go.mod · .golangci.yml · .goreleaser.yaml
 └── README.md · SECURITY.md · CONTRIBUTING.md · LICENSE (Apache-2.0)
@@ -368,7 +369,7 @@ type Diagnosis struct {
 }
 
 type Finding struct {
-    RuleID        string   // "ND002"
+    RuleID        string   // "WR002"
     Title         string
     Confidence    string   // high | medium | low
     Explanation   string
@@ -412,17 +413,18 @@ The engine is a staged pipeline per workflow, not a generic DAG engine (YAGNI): 
 
 ```go
 type Rule interface {
-    ID() string                         // "ND002": permanent, never renumbered or reused
+    ID() string                         // "WR002": permanent, never renumbered or reused
+    Layer() Layer                       // its place in the precedence order (table below)
     Requires() []evidence.Kind          // missing → not evaluated → becomes a Gap
-    Supersedes() []string               // e.g. ND006 supersedes ND003 (no duplicate findings)
+    Supersedes() []string               // findings it makes redundant, e.g. WR004 supersedes WR005 and WR016
     Evaluate(v evidence.View) []Finding // pure: no I/O, no clock, no randomness
 }
 ```
 
 **Every rule ships with:**
-- fixtures in `rules/testdata/NDxxx/`, including at least one case where the rule must **not** fire
-- a lab scenario in `test/lab/ndxxx-<slug>/`
-- a doc page at `docs/rules/NDxxx.md`
+- fixtures in `rules/testdata/WRxxx/`, including at least one case where the rule must **not** fire
+- a lab scenario in `test/lab/wrxxx-<slug>/`
+- a doc page at `docs/rules/WRxxx.md`
 
 **Confidence levels:**
 - **high:** direct evidence of the cause *and* a failing probe. Example: the listener is only on 127.0.0.1, and a connect from another network namespace is refused.
@@ -431,41 +433,66 @@ type Rule interface {
 
 Contradicting evidence lowers the confidence by one level.
 
-### 4.6 Initial rule catalog
+**Precedence (ADR 0002).** Each rule belongs to a layer. The layers follow the order a connection depends on: the destination has to be up before naming matters, naming comes before the path, and the path comes before the listener.
+- The **primary finding** is the highest-confidence finding in the earliest layer that has one.
+- Findings that only follow from it are dropped through `Supersedes()`.
+- Independent findings in later layers stay, listed as "also found" in fix order. Example: "after you connect the networks, api still only listens on loopback".
 
-| ID | Pitfall | Key evidence | Release |
-|---|---|---|---|
-| ND001 | Nothing is listening on the port in the destination's netns | listeners (no match) + connect refused | MVP |
-| ND002 | Service is bound to loopback only (127.0.0.1 or ::1) | loopback-only listeners + refused from another netns | MVP |
-| ND003 | Service listens on a different port (suggest that port) | listeners + refused | MVP |
-| ND004 | The two containers share no network | two docker.container records | MVP |
-| ND005 | The name doesn't resolve on the source's networks (suggest the closest service or alias) | DNS NXDOMAIN + network members | MVP |
-| ND006 | The host-published port is used between containers (8081 instead of 8080) | port mappings + target port | MVP |
-| ND007 | `localhost` or 127.0.0.1 is used inside a container to reach another container or the host | target host + source context + source listeners | MVP |
-| ND008 | The destination container is not running, is restarting, or is unhealthy | container state and health | MVP |
-| ND009 | On the default `bridge` network, containers can't resolve each other's names | network driver and name + NXDOMAIN | MVP |
-| ND010 | Startup race: the destination started recently or keeps restarting, so the refusal is temporary | StartedAt, RestartCount, health | MVP |
-| ND011 | `host.docker.internal` doesn't resolve on Docker Engine (Linux, or inside WSL2 without Docker Desktop) because there is no `host-gateway` mapping; never fires on Docker Desktop | DNS + ExtraHosts + platform | v0.2 |
-| ND012 | A host service is bound to 127.0.0.1, so containers can't reach it | host listeners + gateway IP | v0.2 |
-| ND013 | A Docker subnet overlaps a VPN or LAN route, so the bridge captures the traffic | host route lookup + network subnets | v0.2 |
-| ND014 | IPv6/IPv4 mismatch: the name resolves to ::1 but the listener is IPv4-only (the classic Node ≥17 case) | DNS answers + listener address families | v0.2 |
-| ND015 | The network is `internal: true` but the target is outside it | docker.network Internal flag | v0.2 |
-| ND016 | A timeout means packets are silently dropped (firewall or route blackhole); suggest next checks | TCP timeout + route | v0.2 |
-| ND017 | Possible MTU mismatch (bridge at 1500, VPN at 1420) | link MTUs | v0.3 |
-| ND018 | A proxy intercepts traffic (`HTTP_PROXY` set without a matching `NO_PROXY`). Read env var **keys only**, never values. | env keys | v0.3 |
+| Layer | Question | Rules, in evaluation order |
+|---|---|---|
+| 1. Destination | Is the destination container there and running? | WR008, WR010 |
+| 2. Addressing | Is the source aiming at the right thing? | WR007, WR011, WR023, WR006, WR019, WR024 |
+| 3. Naming | Can the source reach the destination by name at all? | WR004, WR009, WR005, WR020 |
+| 4. Path | Can packets get there? | WR015, WR013, WR021, WR022, WR016 |
+| 5. Listener | Is the right socket listening? | WR002, WR012, WR014, WR003, WR001 |
+| 6. Advisory | Could something break a working connection? | WR017, WR018 |
 
-**M0 research** (`docs/research/failure-signatures.md`) ranked real-world frequency by Stack Overflow views and GitHub reactions:
-1. ND007 (`localhost` inside a container), far ahead of everything else, at about 3.4M views
-2. ND004 (no shared network)
-3. DNS server failures inside the container, which no rule covers yet
-4. ND010 (startup race)
-5. ND012 (host service bound to loopback)
-6. a port that isn't published, which no rule covers yet
-7. ND011
+Suppression pairs from the experiments:
 
-ND002 ranks 11th.
+| Primary finding | Suppresses | Why |
+|---|---|---|
+| WR004 | WR005, WR016 | Traffic between networks times out. |
+| WR008 | WR001, WR005, WR016 | A restarting container has no IP. |
+| WR007, WR002 | WR001 | — |
+| WR006 | WR003 | — |
+| WR015, WR024 | WR016 | — |
 
-The research proposes candidate rules ND019–ND025 and changes to ND005, ND006, ND007, ND012 and ND016. **None of these are accepted yet.** Decide when planning M1, because the release column above predates the data: ND011 and ND012 sit in v0.2 even though they rank 7th and 5th.
+### 4.6 Rule catalog
+
+Sources for the columns:
+- **Rank:** real-world frequency, from `docs/research/failure-signatures.md`.
+- **Probe?** whether the rule needs the probe container, from `docs/research/rule-experiments.md`.
+- **Release:** the build order decided in ADR 0002.
+
+**v0.1 is 14 rules:** WR001–WR012, WR019 and WR020.
+
+| ID | Pitfall | Layer | Key evidence | Probe? | Rank | Release |
+|---|---|---|---|---|---|---|
+| WR001 | Nothing is listening on the port in the destination's netns | 5 | listeners (no match) + refused | no | — | v0.1 · M2 |
+| WR002 | Service bound to loopback only (127.0.0.1 or ::1) | 5 | loopback-only listeners | no | 11 | v0.1 · **M1** |
+| WR003 | Service listens on a different port (suggest that port) | 5 | listeners | no | — | v0.1 · M2 |
+| WR004 | The two containers share no network (e.g. separate Compose projects) | 3 | network membership, Compose project labels | no | 2 | v0.1 · **M1** |
+| WR005 | The name matches no container, service or alias on the source's networks (suggest the closest). Decided from metadata, **not** from the DNS rcode | 3 | network members (+ DNS view) | partly | 8 | v0.1 · M2 |
+| WR006 | The host-published port is used between containers, or a published port is reached through the host's address | 2 | port mappings + target | no | 17 | v0.1 · M2 |
+| WR007 | `localhost`/127.0.0.1 used inside a container to reach another container or the host. The fix differs: the service name, or `host.docker.internal` | 2 | target + source listeners + other containers' and host listeners | no | **1** | v0.1 · **M1** |
+| WR008 | The destination is not running, is restarting, or is unhealthy. Checked before any probe | 1 | state, health, RestartCount | no | not measured | v0.1 · M2 (first) |
+| WR009 | Default `bridge` network: containers can't resolve each other's names | 3 | network name and driver | no | 12 | v0.1 · M2 |
+| WR010 | Startup race: the destination isn't ready yet | 1 | health `starting`, StartedAt, listeners | no | 4 | v0.1 · M2 |
+| WR011 | `host.docker.internal` doesn't resolve on Docker Engine (no `host-gateway` mapping). Never fires on Docker Desktop | 2 | ExtraHosts + platform (+ DNS) | partly | 7 | v0.1 · M2 |
+| WR012 | A host service is bound to 127.0.0.1, so containers can't reach it (Linux Engine, and WSL2 without Desktop) | 5 | host listeners + target is the host | no | 5 | v0.1 · M2 |
+| WR013 | A Docker subnet overlaps a VPN or LAN route | 4 | host route lookup + network subnets | no | 15 | v0.2 |
+| WR014 | IPv6/IPv4 mismatch: `localhost` resolves to `::1` first, but the listener is IPv4-only | 5 | DNS answers + listener families | yes | 18 | v0.2 |
+| WR015 | `internal: true` network, but the target is outside it | 4 | network Internal flag | no | not measured | v0.2 |
+| WR016 | Timeout means a silent drop. Last resort, after WR004, WR013, WR015 and WR024 | 4 | TCP timeout + route | yes | — | v0.2 |
+| WR017 | MTU mismatch. Advisory until a size probe confirms a stall | 6 | link MTUs | no | 16 | v0.3 |
+| WR018 | Proxy env vars intercept traffic. Reads env var **keys only**, never values | 6 | env keys | no | not measured | v0.3 |
+| WR019 | Port not published, or published on another host address (host → container) | 2 | PortBindings + container listeners | no | 6 | v0.1 · M2 |
+| WR020 | The container's upstream DNS fails: internal names resolve, external ones time out | 3 | DNS from the source + `resolv.conf` `ExtServers` | yes | 3 | v0.1 · M2 |
+| WR021 | The host firewall rejects container-to-host traffic (EHOSTUNREACH to the host) | 4 | errno + host listener (+ firewall rules, needs root) | yes | 9 | v0.2 |
+| WR022 | No outbound NAT or forwarding | 4 | `ip_forward`, daemon firewall settings | yes | 10 | v0.3 |
+| WR023 | Docker Desktop: `network_mode: host` means the VM | 2 | platform + NetworkMode | no | 14 | v0.3 · M7 |
+| WR024 | Stale or hard-coded container IP: no container owns the address, or the source's sockets point at an old IP | 2 | members' IPs + source socket table + EHOSTUNREACH | partly | 13 | v0.2 |
+| WR025 | Advertised-address redirect (Kafka and similar) | — | — | — | 19 | deferred (ID reserved) |
 
 ### 4.7 Executors
 
@@ -479,7 +506,7 @@ type Executor interface {
 
 - **`host`** calls the `probe` package in-process.
 - **`probecontainer`**:
-  1. Make sure the image `netdoctor-probe:<ver>` exists. If it doesn't, import the binary's own executable as a scratch image (`POST /images/create?fromSrc=-`). Check that the daemon's architecture (from `/version`) matches.
+  1. Make sure the image `whyreach-probe:<ver>` exists. If it doesn't, import the binary's own executable as a scratch image (`POST /images/create?fromSrc=-`). Check that the daemon's architecture (from `/version`) matches.
   2. Create the container with the hardened config from §3.3, start it, and wait for it under the timeout.
   3. Read the logs: stdout is one JSON evidence object per line. Without a TTY the log stream is **multiplexed with 8-byte frame headers**, so demux it.
   4. Remove the container.
@@ -490,7 +517,7 @@ type Executor interface {
   - Call `runtime.LockOSThread()`, open `/proc/<pid>/ns/net`, and call `unix.Setns(fd, CLONE_NEWNET)`. Create the sockets there; a socket keeps the netns it was created in.
   - Restore the original netns before unlocking. If the restore fails, never unlock; Go then terminates the thread.
   - The mount namespace is **not** switched, so read the container's resolver config through `/proc/<pid>/root/etc/{resolv.conf,hosts}`.
-- **Probe mode:** the same binary has a hidden `netdoctor __probe --spec '<json>'` subcommand. It writes JSON lines and exits non-zero only on an internal error.
+- **Probe mode:** the same binary has a hidden `whyreach __probe --spec '<json>'` subcommand. It writes JSON lines and exits non-zero only on an internal error.
 
 ### 4.8 Collectors and probes
 
@@ -525,7 +552,7 @@ type Executor interface {
 
 **Hard rule:** tool arguments can only narrow permissions. Tiers come from the user's config or from MCP elicitation, never from the agent.
 
-**Audit log:** JSON Lines at `$XDG_STATE_HOME/netdoctor/audit.jsonl`. Each entry records the tool, its sanitized arguments, duration, status and side effects.
+**Audit log:** JSON Lines at `$XDG_STATE_HOME/whyreach/audit.jsonl`. Each entry records the tool, its sanitized arguments, duration, status and side effects.
 
 ### 4.10 MCP surface (4 tools)
 
@@ -555,13 +582,14 @@ type Executor interface {
 ### 4.11 CLI
 
 ```
-netdoctor diagnose [--from container:worker] api:8080 [--json] [--report]
-netdoctor inspect host | container <name> | network <name>
-netdoctor probe tcp|dns|listeners <target> [--from …]
-netdoctor report list | show <id> | export <id> [--redact-private]
-netdoctor rules list | explain ND002
-netdoctor doctor          # self-check: capabilities, permissions, Docker API version
-netdoctor mcp serve       # stdio
+whyreach [--from container:worker] api:8080           # short form of `whyreach diagnose`
+whyreach diagnose [--from container:worker] api:8080 [--json] [--report]
+whyreach inspect host | container <name> | network <name>
+whyreach probe tcp|dns|listeners <target> [--from …]
+whyreach report list | show <id> | export <id> [--redact-private]
+whyreach rules list | explain WR002
+whyreach doctor          # self-check: capabilities, permissions, Docker API version
+whyreach mcp serve       # stdio
 ```
 
 **Exit codes:**
@@ -576,7 +604,7 @@ netdoctor mcp serve       # stdio
 
 ### 4.12 Reports and redaction
 
-**Bundle location:** `$XDG_DATA_HOME/netdoctor/reports/<UTC-ts>-<id>/`, with the directory at `0700` and files at `0600`. It contains:
+**Bundle location:** `$XDG_DATA_HOME/whyreach/reports/<UTC-ts>-<id>/`, with the directory at `0700` and files at `0600`. It contains:
 - `manifest.json`: version, schema, redaction summary, sha256 checksums
 - `diagnosis.json`
 - `evidence.jsonl`
@@ -590,7 +618,7 @@ netdoctor mcp serve       # stdio
 
 ### 4.13 Config
 
-`$XDG_CONFIG_HOME/netdoctor/config.toml`
+`$XDG_CONFIG_HOME/whyreach/config.toml`
 
 ```toml
 [permissions]
@@ -628,17 +656,17 @@ redact_private = false
 **CLI (target output)**
 
 ```
-$ netdoctor diagnose --from container:worker api:8080
+$ whyreach diagnose --from container:worker api:8080
 ✗ worker → api:8080 — cause identified (high)
 
-ND002  api listens only on 127.0.0.1:8080 inside its container
+WR002  api listens only on 127.0.0.1:8080 inside its container
        Other containers can't reach a loopback-bound socket.
   facts  • worker and api share network shop_default          [ev-02 ev-03]
          • "api" → 172.20.0.4 via Docker DNS 127.0.0.11        [ev-05]
          • connect 172.20.0.4:8080 from worker: refused (3 ms) [ev-06]
          • api listeners: 127.0.0.1:8080/tcp                   [ev-04]
   fix    bind to 0.0.0.0:8080 (e.g. --host 0.0.0.0) and restart api
-  docs   docs/rules/ND002.md
+  docs   docs/rules/WR002.md
 
 side effects: 2 ephemeral probe containers (removed) · changes made: none
 ```
@@ -651,7 +679,7 @@ side effects: 2 ephemeral probe containers (removed) · changes made: none
   "verdict": "cause_identified",
   "summary": "api is bound to loopback; worker cannot reach it.",
   "findings": [{
-    "rule_id": "ND002", "confidence": "high",
+    "rule_id": "WR002", "confidence": "high",
     "supporting": ["ev-04", "ev-06"],
     "fix": "Bind the server to 0.0.0.0:8080 and restart api."
   }],
@@ -661,7 +689,7 @@ side effects: 2 ephemeral probe containers (removed) · changes made: none
     "tool": "run_probe",
     "args": {"kind": "tcp", "from": "container:worker", "target": "api:8080"}
   }],
-  "side_effects": ["ephemeral probe container nd-probe-3f2a (removed)"],
+  "side_effects": ["ephemeral probe container wr-probe-3f2a (removed)"],
   "changes_made": false
 }
 ```
@@ -669,14 +697,14 @@ side effects: 2 ephemeral probe containers (removed) · changes made: none
 **Lab scenario**
 
 ```yaml
-# test/lab/nd002-loopback-bind/scenario.yaml
+# test/lab/wr002-loopback-bind/scenario.yaml
 from: container:worker
 to: api:8080
 expect:
   verdict: cause_identified
-  top_rule: ND002
+  top_rule: WR002
   confidence: high
-  must_not_fire: [ND004, ND005]
+  must_not_fire: [WR004, WR005]
 ```
 
 ---
@@ -697,11 +725,12 @@ They cover the text, Markdown and MCP-text renderers. Regenerate the golden file
 ### 6.3 Lab (integration)
 - **Layout:** each scenario is `test/lab/<scenario>/`, containing `compose.yaml` and `scenario.yaml`.
 - **Harness** (build tag `lab`):
-  1. `docker compose -p netdoctor-lab-<name>-<rand> up -d --wait`
+  1. `docker compose -p whyreach-lab-<name>-<rand> up -d --wait`
   2. run the engine
   3. assert on the result
   4. `down -v`
 - Unique project names let scenarios run in parallel without touching any other containers.
+- **Starting point:** the experiment scenarios in `spikes/experiments/` (E1–E8). M1 promotes the slice scenarios first (ADR 0002). Note that `up --wait` would hang on the slow-start and crash-loop scenarios, so those need their own wait conditions.
 - **netns variants** need root: `sudo -E go test -tags lab,privileged …`.
 - **CI** runs on GitHub Actions Ubuntu runners, which have Docker and sudo.
 - **v0.1 scenario set:**
@@ -712,7 +741,7 @@ They cover the text, Markdown and MCP-text renderers. Regenerate the golden file
 ### 6.4 Agent benchmark (the validation experiment)
 For each lab scenario, run a headless agent twice:
 - **(a)** with shell only
-- **(b)** with NetDoctor's MCP tools only, no shell
+- **(b)** with whyreach's MCP tools only, no shell
 
 Record whether it found the right root cause, how many tool calls and tokens it used, the wall-clock time, and any unsafe commands it attempted. If (b) isn't clearly better on at least half the scenarios, narrow the scope before v1.0. Publish the results table; it doubles as the launch post.
 
@@ -723,12 +752,12 @@ Record whether it found the right root cause, how many tool calls and tokens it 
 | M | Scope | Exit criterion |
 |---|---|---|
 | **M0** (≤1 wk) | `git init` and scaffold (Makefile, CI, lint, and a `make cross` compile check for macOS and Windows). Spikes: (1) the privilege matrix; (2) a probe-container proof: `resolv.conf`/`hosts` sharing, `/proc/net` in a shared netns, importing a scratch image; (3) an MCP Go SDK hello-world tool with structured output, called from Claude Code. Collect the top ~20 real failure signatures. | Spike results written up in `docs/adr/0001-execution-contexts.md`. ✅ Done 2026-11-13 |
-| **M1** (2–3 wk) | Evidence types, the allowlisted Docker client, the probe-container executor, probes, ND002/ND004/ND006 plus the healthy control, CLI `diagnose` | The §2.3 vertical slice passes in the lab |
-| **M2** (2 wk) | MCP server (4 tools), policy, audit log, the remaining MVP rules, `doctor` | An agent diagnoses every MVP lab scenario through MCP alone |
+| **M1** (2–3 wk) | Evidence types, the allowlisted Docker client, the probe-container executor, probes, rule layers and precedence, the slice rules WR007/WR004/WR002 plus the healthy control (ADR 0002), CLI `diagnose` | The §2.3 vertical slice passes in the lab |
+| **M2** (2 wk) | MCP server (4 tools), policy, audit log, the rest of the v0.1 rules in ADR 0002's order (WR008 first, then WR020, WR010, WR012, WR019, WR011, WR005, WR009, WR006, WR003, WR001), `doctor` | An agent diagnoses every MVP lab scenario through MCP alone |
 | **M3** (1–2 wk) | netns executor (root), host collectors, host↔container flows | The same lab passes with the netns executor and no Docker writes |
 | **M4** (1–2 wk) | Reports and redaction, `docs/rules/*`, goreleaser builds (linux amd64/arm64), checksums and attestations, a container image, MCP Registry listing | A new user installs, connects a client, and diagnoses the demo using only the docs |
 | **M5** | Benchmark (§6.4) and launch | Results published |
-| **M6** (v0.2) | Windows via WSL2 (`wsl2-desktop` and `wsl2-engine`): platform detection and platform-aware rules (ND011 must not fire under Docker Desktop), host evidence labelled as the WSL2 VM, setup docs for launching through `wsl.exe` (§3.7). CI mode: an example GitHub Actions step that runs `netdoctor diagnose --from <source> <target> --json` when Compose tests fail (JSON output and exit codes already ship in v0.1). Rules ND011–ND016 | The lab passes inside WSL2 in a manual run; the CI example diagnoses a deliberately broken Compose test |
+| **M6** (v0.2) | Windows via WSL2 (`wsl2-desktop` and `wsl2-engine`): platform detection and platform-aware rules (WR011 must not fire under Docker Desktop), host evidence labelled as the WSL2 VM, setup docs for launching through `wsl.exe` (§3.7). CI mode: an example GitHub Actions step that runs `whyreach diagnose --from <source> <target> --json` when Compose tests fail (JSON output and exit codes already ship in v0.1). The v0.2 rules: WR015, WR024, WR014, WR013, WR016, WR021 | The lab passes inside WSL2 in a manual run; the CI example diagnoses a deliberately broken Compose test |
 | **M7** (v0.3) | Native macOS and Windows builds for container checks: embedded Linux probe binaries, Docker endpoint discovery, platform-aware rules for `macos-desktop`, `windows-desktop` and `linux-desktop`, and running the container image (§3.5) on Docker Desktop. Docker Desktop for Linux | Manual lab runs pass on Docker Desktop for macOS, Windows and Linux |
 
 ---
@@ -756,6 +785,8 @@ Record whether it found the right root cause, how many tool calls and tokens it 
 ## 9. OTHER CONSIDERATIONS (gotchas)
 
 **Docker networking semantics**
+- The DNS rcode for an unknown name depends on the host's resolver, not on Docker. Behind a systemd-resolved stub, single-label names come back SERVFAIL; elsewhere they come back NXDOMAIN. Decide "name not found" from Docker metadata (rule experiments E1, E2).
+- Connecting by IP to a container on another network times out (a silent drop) rather than being refused.
 - Networking semantics differ between Linux Docker Engine, Docker Desktop and WSL2 (§3.7). A rule that is correct on Linux can be wrong on Docker Desktop, so rules that depend on the platform must check it.
 - Inside a container, `localhost` refers to that container. Every message and rule must say *which* network namespace an address belongs to.
 - Docker's embedded DNS (127.0.0.11) exists only on user-defined networks, and only inside the container's network namespace. Looking up a service name from the host means nothing.
@@ -768,7 +799,7 @@ Record whether it found the right root cause, how many tool calls and tokens it 
 - On this machine `ping_group_range` is `1 0`, which disables unprivileged ICMP. Use TCP connect probes and never require ICMP.
 - `ss -p` (mapping a socket to a PID) needs root for processes owned by other users. Whether a listener exists, and its bind address, do not.
 - Refused (an RST), timeout (packets dropped) and unreachable (ICMP or no route) are different results. Never merge them, and keep the errno.
-- A successful probe from NetDoctor doesn't prove that the app's own client works: proxy env vars, TLS, IPv6 ordering and libc behaviour can all differ. Say so in `limitations`.
+- A successful probe from whyreach doesn't prove that the app's own client works: proxy env vars, TLS, IPv6 ordering and libc behaviour can all differ. Say so in `limitations`.
 - Containers restart and change IP. Re-resolve everything in every diagnosis, and never cache container IPs between diagnoses.
 - Distroless and scratch images are the *common* case, not an edge case. Never depend on tools being present inside a target container.
 - Docker's embedded DNS listens on `127.0.0.11:<random port>` inside every container on a user-defined network. Listener-based rules must ignore it (ADR 0001).
@@ -778,7 +809,7 @@ Record whether it found the right root cause, how many tool calls and tokens it 
 
 **Docker API mechanics**
 - Container logs without a TTY are multiplexed, so demux the 8-byte frame headers.
-- A `container:` network mode needs the target to be running. If it isn't, report ND008 instead of failing obscurely.
+- A `container:` network mode needs the target to be running. If it isn't, report WR008 instead of failing obscurely.
 
 ---
 
@@ -788,11 +819,14 @@ Record whether it found the right root cause, how many tool calls and tokens it 
 2. **Resolved: yes** (ADR 0001). The probe and the target have identical `ResolvConfPath`, `HostsPath` and `HostnamePath`, and markers set only on the target were visible in the probe.
 3. Which MCP clients support elicitation or input-required results for tier-2b consent? The fallback is the config file.
 4. **Resolved: import our own binary** (ADR 0001). A 3.3 MB import took 78 ms and an ~18 MB import 69 ms, so Linux needs no registry image. Revisit for M7, when the macOS and Windows builds embed Linux probe binaries.
-5. **Answered: the name is not free. Decide before the first public release** (`docs/research/failure-signatures.md`).
-   - **Trademark:** Riverbed Technology, a network-performance vendor, holds a US trademark "NETDOCTOR" (serial 90554897, software, filed 2021-03-02). Trademarkia and uspto.report list it as registered, and the USPTO's TTAB records show an opposition proceeding (91273462) on that application.
-   - **Same-niche projects:** `kosmos-io/netdoctor`, a Go network diagnosis tool for Kubernetes, uses the exact name, and so do several other small GitHub projects. PyPI `netdoctor` is taken.
-   - **Still free:** the npm name, the MCP Registry and Homebrew core.
-   - **Renaming:** it's cheap now (module path and a few strings) and expensive after a release. Candidates whose registry names are free: `ctrdiag`, `ctrdoctor`, `containerdoctor`. No trademark search has been done for them. This is not legal advice.
+5. **Resolved: renamed from NetDoctor to whyreach** (2026-11-13). Rule IDs changed from `NDxxx` to `WRxxx` at the same time.
+   - **Why the old name had to go** (details in `docs/research/failure-signatures.md`):
+     - Riverbed Technology, a network-performance vendor, holds a US trademark "NETDOCTOR" for software (serial 90554897, filed 2021-03-02). Trademarkia and uspto.report list it as registered.
+     - A Go network-diagnosis tool for Kubernetes, `kosmos-io/netdoctor`, uses the exact name.
+     - The PyPI name was taken.
+   - **Why whyreach:** it was free on npm, PyPI, Homebrew core and the MCP Registry, and no GitHub repository used it. No trademark search was done; this is not legal advice.
+   - **What wasn't renamed:** the project folder on the dev box is still `NetDoctor/`; rename it outside a running session if wanted. The original proposal keeps the old name as a historical document.
 6. **Resolved: Apache-2.0** (`LICENSE` added in M0).
 7. Does the probe container work on Docker Desktop with Enhanced Container Isolation turned on (common on business plans)? Docker's docs are silent. Sysbox, which ECI is built on, supports container-to-container network sharing, so it's expected to work, but it must be tested. (Resolve in M6, when Docker Desktop's WSL integration is first supported.)
 8. Which runtimes besides Docker Engine (OrbStack, Colima, Rancher Desktop with moby, Podman) pass the lab unchanged? (Resolve in M7.)
+9. How do we test WR021 (host firewall reject) and confirm WR017 (an actual MTU stall)? The dev box has no host firewall rules, and an MTU stall needs a size probe. Both need a lab VM with ufw or firewalld rules, or a tunnel with a reduced MTU. (Resolve before v0.2.)

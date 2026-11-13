@@ -1,0 +1,20 @@
+# E5: reaching a service on the host: `host.docker.internal` on Linux Engine (WR011)
+# and a host service bound to 127.0.0.1 (WR012). The host-side listeners are started
+# by spikes/experiments.sh.
+x-probe: &probe
+  image: whyreach-spike-probe:dev
+  pull_policy: never
+  labels: { io.whyreach.spike: "1" }
+
+services:
+  nohg:
+    <<: *probe
+    command: ["serve", "0.0.0.0:7000"]
+  hg:
+    <<: *probe
+    command: ["serve", "0.0.0.0:7000"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+networks:
+  default:
+    labels: { io.whyreach.spike: "1" }

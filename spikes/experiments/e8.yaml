@@ -1,0 +1,23 @@
+# E8: path failures. `isolated` sits on an `internal: true` network (WR015);
+# `normal` probes a black-holed address (WR016) and a non-existent address on its
+# own subnet, like a stale container IP.
+x-probe: &probe
+  image: whyreach-spike-probe:dev
+  pull_policy: never
+  labels: { io.whyreach.spike: "1" }
+
+services:
+  isolated:
+    <<: *probe
+    command: ["serve", "0.0.0.0:7000"]
+    networks: [internal]
+  normal:
+    <<: *probe
+    command: ["serve", "0.0.0.0:7000"]
+
+networks:
+  default:
+    labels: { io.whyreach.spike: "1" }
+  internal:
+    internal: true
+    labels: { io.whyreach.spike: "1" }

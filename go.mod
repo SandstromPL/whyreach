@@ -1,4 +1,4 @@
-module github.com/SandstromPL/netdoctor
+module github.com/SandstromPL/whyreach
 
 go 1.27.0
 

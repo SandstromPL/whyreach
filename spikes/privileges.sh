@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # M0 spike: what can a docker-group user (no root) see about a container's network?
-# Answers INITIAL.md §10 Q1. Every check is a read attempt; creates only netdoctor-spike-* resources.
+# Answers INITIAL.md §10 Q1. Every check is a read attempt; creates only whyreach-spike-* resources.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck source=spikes/lib.sh
@@ -11,8 +11,8 @@ spike_cleanup
 build_probe_image
 start_services
 
-pid=$(docker inspect -f '{{.State.Pid}}' netdoctor-spike-api)
-cid=$(docker inspect -f '{{.Id}}' netdoctor-spike-api)
+pid=$(docker inspect -f '{{.State.Pid}}' whyreach-spike-api)
+cid=$(docker inspect -f '{{.Id}}' whyreach-spike-api)
 in_docker=$(id -nG | tr ' ' '\n' | grep -qx docker && echo yes || echo no)
 echo "uid=$(id -u) (root: $([ "$(id -u)" = 0 ] && echo yes || echo no)), docker group: $in_docker, target pid=$pid"
 echo

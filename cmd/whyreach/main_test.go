@@ -14,8 +14,8 @@ func TestRun(t *testing.T) {
 		wantStdout string
 		wantStderr string
 	}{
-		{name: "version", args: []string{"version"}, wantCode: exitOK, wantStdout: "netdoctor dev"},
-		{name: "--version", args: []string{"--version"}, wantCode: exitOK, wantStdout: "netdoctor dev"},
+		{name: "version", args: []string{"version"}, wantCode: exitOK, wantStdout: "whyreach dev"},
+		{name: "--version", args: []string{"--version"}, wantCode: exitOK, wantStdout: "whyreach dev"},
 		{name: "no args", args: nil, wantCode: exitUsage, wantStderr: "nothing here yet"},
 		{name: "unknown command", args: []string{"diagnose"}, wantCode: exitUsage, wantStderr: "nothing here yet"},
 	}

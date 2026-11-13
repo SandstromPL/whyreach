@@ -1,0 +1,19 @@
+# E3: the container's upstream DNS server is unreachable (candidate WR020).
+# 192.0.2.53 is in TEST-NET-1 (RFC 5737), so nothing answers there.
+x-probe: &probe
+  image: whyreach-spike-probe:dev
+  pull_policy: never
+  labels: { io.whyreach.spike: "1" }
+
+services:
+  peer:
+    <<: *probe
+    command: ["serve", "0.0.0.0:8080"]
+  client:
+    <<: *probe
+    command: ["serve", "0.0.0.0:7000"]
+    dns: ["192.0.2.53"]
+
+networks:
+  default:
+    labels: { io.whyreach.spike: "1" }

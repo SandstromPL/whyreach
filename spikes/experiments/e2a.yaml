@@ -1,0 +1,14 @@
+# E2, project A: `api` lives in its own Compose project (WR004).
+x-probe: &probe
+  image: whyreach-spike-probe:dev
+  pull_policy: never
+  labels: { io.whyreach.spike: "1" }
+
+services:
+  api:
+    <<: *probe
+    command: ["serve", "0.0.0.0:8080"]
+
+networks:
+  default:
+    labels: { io.whyreach.spike: "1" }

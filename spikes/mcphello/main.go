@@ -1,10 +1,10 @@
-// Command mcphello is the M0 spike for NetDoctor's MCP surface: one read-only
+// Command mcphello is the M0 spike for whyreach's MCP surface: one read-only
 // tool registered with the official Go SDK's typed handler, so the SDK infers
 // the input and output JSON schemas and fills structuredContent.
 //
 // Run it over stdio from an MCP client, for example:
 //
-//	claude mcp add nd-spike -- /abs/path/to/mcphello
+//	claude mcp add whyreach-spike -- /abs/path/to/mcphello
 package main
 
 import (
@@ -16,7 +16,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/SandstromPL/netdoctor/spikes/internal/procnet"
+	"github.com/SandstromPL/whyreach/spikes/internal/procnet"
 )
 
 // ListenersIn is the tool input.
@@ -37,7 +37,7 @@ type ListenersOut struct {
 }
 
 func newServer() *mcp.Server {
-	s := mcp.NewServer(&mcp.Implementation{Name: "netdoctor-spike", Version: "0.0.0-m0"}, nil)
+	s := mcp.NewServer(&mcp.Implementation{Name: "whyreach-spike", Version: "0.0.0-m0"}, nil)
 	no := false
 	mcp.AddTool(s, &mcp.Tool{
 		Name:  "host_listeners",

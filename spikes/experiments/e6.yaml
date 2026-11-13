@@ -1,0 +1,23 @@
+# E6: publishing ports. `web` publishes nothing (candidate WR019); `weblo` publishes
+# 8080 on the host's loopback only as 18090, which another container then tries to
+# use (WR006).
+x-probe: &probe
+  image: whyreach-spike-probe:dev
+  pull_policy: never
+  labels: { io.whyreach.spike: "1" }
+
+services:
+  web:
+    <<: *probe
+    command: ["serve", "0.0.0.0:8080"]
+  weblo:
+    <<: *probe
+    command: ["serve", "0.0.0.0:8080"]
+    ports: ["127.0.0.1:18090:8080"]
+  client:
+    <<: *probe
+    command: ["serve", "0.0.0.0:7000"]
+
+networks:
+  default:
+    labels: { io.whyreach.spike: "1" }

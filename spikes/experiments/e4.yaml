@@ -1,0 +1,26 @@
+# E4: a slow starter (WR010) and a crash-looping service (WR008).
+x-probe: &probe
+  image: whyreach-spike-probe:dev
+  pull_policy: never
+  labels: { io.whyreach.spike: "1" }
+
+services:
+  slow:
+    <<: *probe
+    command: ["serve", "--delay", "6s", "0.0.0.0:8080"]
+    healthcheck:
+      test: ["CMD", "/probe", "check", "127.0.0.1:8080"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+  crashy:
+    <<: *probe
+    command: ["crash"] # unknown mode: exits 1 at once
+    restart: always
+  client:
+    <<: *probe
+    command: ["serve", "0.0.0.0:7000"]
+
+networks:
+  default:
+    labels: { io.whyreach.spike: "1" }
