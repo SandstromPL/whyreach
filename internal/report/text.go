@@ -1,4 +1,7 @@
-package cli
+// Package report renders diagnoses for people and agents: the terminal text
+// (also the MCP text summary), the compact structured form that MCP clients
+// read first (ADR 0001), and report bundles. It collects nothing.
+package report
 
 import (
 	"fmt"

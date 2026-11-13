@@ -21,6 +21,7 @@ import (
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/probe"
+	"github.com/SandstromPL/whyreach/internal/report"
 	"github.com/SandstromPL/whyreach/internal/target"
 )
 
@@ -75,7 +76,7 @@ func Execute(ctx context.Context, args []string, o Options) int {
 		} else {
 			code = ExitUsage // cobra's own errors: unknown flags, wrong argument counts
 		}
-		fmt.Fprintln(o.Stderr, "whyreach:", Sanitize(err.Error()))
+		fmt.Fprintln(o.Stderr, "whyreach:", report.Sanitize(err.Error()))
 	}
 	return code
 }
@@ -214,7 +215,7 @@ func runDiagnose(cmd *cobra.Command, o Options, f diagnoseFlags, to string, code
 			return internalErr(err)
 		}
 	} else {
-		RenderText(out, d)
+		report.RenderText(out, d)
 	}
 	*code = d.ExitCode()
 	return nil
