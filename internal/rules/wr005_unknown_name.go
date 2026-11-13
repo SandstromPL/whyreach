@@ -161,8 +161,10 @@ func (r wr005) aliasElsewhere(v evidence.View, src, owner evidence.ContainerEv, 
 	f.Title = fmt.Sprintf("%s answers to %s only on %s, which %s isn't on", name, q.To.Host, quoteList(m.Networks), src.C.DisplayName())
 	f.Explanation = fmt.Sprintf("%s has %s as an alias on %s %s only. Aliases are per network: on %s, which %s shares with it, Docker's DNS knows it as %s, not %s.%s",
 		containerLabel(m.C), q.To.Host, plural(len(m.Networks), "network", "networks"), quoteList(m.Networks), shared[0], src.C.DisplayName(), here, q.To.Host, looked)
-	f.Fix = fmt.Sprintf("Use %s, or give %s the alias on %s too: networks: {%s: {aliases: [%s]}} for %s in Compose (docker network connect --alias %s %s %s).",
-		hostPort(here, q.To.Port), name, shared[0], composeKey(m.C, shared[0]), q.To.Host, name, q.To.Host, shared[0], m.C.Name)
+	// The container is on that network already, so without Compose the
+	// alias needs a reconnect: Docker refuses a second connect.
+	f.Fix = fmt.Sprintf("Use %s, or give %s the alias on %s too: networks: {%s: {aliases: [%s]}} for %s in Compose (without Compose: docker network disconnect %s %s, then docker network connect --alias %s %s %s).",
+		hostPort(here, q.To.Port), name, shared[0], composeKey(m.C, shared[0]), q.To.Host, name, shared[0], m.C.Name, q.To.Host, shared[0], m.C.Name)
 	return []Finding{f}
 }
 

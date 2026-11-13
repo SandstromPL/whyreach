@@ -37,7 +37,7 @@ func (r wr007) Evaluate(v evidence.View) []Finding {
 		return nil // with network_mode: host, localhost is the host
 	}
 	// A name can mean loopback too: through the source's extra_hosts, or
-	// through DNS (names under .localhost, say).
+	// through DNS (a name such as localtest.me, which points at 127.0.0.1).
 	entry, viaHosts, loopAddr := "", false, ""
 	if q.To.Class == evidence.TargetName {
 		if e, ok := owner.C.HostsEntry(q.To.Host); ok {
