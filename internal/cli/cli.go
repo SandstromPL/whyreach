@@ -74,7 +74,7 @@ func Execute(ctx context.Context, args []string, o Options) int {
 		} else {
 			code = ExitUsage // cobra's own errors: unknown flags, wrong argument counts
 		}
-		fmt.Fprintln(o.Stderr, "whyreach:", err)
+		fmt.Fprintln(o.Stderr, "whyreach:", Sanitize(err.Error()))
 	}
 	return code
 }

@@ -267,3 +267,25 @@ func TestLogsGoToStderr(t *testing.T) {
 		t.Errorf("debug log missing from stderr: %s", stderr.String())
 	}
 }
+
+func TestRenderTextSanitizesDockerStrings(t *testing.T) {
+	d := diagnoses()["cause"]
+	evil := "api\x1b[2J\x1b]0;pwned\x07\u202eexe.txt"
+	d.Findings[0].Title = evil
+	d.Facts[0].Text = evil
+	d.SideEffects = []string{evil}
+	var b bytes.Buffer
+	RenderText(&b, d)
+	out := b.String()
+	for _, bad := range []string{"\x1b", "\x07", "\u202e"} {
+		if strings.Contains(out, bad) {
+			t.Errorf("output contains %q:\n%q", bad, out)
+		}
+	}
+	if !strings.Contains(out, "api\uFFFD[2J") {
+		t.Errorf("want the escape replaced, not dropped:\n%q", out)
+	}
+	if got := Sanitize("a\tb\nc\rd"); got != "a\tb\nc\uFFFDd" {
+		t.Errorf("Sanitize = %q", got)
+	}
+}

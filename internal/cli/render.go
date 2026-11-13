@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode"
 
 	"github.com/SandstromPL/whyreach/internal/engine"
 	"github.com/SandstromPL/whyreach/internal/evidence"
@@ -12,8 +13,32 @@ import (
 
 const wrapWidth = 78
 
-// RenderText writes a diagnosis for people (INITIAL.md §5).
+// RenderText writes a diagnosis for people (INITIAL.md §5). Names, labels
+// and error messages come from Docker and from probes, so the whole text is
+// sanitized before it reaches the terminal.
 func RenderText(w io.Writer, d *engine.Diagnosis) {
+	var b strings.Builder
+	renderText(&b, d)
+	_, _ = io.WriteString(w, Sanitize(b.String())) // a failed write to the terminal is not actionable
+}
+
+// Sanitize replaces control characters (escape sequences start with one)
+// and bidirectional-text overrides with U+FFFD, keeping newlines and tabs, so
+// a container label or an error message can't drive the terminal.
+func Sanitize(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\n', r == '\t':
+			return r
+		case unicode.IsControl(r), unicode.Is(unicode.Bidi_Control, r):
+			return '\uFFFD'
+		default:
+			return r
+		}
+	}, s)
+}
+
+func renderText(w io.Writer, d *engine.Diagnosis) {
 	fmt.Fprintf(w, "%s %s → %s — %s\n", verdictMark(d.Verdict), sourceLabel(d), d.Question.To.String(), verdictText(d))
 
 	findings := d.Findings
