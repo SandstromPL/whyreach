@@ -37,7 +37,6 @@ func golden(t *testing.T, name string, got []byte) {
 
 var (
 	workerID = strings.Repeat("b", 64)
-	apiID    = strings.Repeat("a", 64)
 	question = evidence.Question{
 		From: evidence.Source{Kind: evidence.SourceContainer, Ref: "container:shop-worker-1", ContainerID: workerID},
 		To:   evidence.Target{Host: "api", Port: 8080, Proto: "tcp", Class: evidence.TargetName},

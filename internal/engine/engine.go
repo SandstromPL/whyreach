@@ -42,6 +42,8 @@ type Docker interface {
 	Negotiate(ctx context.Context) (docker.Version, error)
 	ListContainers(ctx context.Context, all bool, labels ...string) ([]docker.Summary, error)
 	InspectContainer(ctx context.Context, idOrName string) (evidence.Container, error)
+	ListNetworks(ctx context.Context) ([]docker.Network, error)
+	InspectNetwork(ctx context.Context, idOrName string) (docker.Network, error)
 	Endpoint() string
 	APIVersion() string
 }
@@ -53,14 +55,18 @@ type Listeners interface {
 }
 
 // Deps are the engine's collaborators. Docker is nil when the Docker API is
-// unavailable or turned off (DockerErr says why); Probe is nil when probe
-// containers (tier 2b) are off.
+// unavailable or turned off (DockerErr says why). Probe runs checks inside
+// containers; the policy package hands the engine a guarded one that
+// answers with permission-denied records while tier 2b is off, and nil
+// means the same. Interfaces reads the host's addresses; nil means
+// unsupported.
 type Deps struct {
 	Docker     Docker
 	DockerErr  error
 	Host       executor.Executor
 	Probe      executor.Executor
 	Listeners  Listeners
+	Interfaces func() (evidence.HostAddrs, error)
 	ConfigPath string // named in the advice for enabling tier 2b
 	Deadline   time.Duration
 	Logger     *slog.Logger

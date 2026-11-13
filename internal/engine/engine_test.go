@@ -93,6 +93,43 @@ func (w *world) InspectContainer(_ context.Context, ref string) (evidence.Contai
 	return evidence.Container{}, &docker.APIError{Status: 404, Message: "No such container: " + ref}
 }
 
+// ListNetworks derives the networks from the containers' attachments.
+func (w *world) ListNetworks(context.Context) ([]docker.Network, error) {
+	seen := map[string]bool{}
+	var out []docker.Network
+	for _, c := range w.containers {
+		for _, a := range c.Networks {
+			if seen[a.Network] {
+				continue
+			}
+			seen[a.Network] = true
+			n := docker.Network{ID: a.Network + "-id", Name: a.Network, Driver: "bridge"}
+			if a.IPv4.IsValid() {
+				n.Subnets = []netip.Prefix{netip.PrefixFrom(a.IPv4, 16).Masked()}
+			}
+			out = append(out, n)
+		}
+	}
+	slices.SortFunc(out, func(a, b docker.Network) int { return strings.Compare(a.Name, b.Name) })
+	return out, nil
+}
+
+func (w *world) InspectNetwork(ctx context.Context, ref string) (docker.Network, error) {
+	nets, _ := w.ListNetworks(ctx)
+	for _, n := range nets {
+		if n.Name != ref && n.ID != ref {
+			continue
+		}
+		for _, c := range w.containers {
+			if a, ok := c.Attachment(n.Name); ok {
+				n.Members = append(n.Members, docker.NetworkMember{ID: c.ID, Name: c.Name, IPv4: a.IPv4})
+			}
+		}
+		return n, nil
+	}
+	return docker.Network{}, &docker.APIError{Status: 404, Message: "network " + ref + " not found"}
+}
+
 func (w *world) Host() ([]evidence.Socket, error) { return socks(w.host), nil }
 
 func (w *world) Container(pid int, id string) ([]evidence.Socket, error) {

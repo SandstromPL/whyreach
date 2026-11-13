@@ -139,3 +139,39 @@ func TestBlocked(t *testing.T) {
 		}
 	}
 }
+
+func TestParseScope(t *testing.T) {
+	good := map[string]string{
+		"host":                  "host",
+		" container:api ":       "container:api",
+		"service:worker@shop":   "service:worker@shop",
+		"network:shop_default":  "network:shop_default",
+		"network:c8b1ea434516":  "network:c8b1ea434516",
+		"container:/shop-api-1": "container:shop-api-1",
+	}
+	for in, want := range good {
+		s, err := ParseScope(in)
+		if err != nil || s.String() != want {
+			t.Errorf("ParseScope(%q) = %v, %v; want %s", in, s, err, want)
+		}
+	}
+	for _, in := range []string{"", "pod:x", "network:", "network:a b", "container:", "volume:x"} {
+		if _, err := ParseScope(in); err == nil {
+			t.Errorf("ParseScope(%q) succeeded", in)
+		}
+	}
+}
+
+func TestParseName(t *testing.T) {
+	good := map[string]string{"api": "api", "Example.COM.": "example.com", "::ffff:10.0.0.1": "10.0.0.1", "host.docker.internal": "host.docker.internal"}
+	for in, want := range good {
+		if got, err := ParseName(in); err != nil || got != want {
+			t.Errorf("ParseName(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"", "api:8080", "http://api", "*.example.com", "a b"} {
+		if _, err := ParseName(in); err == nil {
+			t.Errorf("ParseName(%q) succeeded", in)
+		}
+	}
+}

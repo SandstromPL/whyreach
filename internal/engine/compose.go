@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/rules"
 )
 
@@ -382,8 +383,12 @@ func (r *run) howToEnable(e evidence.Evidence) string {
 		cfg = "the config file"
 	}
 	switch {
-	case e.Status == evidence.StatusPermissionDenied && e.Err.Message == tier2bOff:
-		return fmt.Sprintf("Enable probe containers: set probe_containers = true under [permissions] in %s. whyreach then imports its own binary as the image whyreach-probe and runs each check in a short-lived, hardened container labeled io.whyreach.probe=1, which it removes afterwards.", cfg)
+	case e.Status == evidence.StatusPermissionDenied && e.Err.Message == executor.ProbeContainersOff:
+		return fmt.Sprintf("Enable probe containers: approve them when an MCP client asks, or set probe_containers = true under [permissions] in %s. whyreach then imports its own binary as the image whyreach-probe and runs each check in a short-lived, hardened container labeled io.whyreach.probe=1, which it removes afterwards.", cfg)
+	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && strings.Contains(e.Err.Message, "allowlist"):
+		return fmt.Sprintf("Add the address or its range to allow under [probe] in %s (classes: loopback, rfc1918, docker; or CIDRs).", cfg)
+	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && strings.Contains(e.Err.Message, "rate limit"):
+		return fmt.Sprintf("Wait a minute and run it again, or raise rate_per_minute under [probe] in %s.", cfg)
 	case e.Status == evidence.StatusPermissionDenied && e.Kind == evidence.KindListeners:
 		return "Run whyreach as root, or as a user in the docker group on Linux Docker Engine, which can read /proc/<pid>/net/tcp."
 	case e.Status == evidence.StatusUnsupported && e.Kind == evidence.KindListeners:

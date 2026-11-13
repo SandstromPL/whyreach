@@ -4,6 +4,7 @@
 package target
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -179,4 +180,76 @@ func Blocked(addr netip.Addr) (reason string, blocked bool) {
 	default:
 		return "", false
 	}
+}
+
+// Scope kinds for inspect_environment.
+const (
+	ScopeHost      = "host"
+	ScopeContainer = "container"
+	ScopeService   = "service"
+	ScopeNetwork   = "network"
+)
+
+// Scope is what to inspect: the host, one container (by name, ID or Compose
+// service) or one Docker network.
+type Scope struct {
+	Kind    string
+	Name    string
+	Project string // for service
+}
+
+// String is the canonical form: "host", "container:api", "network:shop_default".
+func (s Scope) String() string {
+	switch s.Kind {
+	case ScopeContainer, ScopeService:
+		return From(s).String()
+	case ScopeNetwork:
+		return "network:" + s.Name
+	default:
+		return ScopeHost
+	}
+}
+
+// ParseScope parses "host", "container:<name|id>", "service:<name>[@<project>]"
+// or "network:<name|id>".
+func ParseScope(s string) (Scope, error) {
+	in := strings.TrimSpace(s)
+	if rest, ok := strings.CutPrefix(in, "network:"); ok {
+		if !containerName.MatchString(rest) {
+			return Scope{}, &Error{Arg: "scope", Input: s, Reason: "not a network name or ID"}
+		}
+		return Scope{Kind: ScopeNetwork, Name: rest}, nil
+	}
+	if in == "" {
+		return Scope{}, &Error{Arg: "scope", Input: s, Reason: "want host, container:<name>, service:<name>[@<project>] or network:<name>"}
+	}
+	f, err := ParseFrom(in)
+	if err != nil {
+		var te *Error
+		if errors.As(err, &te) {
+			te.Arg = "scope"
+			te.Reason = "want host, container:<name>, service:<name>[@<project>] or network:<name>"
+		}
+		return Scope{}, err
+	}
+	return Scope(f), nil
+}
+
+// ParseName parses a name to look up: a host name or an IP address, nothing
+// else (no port, no scheme, no wildcard).
+func ParseName(s string) (string, error) {
+	in := strings.TrimSuffix(strings.TrimSpace(s), ".")
+	bad := func(reason string) (string, error) {
+		return "", &Error{Arg: "target", Input: s, Reason: reason}
+	}
+	if in == "" {
+		return bad("want a host name to look up")
+	}
+	if a, err := netip.ParseAddr(in); err == nil {
+		return a.Unmap().String(), nil
+	}
+	if !hostName.MatchString(in) {
+		return bad("not a host name: give the name alone, without a port or scheme")
+	}
+	return strings.ToLower(in), nil
 }

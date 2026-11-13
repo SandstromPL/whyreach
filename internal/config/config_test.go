@@ -65,6 +65,10 @@ func TestLoadRejects(t *testing.T) {
 		"deadline long":  "[timeouts]\ndiagnosis = \"5m\"\n",
 		"not toml":       "permissions: {docker: true}\n",
 		"wrong type":     "[permissions]\nprobe_containers = \"yes\"\n",
+		"bad allow":      "[probe]\nallow = [\"lan\"]\n",
+		"bad CIDR":       "[probe]\nallow = [\"10.0.0.0/33\"]\n",
+		"zero rate":      "[probe]\nrate_per_minute = 0\n",
+		"huge rate":      "[probe]\nrate_per_minute = 100000\n",
 	}
 	for name, content := range tests {
 		if _, err := Load(write(t, content)); err == nil {
@@ -85,5 +89,36 @@ func TestPath(t *testing.T) {
 	}
 	if want := "/tmp/xdg/whyreach/config.toml"; runtime.GOOS == "linux" && p != want {
 		t.Errorf("Path() = %q, want %q", p, want)
+	}
+}
+
+func TestAllowPrefixes(t *testing.T) {
+	tests := map[string]int{"loopback": 2, "RFC1918": 3, "docker": 0, "100.64.0.0/10": 1, "192.168.1.50": 1, "fd00::/8": 1}
+	for entry, n := range tests {
+		got, err := AllowPrefixes(entry)
+		if err != nil || len(got) != n {
+			t.Errorf("AllowPrefixes(%q) = %v, %v; want %d prefixes", entry, got, err, n)
+		}
+	}
+	if got, _ := AllowPrefixes("192.168.1.50"); got[0].String() != "192.168.1.50/32" {
+		t.Errorf("an address is a /32: %v", got)
+	}
+	if _, err := AllowPrefixes("everything"); err == nil {
+		t.Error("an unknown class must be rejected")
+	}
+}
+
+func TestDirs(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("XDG directories are Linux's")
+	}
+	t.Setenv("XDG_STATE_HOME", "/tmp/xdg-state")
+	t.Setenv("XDG_DATA_HOME", "relative/ignored")
+	t.Setenv("HOME", "/home/someone")
+	if p, _ := AuditPath(); p != "/tmp/xdg-state/whyreach/audit.jsonl" {
+		t.Errorf("AuditPath() = %q", p)
+	}
+	if p, _ := ReportsDir(); p != "/home/someone/.local/share/whyreach/reports" {
+		t.Errorf("ReportsDir() = %q (a relative XDG_DATA_HOME must be ignored)", p)
 	}
 }

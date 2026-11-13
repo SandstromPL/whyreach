@@ -1,5 +1,6 @@
 // Package cli is whyreach's command line: argument parsing, wiring and
-// rendering. It holds no diagnostic logic (CLAUDE.md).
+// rendering. It holds no diagnostic logic, and reaches the engine only
+// through package policy (CLAUDE.md).
 package cli
 
 import (
@@ -16,13 +17,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
+	"github.com/SandstromPL/whyreach/internal/collect/host"
 	"github.com/SandstromPL/whyreach/internal/config"
-	"github.com/SandstromPL/whyreach/internal/engine"
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
+	"github.com/SandstromPL/whyreach/internal/policy"
 	"github.com/SandstromPL/whyreach/internal/probe"
 	"github.com/SandstromPL/whyreach/internal/report"
-	"github.com/SandstromPL/whyreach/internal/target"
 )
 
 // Exit codes (INITIAL.md §4.11).
@@ -40,8 +41,9 @@ type Options struct {
 	Stdout  io.Writer
 	Stderr  io.Writer
 	Getenv  func(string) string
-	// NewEngine builds the engine; nil means the real one.
-	NewEngine func(o Options, logger *slog.Logger) (*engine.Engine, error)
+	// NewPolicy builds the policy (and the engine behind it) for a client;
+	// nil means the real one, from the config file.
+	NewPolicy func(o Options, logger *slog.Logger, client string) (*policy.Policy, error)
 }
 
 // exitError carries an exit code out of a command.
@@ -56,10 +58,21 @@ func (e *exitError) Unwrap() error { return e.err }
 func usageErr(err error) error    { return &exitError{code: ExitUsage, err: err} }
 func internalErr(err error) error { return &exitError{code: ExitInternal, err: err} }
 
+// policyErr maps an error from the policy to an exit code.
+func policyErr(err error) error {
+	if policy.IsUsage(err) {
+		return usageErr(err)
+	}
+	return internalErr(err)
+}
+
 // Execute runs whyreach with args and returns the exit code.
 func Execute(ctx context.Context, args []string, o Options) int {
 	if o.Getenv == nil {
 		o.Getenv = os.Getenv
+	}
+	if o.NewPolicy == nil {
+		o.NewPolicy = buildPolicy
 	}
 	code := ExitNoProblem
 	root := newRoot(o, &code)
@@ -98,7 +111,8 @@ rules, without changing anything.
 
 "whyreach [--from SOURCE] HOST:PORT" is short for "whyreach diagnose".`,
 		Example: `  whyreach --from container:worker api:8080
-  whyreach diagnose --from service:worker@shop localhost:5432 --json`,
+  whyreach diagnose --from service:worker@shop localhost:5432 --json
+  whyreach --from host localhost:8080`,
 		Args:          cobra.MaximumNArgs(1),
 		Version:       o.Version,
 		SilenceErrors: true,
@@ -138,7 +152,7 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 		},
 	}
 	addDiagnoseFlags(diagnose, &df)
-	root.AddCommand(diagnose)
+	root.AddCommand(diagnose, newInspect(o), newProbe(o))
 
 	root.AddCommand(&cobra.Command{
 		Use:   "version",
@@ -148,10 +162,15 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 			fmt.Fprintf(cmd.OutOrStdout(), "whyreach %s\n", o.Version)
 		},
 	})
+	root.AddCommand(newProbeEntry())
+	return root
+}
 
+// newProbeEntry is the hidden subcommand the probe container runs.
+func newProbeEntry() *cobra.Command {
 	var spec, allow string
 	var budget time.Duration
-	probeCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:    "__probe",
 		Short:  "Run probe specs in this network namespace (inside a probe container)",
 		Hidden: true,
@@ -170,11 +189,10 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 			return nil
 		},
 	}
-	probeCmd.Flags().StringVar(&spec, "spec", "", "JSON list of probe specs")
-	probeCmd.Flags().DurationVar(&budget, "budget", probe.Budget, "time the whole batch may take")
-	probeCmd.Flags().StringVar(&allow, "allow", "", "comma-separated prefixes connects are restricted to (absent: no allowlist)")
-	root.AddCommand(probeCmd)
-	return root
+	cmd.Flags().StringVar(&spec, "spec", "", "JSON list of probe specs")
+	cmd.Flags().DurationVar(&budget, "budget", probe.Budget, "time the whole batch may take")
+	cmd.Flags().StringVar(&allow, "allow", "", "comma-separated prefixes connects are restricted to (absent: no allowlist)")
+	return cmd
 }
 
 func addDiagnoseFlags(cmd *cobra.Command, f *diagnoseFlags) {
@@ -183,35 +201,17 @@ func addDiagnoseFlags(cmd *cobra.Command, f *diagnoseFlags) {
 }
 
 func runDiagnose(cmd *cobra.Command, o Options, f diagnoseFlags, to string, code *int) error {
-	from, err := target.ParseFrom(f.from)
+	p, err := o.NewPolicy(o, newLogger(o), policy.ClientCLI)
 	if err != nil {
 		return usageErr(err)
 	}
-	dest, err := target.ParseTo(to)
+	d, err := p.Diagnose(cmd.Context(), policy.DiagnoseArgs{From: f.from, To: to})
 	if err != nil {
-		return usageErr(err)
-	}
-	logger := newLogger(o)
-	newEngine := o.NewEngine
-	if newEngine == nil {
-		newEngine = buildEngine
-	}
-	eng, err := newEngine(o, logger)
-	if err != nil {
-		return usageErr(err)
-	}
-	d, err := eng.Diagnose(cmd.Context(), from, dest)
-	if err != nil {
-		if engine.IsUsage(err) {
-			return usageErr(err)
-		}
-		return internalErr(err)
+		return policyErr(err)
 	}
 	out := cmd.OutOrStdout()
 	if f.json {
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(d); err != nil {
+		if err := writeJSON(out, d); err != nil {
 			return internalErr(err)
 		}
 	} else {
@@ -221,8 +221,94 @@ func runDiagnose(cmd *cobra.Command, o Options, f diagnoseFlags, to string, code
 	return nil
 }
 
-// newLogger writes JSON logs to stderr only; stdout carries results (and,
-// from M2, the MCP protocol). WHYREACH_LOG=debug|info|warn sets the level.
+func newInspect(o Options) *cobra.Command {
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:   "inspect host | container NAME | service NAME[@PROJECT] | network NAME",
+		Short: "Show the networking facts of the host, a container or a Docker network",
+		Args: func(_ *cobra.Command, args []string) error {
+			switch {
+			case len(args) == 1 && args[0] == "host":
+			case len(args) == 2 && (args[0] == "container" || args[0] == "service" || args[0] == "network"):
+			default:
+				return usageErr(errors.New("want: inspect host | container NAME | service NAME[@PROJECT] | network NAME"))
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p, err := o.NewPolicy(o, newLogger(o), policy.ClientCLI)
+			if err != nil {
+				return usageErr(err)
+			}
+			in, err := p.Inspect(cmd.Context(), strings.Join(args, ":"))
+			if err != nil {
+				return policyErr(err)
+			}
+			if asJSON {
+				return writeJSON(cmd.OutOrStdout(), in)
+			}
+			report.RenderInspection(cmd.OutOrStdout(), in)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "print the facts as JSON")
+	return cmd
+}
+
+func newProbe(o Options) *cobra.Command {
+	var from string
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:   "probe tcp HOST:PORT | dns NAME | listeners  [--from SOURCE]",
+		Short: "Run one check: a TCP connect, a DNS lookup or a listener read, from SOURCE's network namespace",
+		Args: func(_ *cobra.Command, args []string) error {
+			switch {
+			case len(args) == 2 && (args[0] == probe.SpecTCP || args[0] == probe.SpecDNS):
+			case len(args) == 1 && args[0] == probe.SpecListeners:
+			default:
+				return usageErr(errors.New("want: probe tcp HOST:PORT | dns NAME | listeners"))
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p, err := o.NewPolicy(o, newLogger(o), policy.ClientCLI)
+			if err != nil {
+				return usageErr(err)
+			}
+			a := policy.ProbeArgs{Kind: args[0], From: from}
+			if len(args) == 2 {
+				a.Target = args[1]
+			}
+			res, err := p.Probe(cmd.Context(), a)
+			if err != nil {
+				return policyErr(err)
+			}
+			if asJSON {
+				return writeJSON(cmd.OutOrStdout(), res)
+			}
+			report.RenderProbe(cmd.OutOrStdout(), report.CompactProbe(res, probeHowTo(p)))
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&from, "from", "host", "where the check runs: host, container:<name|id> or service:<name>[@<project>]")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "print the evidence as JSON")
+	return cmd
+}
+
+// probeHowTo is the advice for a check that needs probe containers.
+func probeHowTo(p *policy.Policy) string {
+	return "Checks from inside a container need probe containers: set probe_containers = true under [permissions] in " +
+		p.ConfigPath() + ", or approve them when an MCP client asks."
+}
+
+func writeJSON(w io.Writer, v any) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(v)
+}
+
+// newLogger writes JSON logs to stderr only; stdout carries results and,
+// in mcp serve, the MCP protocol. WHYREACH_LOG=debug|info|warn sets the level.
 func newLogger(o Options) *slog.Logger {
 	level := slog.LevelWarn
 	switch strings.ToLower(o.Getenv("WHYREACH_LOG")) {
@@ -234,8 +320,8 @@ func newLogger(o Options) *slog.Logger {
 	return slog.New(slog.NewJSONHandler(o.Stderr, &slog.HandlerOptions{Level: level}))
 }
 
-// buildEngine wires the real collaborators from the config file.
-func buildEngine(o Options, logger *slog.Logger) (*engine.Engine, error) {
+// buildPolicy wires the real collaborators from the config file.
+func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy, error) {
 	path, err := config.Path()
 	if err != nil {
 		return nil, err
@@ -244,39 +330,42 @@ func buildEngine(o Options, logger *slog.Logger) (*engine.Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	deps := engine.Deps{
-		Host:       executor.NewHost(),
+	deps := policy.Deps{
+		Settings:   policy.SettingsFrom(cfg, path),
 		Listeners:  procListeners{},
-		ConfigPath: path,
+		Interfaces: host.Addrs,
+		Host:       executor.NewHost(),
+		Client:     client,
 		Deadline:   cfg.Timeouts.Diagnosis.Duration,
 		Logger:     logger,
 	}
-	if !cfg.Permissions.Docker {
-		return engine.New(deps), nil
+	if auditPath, err := config.AuditPath(); err == nil {
+		deps.Audit = policy.NewAudit(auditPath)
+	} else {
+		logger.Warn("no audit log", "err", err)
 	}
-	endpoint, err := docker.Endpoint(o.Getenv)
-	if err != nil {
-		deps.DockerErr = err
-		return engine.New(deps), nil
-	}
-	client, err := docker.New(endpoint, docker.ReadRoutes())
-	if err != nil {
-		deps.DockerErr = err
-		return engine.New(deps), nil
-	}
-	deps.Docker = client
-	if cfg.Permissions.ProbeContainers {
-		pc, err := docker.NewProbeClient(endpoint)
-		if err != nil {
-			return nil, err
+	if cfg.Permissions.Docker {
+		endpoint, err := docker.Endpoint(o.Getenv)
+		if err == nil {
+			deps.Docker, err = docker.New(endpoint, docker.ReadRoutes())
 		}
-		exe, err := os.Executable()
 		if err != nil {
-			return nil, fmt.Errorf("find whyreach's own binary for the probe image: %w", err)
+			deps.Docker, deps.DockerErr = nil, err
+		} else {
+			deps.NewProbe = func() (executor.Executor, error) {
+				pc, err := docker.NewProbeClient(endpoint)
+				if err != nil {
+					return nil, err
+				}
+				exe, err := os.Executable()
+				if err != nil {
+					return nil, fmt.Errorf("find whyreach's own binary for the probe image: %w", err)
+				}
+				return executor.NewProbeContainer(pc, exe, o.Version, logger), nil
+			}
 		}
-		deps.Probe = executor.NewProbeContainer(pc, exe, o.Version, logger)
 	}
-	return engine.New(deps), nil
+	return policy.New(deps)
 }
 
 // procListeners reads listeners from /proc on the host.

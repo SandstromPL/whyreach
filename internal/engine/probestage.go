@@ -11,10 +11,6 @@ import (
 	"github.com/SandstromPL/whyreach/internal/probe"
 )
 
-// tier2bOff is the message of probe records skipped because probe
-// containers are off; gaps recognise it.
-const tier2bOff = "probe containers are off (tier 2b)"
-
 // probe runs DNS and TCP checks from the source's network namespace, after
 // the gate: no probe runs from a stopped source or towards a destination
 // that isn't running (WR008 is checked first).
@@ -68,7 +64,7 @@ func (r *run) probe(ctx context.Context) error {
 	}
 	if ex == nil {
 		r.store.Add(executor.Failed(stamp, evidence.ExecutorProbeContainer, specs, evidence.StatusPermissionDenied, &evidence.Error{
-			Code: evidence.CodePermissionDenied, Message: tier2bOff,
+			Code: evidence.CodePermissionDenied, Message: executor.ProbeContainersOff,
 		})...)
 		return nil
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/engine"
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/policy"
 )
 
 var (
@@ -59,6 +60,17 @@ func (f fakeDocker) InspectContainer(_ context.Context, ref string) (evidence.Co
 	return evidence.Container{}, &docker.APIError{Status: 404, Message: "No such container"}
 }
 
+func (fakeDocker) ListNetworks(context.Context) ([]docker.Network, error) {
+	return []docker.Network{{ID: "n1", Name: "shop_default", Driver: "bridge", Subnets: []netip.Prefix{netip.MustParsePrefix("172.22.0.0/16")}}}, nil
+}
+
+func (fakeDocker) InspectNetwork(_ context.Context, ref string) (docker.Network, error) {
+	if ref != "shop_default" {
+		return docker.Network{}, &docker.APIError{Status: 404, Message: "network not found"}
+	}
+	return docker.Network{ID: "n1", Name: "shop_default", Driver: "bridge", Subnets: []netip.Prefix{netip.MustParsePrefix("172.22.0.0/16")}}, nil
+}
+
 func (fakeDocker) Host() ([]evidence.Socket, error) { return nil, nil }
 
 func (fakeDocker) Container(pid int, _ string) ([]evidence.Socket, error) {
@@ -68,14 +80,21 @@ func (fakeDocker) Container(pid int, _ string) ([]evidence.Socket, error) {
 	return nil, nil
 }
 
+// fakePolicy builds a policy over the fake Docker host, with probe
+// containers off and no audit log.
+func fakePolicy(_ Options, logger *slog.Logger, client string) (*policy.Policy, error) {
+	return policy.New(policy.Deps{
+		Settings: policy.Settings{Docker: true, ConfigPath: "/test/config.toml"},
+		Docker:   fakeDocker{}, Listeners: fakeDocker{}, Client: client, Logger: logger,
+	})
+}
+
 func execute(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
 	code := Execute(context.Background(), args, Options{
 		Version: "test", Stdout: &stdout, Stderr: &stderr, Getenv: func(string) string { return "" },
-		NewEngine: func(_ Options, logger *slog.Logger) (*engine.Engine, error) {
-			return engine.New(engine.Deps{Docker: fakeDocker{}, Listeners: fakeDocker{}, Logger: logger}), nil
-		},
+		NewPolicy: fakePolicy,
 	})
 	return code, stdout.String(), stderr.String()
 }
@@ -104,6 +123,14 @@ func TestCommands(t *testing.T) {
 		{name: "unknown container", args: []string{"--from", "container:nope", "api:8080"}, code: ExitUsage, stderr: `no container named "nope"`},
 		{name: "probe with a bad spec", args: []string{"__probe", "--spec", "[]"}, code: ExitInternal, stderr: "want 1 to"},
 		{name: "probe is hidden", args: []string{"--help"}, code: ExitNoProblem, stdout: "diagnose", notStdout: "__probe"},
+		{name: "inspect a container", args: []string{"inspect", "container", "shop-api-1"}, code: ExitNoProblem, stdout: "shop-api-1"},
+		{name: "inspect a network", args: []string{"inspect", "network", "shop_default", "--json"}, code: ExitNoProblem, stdout: `"driver": "bridge"`},
+		{name: "inspect an unknown container", args: []string{"inspect", "container", "nope"}, code: ExitUsage, stderr: "no container"},
+		{name: "inspect with no scope", args: []string{"inspect"}, code: ExitUsage, stderr: "want: inspect host"},
+		{name: "probe listeners in a container", args: []string{"probe", "listeners", "--from", "container:shop-api-1"}, code: ExitNoProblem, stdout: "127.0.0.1:8080"},
+		{name: "probe from a container needs tier 2b", args: []string{"probe", "tcp", "api:8080", "--from", "container:shop-worker-1"}, code: ExitNoProblem, stdout: "permission_denied: probe containers are"},
+		{name: "probe with a bad kind", args: []string{"probe", "icmp", "api"}, code: ExitUsage, stderr: "want: probe tcp"},
+		{name: "probe a CIDR", args: []string{"probe", "tcp", "10.0.0.0/8:80"}, code: ExitUsage, stderr: "one host:port per call"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -144,9 +171,9 @@ func TestLogsGoToStderr(t *testing.T) {
 			}
 			return ""
 		},
-		NewEngine: func(_ Options, logger *slog.Logger) (*engine.Engine, error) {
+		NewPolicy: func(o Options, logger *slog.Logger, client string) (*policy.Policy, error) {
 			logger.Debug("hello from the engine")
-			return engine.New(engine.Deps{Docker: fakeDocker{}, Listeners: fakeDocker{}, Logger: logger}), nil
+			return fakePolicy(o, logger, client)
 		},
 	})
 	var d engine.Diagnosis
@@ -157,4 +184,3 @@ func TestLogsGoToStderr(t *testing.T) {
 		t.Errorf("debug log missing from stderr: %s", stderr.String())
 	}
 }
-

@@ -52,6 +52,11 @@ func (h *Host) Run(ctx context.Context, where evidence.ContextRef, specs []probe
 	return evs, nil
 }
 
+// ProbeContainersOff is the message of probe records that could not run
+// because probe containers (tier 2b) are off; gaps recognise it and say how
+// to turn them on.
+const ProbeContainersOff = "probe containers are off (tier 2b)"
+
 // Failed returns one record per spec that says the batch could not run.
 func Failed(where evidence.ContextRef, executor string, specs []probe.Spec, status evidence.Status, e *evidence.Error) []evidence.Evidence {
 	ctx := where
