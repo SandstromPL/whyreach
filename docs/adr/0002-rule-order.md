@@ -76,3 +76,9 @@ The full layer table is in `INITIAL.md` §4.5.
   - WR023 needs Docker Desktop.
 
   These are tracked in `INITIAL.md` §10.
+
+## Amendment (2026-11-13, M1): WR008 ships with the slice
+
+Decision 2 put WR008 first in M2 because it gates probes. M1's engine already needed that gate (no probe from a stopped source or towards a stopped destination), so WR008 moved into M1, with its fixtures, its lab scenario (`test/lab/wr008-not-running`) and its doc page. M2's list starts with WR020.
+
+Implementing precedence also settled a detail: a finding is suppressed when **any** other finding's rule supersedes it, not only the primary's. For example, WR002 still drops WR001 when WR004 is the primary finding. Suppressed findings stay visible in the diagnosis.

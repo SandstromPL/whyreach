@@ -4,11 +4,10 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 
 **Who it's for:** backend developers whose Docker runs on Linux and who run multi-service Compose stacks with an AI coding agent. Docker Desktop users on Windows and macOS come later. Details: `INITIAL.md` §2.1 and §3.7.
 
-**Status:** M0 is done.
-- The repo is scaffolded, with the module path `github.com/SandstromPL/whyreach`.
-- Throwaway spikes are in `spikes/`, and their results are in `docs/adr/0001-execution-contexts.md`.
-- Rule experiments: `spikes/experiments.sh` runs the Compose scenarios in `spikes/experiments/`, and the results are in `docs/research/rule-experiments.md`. They decided the rule order in `docs/adr/0002-rule-order.md`.
-- Next is M1, the vertical slice (`INITIAL.md` §2.3): WR007, WR004 and WR002, plus a healthy control.
+**Status:** M0 and M1 are done.
+- M0: the repo is scaffolded (module path `github.com/SandstromPL/whyreach`); throwaway spikes are in `spikes/`, with results in `docs/adr/0001-execution-contexts.md`; the rule experiments (`spikes/experiments.sh`, results in `docs/research/rule-experiments.md`) decided the rule order in `docs/adr/0002-rule-order.md`.
+- M1, the vertical slice (`INITIAL.md` §2.3): the CLI `whyreach [--from SOURCE] HOST:PORT` diagnoses with WR008, WR007, WR004 and WR002, and `make lab` passes the slice scenarios plus the healthy control, with probe containers on and off.
+- Next is M2: the MCP server, policy and audit log, host flows, and the rest of the v0.1 rules (`INITIAL.md` §7).
 
 **Source of truth:** `INITIAL.md` holds the current design: decisions, HLD, LLD, the rule catalog and the milestones. The original project proposal (not published) is background only.
 - If the two disagree, `INITIAL.md` wins.
@@ -16,28 +15,28 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 
 ## Environment
 
-- Ubuntu 24.04.5, kernel 7.0, Docker Engine 29.9.3 (API 1.56), Compose v5.7.0.
+- Ubuntu 24.04.5, kernel 7.0, Docker Engine 29.9.3 (API 1.56), Compose v5.7.1.
 - Go: the system install (`/usr/local/go`, root-owned) is 1.27.0, but `go.mod` pins `toolchain go1.27.4`. The go command downloads and uses that toolchain automatically (`GOTOOLCHAIN=auto`), and CI's `setup-go` reads the same directive. When `make vuln` reports a standard-library vulnerability, bump the `toolchain` line to the patch release that fixes it.
 - The user is in the `docker` group. Root is available only through `sudo`; ask before using it.
 - `golangci-lint` v2.15.0 is installed (via `go install`). `goreleaser` isn't installed yet (it's needed in M4).
 
 ## Commands
 
-These are the Makefile targets; keep this list in sync with the Makefile. Until M1 adds lab scenarios and renderers, `lab`, `lab-root` and `golden` only print a notice.
+These are the Makefile targets; keep this list in sync with the Makefile. Until M3 adds privileged scenarios, `lab-root` only prints a notice.
 
 ```bash
 make build      # CGO_ENABLED=0 go build -o bin/whyreach ./cmd/whyreach
 make test       # go test ./...  (unit + rule fixtures; no Docker, no root, no network)
 make lint       # golangci-lint run
 make vuln       # govulncheck ./...  (pinned version; known CVEs in code we call, stdlib included; needs network)
-make lab        # go test -tags lab ./test/e2e/...  (needs Docker)
-make lab-root   # sudo -E go test -tags lab,privileged ./test/e2e/...  (netns executor)
-make golden     # go test ./internal/report/... -update
+make lab        # go test -tags lab -count=1 ./test/e2e/...  (needs Docker; scenarios in test/lab/)
+make lab-root   # sudo -E go test -tags lab,privileged -count=1 ./test/e2e/...  (netns executor, from M3)
+make golden     # go test ./internal/cli/... -update  (internal/report joins in M4)
 make cross      # compile check: GOOS=darwin and GOOS=windows (amd64, arm64) go build ./...
 make clean      # rm -rf bin dist spikes/out
 ```
 
-Run a single test (once `internal/rules` exists, from M1): `go test ./internal/rules -run TestWR002 -v`
+Run a single rule's fixtures: `go test ./internal/rules -run 'TestFixtures/WR002' -v`. Run one lab scenario: `go test -tags lab -count=1 ./test/e2e -run 'TestLab/wr002' -v`.
 
 ## Architecture (details: INITIAL.md §3–4)
 
@@ -45,7 +44,8 @@ Run a single test (once `internal/rules` exists, from M1): `go test ./internal/r
 cli / mcpserver → policy → engine → { rules, collect/host, collect/docker, executor → probe } → evidence → report
 ```
 
-- **`cli`, `mcpserver`:** thin adapters with no diagnostic logic.
+- **`cli`, `mcpserver`:** thin adapters with no diagnostic logic. Until `policy` lands in M2, `cli` calls `engine` directly.
+- **`config`:** the XDG config file. Permission tiers come only from here (and, from M2, from MCP elicitation).
 - **`engine`:** a staged pipeline: resolve → collect → probe → evaluate → compose. It is the only package that orchestrates I/O.
 - **`rules`:** pure functions over `evidence.View`. No I/O, no `time.Now()`, no randomness.
 - **`executor`:** runs probes *inside a context*. The options are `host`, `probecontainer` (the default for containers) and `netns` (only when running as root). **Never `docker exec`.**
@@ -66,7 +66,7 @@ cli / mcpserver → policy → engine → { rules, collect/host, collect/docker,
 1. **No shell.** Never `exec.Command("sh", "-c", …)`, and never shell out to `ip`, `ss`, `dig` or similar in product code. Use netlink, `/proc`, the Docker API and Go dialers. Tests and lab scripts may use the CLI tools.
 2. **Read-only.**
    - Never change routes, firewall rules, interfaces, DNS, containers, networks, or files outside whyreach's own config, state and data directories. Those are the XDG directories on Linux and the platform's standard user directories on macOS and Windows (`INITIAL.md` §4.15).
-   - The only allowed Docker writes are tier 2b's: importing the probe image (`whyreach-probe:<version>`, once per version) and running the probe container. Both are gated by config, labeled `io.whyreach.probe=1`, and reported in `side_effects`. The container is also hardened, and whyreach removes it itself after reading its logs: no AutoRemove, which would delete the output first (ADR 0001, amendment).
+   - The only allowed Docker writes are tier 2b's: importing the probe image (`whyreach-probe:<version>-<digest>`, once per build) and running the probe container. Both are gated by config, labeled `io.whyreach.probe=1`, and reported in `side_effects`. The container is also hardened, and whyreach removes it itself after reading its logs: no AutoRemove, which would delete the output first (ADR 0001, amendment).
 3. **Tool arguments can narrow permissions, never widen them.** Permission tiers come from the user's config or from MCP elicitation, never from an argument the agent supplies.
 4. **Probe policy.**
    - One host:port per call. Reject CIDRs, ranges, lists and wildcards.
@@ -100,7 +100,7 @@ cli / mcpserver → policy → engine → { rules, collect/host, collect/docker,
 
 1. Implement `Rule` in `internal/rules/wrxxx_<slug>.go`. Give it a `Layer()` from the precedence table, and declare `Supersedes()` if it makes another rule redundant.
 2. Add fixtures in `internal/rules/testdata/WRxxx/`: at least one case where the rule fires and one where it must **not** fire. If the rule's meaning depends on the platform, add a must-not-fire fixture for each platform where it doesn't apply.
-3. Add a lab scenario in `test/lab/wrxxx-<slug>/`, with `compose.yaml` and `scenario.yaml`.
+3. Add a lab scenario in `test/lab/wrxxx-<slug>/`, with `compose.yaml` and `scenario.yaml` (format: `INITIAL.md` §5 and `test/e2e/lab_test.go`), and expectations both with probe containers on and with the default config.
 4. Write the doc page `docs/rules/WRxxx.md`: the pitfall, the evidence, the fix, and notes on false positives.
 5. Update the catalog table in `INITIAL.md` §4.6.
 
@@ -129,6 +129,7 @@ The default answer to adding a tool is no. The surface stays at 4 tools: `diagno
   - `golang.org/x/sync` (`errgroup`, for the engine's collect stage)
   - `github.com/google/go-cmp`
   - `github.com/BurntSushi/toml`
+  - `go.yaml.in/yaml/v3` (the lab harness only: it parses `scenario.yaml`)
   - `github.com/Microsoft/go-winio` (Windows named pipe; only once native Windows support lands in v0.3)
   - `golang.org/x/net` (`route` for routing sockets; only once native macOS support lands in v0.3)
 

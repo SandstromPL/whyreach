@@ -1,6 +1,6 @@
 # M0 spikes (throwaway code)
 
-This directory exists to answer the M0 open questions in `INITIAL.md` §10. The results are recorded in `docs/adr/0001-execution-contexts.md`. **Nothing here is product code.** M1 may promote small pieces (for example the `/proc/net` parser) into `internal/`.
+This directory exists to answer the M0 open questions in `INITIAL.md` §10. The results are recorded in `docs/adr/0001-execution-contexts.md`. **Nothing here is product code.** M1 promoted three pieces: the `/proc/net` parser (now in `internal/probe`), the probe's `serve` and `check` modes (now the lab's stand-in server, `test/labserver`), and the E1/E2/E4 scenarios (now `test/lab/`).
 
 | Spike | How to run | Answers |
 |---|---|---|
