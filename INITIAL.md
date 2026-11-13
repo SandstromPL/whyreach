@@ -404,7 +404,7 @@ type Finding struct {
   - A match that shares no network of any kind with the source (the default bridge counts) is WR004's evidence. Matches are ordered with the source's own Compose project first, then by container name.
   - `service:<name>` without a project is an error when the service exists in several Compose projects; the message lists them.
 - **Classes:** the target is a `name`, an `ip`, or `loopback` (`localhost`, `*.localhost`, `ip6-localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`).
-- **Rejected:** CIDRs, ranges, port lists, wildcards, other schemes, URLs that contain credentials, IPv6 zones, and literal addresses that the probe policy blocks (§4.9). Rejections exit with code 3.
+- **Rejected:** CIDRs, address and port ranges (`10.0.0.1-5`, `api:8080-8090`), port lists, wildcards, other schemes, URLs that contain credentials, IPv6 zones, and literal addresses that the probe policy blocks (§4.9). Rejections exit with code 3.
 
 ### 4.4 Engine
 

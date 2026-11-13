@@ -177,6 +177,36 @@ func TestParseName(t *testing.T) {
 	}
 }
 
+func TestAddressRanges(t *testing.T) {
+	ranges := []string{"10.0.0.1-5", "10.0.0-3.1", "10.0.0.1-10.0.0.5", "192.168.1.1-254.", "[fd00::1-5]"}
+	for _, in := range ranges {
+		var te *Error
+		if _, err := ParseTo(in + ":80"); !errors.As(err, &te) || !strings.Contains(te.Reason, "address ranges") {
+			t.Errorf("ParseTo(%q) error = %v, want an address-range refusal", in+":80", err)
+		}
+		name := strings.Trim(in, "[]")
+		if _, err := ParseName(name); !errors.As(err, &te) || !strings.Contains(te.Reason, "address ranges") {
+			t.Errorf("ParseName(%q) error = %v, want an address-range refusal", name, err)
+		}
+	}
+	// Hyphens in names that aren't address-shaped stay names.
+	for _, in := range []string{"shop-api-1", "api-1.example.com", "10-0-0-1.nip.io", "1-2"} {
+		if _, err := ParseTo(in + ":80"); err != nil {
+			t.Errorf("ParseTo(%q): %v", in+":80", err)
+		}
+		if _, err := ParseName(in); err != nil {
+			t.Errorf("ParseName(%q): %v", in, err)
+		}
+	}
+	// Malformed hosts keep their own message.
+	for _, in := range []string{"-10.0.0.1:80", "10.0.0.1-:80"} {
+		var te *Error
+		if _, err := ParseTo(in); !errors.As(err, &te) || strings.Contains(te.Reason, "address ranges") {
+			t.Errorf("ParseTo(%q) error = %v, want a refusal that isn't about ranges", in, err)
+		}
+	}
+}
+
 func TestMaskArg(t *testing.T) {
 	tests := []struct{ arg, in, want string }{
 		{"to", "postgres://app:s3cr3t@db:5432/app?sslpassword=x", "postgres://***@db:5432/app?***"},

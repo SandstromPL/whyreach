@@ -175,6 +175,9 @@ func ParseTo(s string) (evidence.Target, error) {
 	if strings.Contains(portStr, "-") {
 		return bad("port ranges are not allowed: one host:port per call")
 	}
+	if addressRange(host) {
+		return bad("address ranges are not allowed: one host:port per call")
+	}
 	port, err := strconv.ParseUint(portStr, 10, 16)
 	if err != nil || port == 0 {
 		return bad("the port must be a number from 1 to 65535")
@@ -201,6 +204,28 @@ func ParseTo(s string) (evidence.Target, error) {
 		host = strings.ToLower(host)
 	}
 	return evidence.Target{Host: host, Port: uint16(port), Proto: "tcp", Class: class, Addr: addr}, nil
+}
+
+// addressRange reports whether host is written as a range of addresses, such
+// as "10.0.0.1-5", "10.0.0-3.1", "10.0.0.1-10.0.0.5" or the IPv6 "fd00::1-5":
+// a hyphen inside digits and dots, or inside hex digits and colons. The
+// host-name grammar would otherwise accept the IPv4 forms as one name and
+// look it up. A Docker container could in theory carry such a name; refusing
+// it is the safer reading of "one host:port per call".
+func addressRange(host string) bool {
+	h := strings.TrimSuffix(host, ".")
+	if !strings.Contains(h, "-") || strings.HasPrefix(h, "-") || strings.HasSuffix(h, "-") {
+		return false
+	}
+	if strings.Contains(h, ":") { // only IPv6 literals have colons
+		return onlyOf(h, "0123456789abcdefABCDEF:.-")
+	}
+	return strings.Contains(h, ".") && onlyOf(h, "0123456789.-")
+}
+
+// onlyOf reports whether every character of s is in set.
+func onlyOf(s, set string) bool {
+	return strings.IndexFunc(s, func(r rune) bool { return !strings.ContainsRune(set, r) }) < 0
 }
 
 var (
@@ -291,6 +316,9 @@ func ParseName(s string) (string, error) {
 	}
 	if a, err := netip.ParseAddr(in); err == nil {
 		return a.Unmap().String(), nil
+	}
+	if addressRange(in) {
+		return bad("address ranges are not allowed: give one name or address")
 	}
 	if !hostName.MatchString(in) {
 		return bad("not a host name: give the name alone, without a port or scheme")
