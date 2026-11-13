@@ -508,3 +508,39 @@ func TestDesktopListenersAreUnsupported(t *testing.T) {
 		t.Errorf("want an unsupported-listeners gap on Docker Desktop, got %+v", d.Gaps)
 	}
 }
+
+// flaky fails its first negotiation, then works.
+type flaky struct {
+	*world
+	calls int
+}
+
+func (f *flaky) Negotiate(ctx context.Context) (docker.Version, error) {
+	f.calls++
+	if f.calls == 1 {
+		return docker.Version{}, docker.ErrUnavailable
+	}
+	return f.world.Negotiate(ctx)
+}
+
+// TestDockerFailureDoesNotStick checks that one failed negotiation doesn't
+// disable Docker for the next diagnosis of a long-lived engine (M2's MCP
+// server).
+func TestDockerFailureDoesNotStick(t *testing.T) {
+	w := shopWorld()
+	f := &flaky{world: w}
+	e := New(Deps{Docker: f, Listeners: w})
+	from, _ := target.ParseFrom("container:shop-worker-1")
+	to, _ := target.ParseTo("api:8080")
+	d1, err := e.Diagnose(context.Background(), from, to)
+	if err != nil || d1.Verdict != VerdictInconclusive {
+		t.Fatalf("first: %v %+v", err, d1)
+	}
+	d2, err := e.Diagnose(context.Background(), from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d2.Evidence) == 0 || d2.Gaps[0].What == "Docker metadata (containers, networks, listeners)" {
+		t.Errorf("the second diagnosis still has no Docker: %+v", d2.Gaps)
+	}
+}

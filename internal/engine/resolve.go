@@ -17,7 +17,7 @@ import (
 // resolve negotiates with Docker, records its version, and finds the source
 // container and the container whose network namespace it uses.
 func (r *run) resolve(ctx context.Context) error {
-	dk := r.e.d.Docker
+	dk := r.docker
 	if dk == nil {
 		r.dockerGap(r.e.d.DockerErr)
 		return nil
@@ -27,7 +27,7 @@ func (r *run) resolve(ctx context.Context) error {
 	v, err := dk.Negotiate(vctx)
 	cancel()
 	if err != nil {
-		r.e.d.Docker = nil // nothing else will work either
+		r.docker = nil // nothing else will work in this diagnosis either
 		r.dockerGap(err)
 		return nil
 	}
@@ -80,7 +80,7 @@ func (r *run) findSource(ctx context.Context) (evidence.Container, error) {
 			labels = append(labels, docker.LabelComposeProject+"="+r.from.Project)
 		}
 		lctx, cancel := context.WithTimeout(ctx, dockerTimeout)
-		list, err := r.e.d.Docker.ListContainers(lctx, true, labels...)
+		list, err := r.docker.ListContainers(lctx, true, labels...)
 		cancel()
 		if err != nil {
 			return evidence.Container{}, err
@@ -128,7 +128,7 @@ func (r *run) inspectEv(ctx context.Context, idOrName string) (evidence.Containe
 	ictx, cancel := context.WithTimeout(ctx, dockerTimeout)
 	defer cancel()
 	start := time.Now()
-	c, err := r.e.d.Docker.InspectContainer(ictx, idOrName)
+	c, err := r.docker.InspectContainer(ictx, idOrName)
 	if err != nil {
 		return c, evidence.Evidence{}, err
 	}

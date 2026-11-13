@@ -109,6 +109,7 @@ type sideEffecter interface{ SideEffects() []string }
 // run is the state of one diagnosis.
 type run struct {
 	e       *Engine
+	docker  Docker // nil once Docker turns out to be unreachable
 	store   evidence.Store
 	q       evidence.Question
 	from    target.From
@@ -127,7 +128,7 @@ func (e *Engine) Diagnose(ctx context.Context, from target.From, to evidence.Tar
 	ctx, cancel := context.WithTimeout(ctx, e.d.Deadline)
 	defer cancel()
 
-	r := &run{e: e, from: from, timing: map[string]time.Duration{}}
+	r := &run{e: e, docker: e.d.Docker, from: from, timing: map[string]time.Duration{}}
 	r.q = evidence.Question{From: evidence.Source{Kind: evidence.SourceHost, Ref: from.String()}, To: to}
 	if from.Kind != target.FromHost {
 		r.q.From.Kind = evidence.SourceContainer

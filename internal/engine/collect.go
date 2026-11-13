@@ -17,7 +17,7 @@ import (
 // collect gathers metadata for the containers the question involves and
 // reads their listening sockets from the host.
 func (r *run) collect(ctx context.Context) error {
-	dk := r.e.d.Docker
+	dk := r.docker
 	if dk == nil || (r.q.From.Kind == evidence.SourceContainer && r.q.From.ContainerID == "") {
 		return nil
 	}
