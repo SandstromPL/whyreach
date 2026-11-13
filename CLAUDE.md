@@ -4,12 +4,13 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 
 **Who it's for:** backend developers whose Docker runs on Linux and who run multi-service Compose stacks with an AI coding agent. Docker Desktop users on Windows and macOS come later. Details: `INITIAL.md` §2.1 and §3.7.
 
-**Status:** M0, M1, M2 and M3 are done.
+**Status:** M0 to M4 are done.
 - M0: the repo is scaffolded (module path `github.com/SandstromPL/whyreach`); throwaway spikes are in `spikes/`, with results in `docs/adr/0001-execution-contexts.md`; the rule experiments (`spikes/experiments.sh`, results in `docs/research/rule-experiments.md`) decided the rule order in `docs/adr/0002-rule-order.md`.
 - M1, the vertical slice (`INITIAL.md` §2.3): the CLI `whyreach [--from SOURCE] HOST:PORT` diagnoses with WR008, WR007, WR004 and WR002.
 - M2: all 14 v0.1 rules; host↔container flows; `policy` (tiers, probe allowlist, rate limit, audit log); the MCP server (`whyreach mcp serve`, four tools, consent for probe containers: `docs/adr/0003-mcp-server.md`); `inspect`, `probe` and `doctor`. `make lab` passes 20 scenarios with probe containers on and off, and `make lab-agent` has a headless agent diagnose each one through the MCP tools alone.
 - M3: the netns executor. As root on Linux Docker Engine, container checks enter the containers' network namespaces with `setns`, with no Docker write; a probe container stands in only when entering fails and tier 2b is on (ADR 0001, M3 amendment). `make lab-root` passes all 20 scenarios through it.
-- Next is M4: the decisions on `INITIAL.md` §10 Q11 (outside names need approval through MCP) and Q12 (`save_report` always redacts), reports and redaction, docs, release builds, `INITIAL.md` §7.
+- M4: through MCP, outside names are looked up only with the user's approval or under `[probe] names`, and nameservers pass the block list (§10 Q11, ADR 0003's amendments); `save_report` always redacts (Q12); `diagnose --report`, `report list|show|export` and `rules list|explain`; the demo (`demo/compose.yaml`, WR007); release builds prepared but never published (`.goreleaser.yaml`, `Dockerfile`, `.github/workflows/release.yml`, `server.json`). A fresh agent installed whyreach from a release-layout archive, connected it and diagnosed the demo with only the docs.
+- Next is M5: the benchmark (`INITIAL.md` §6.4) and the launch. Publishing (tag, release, image, MCP Registry) is the owner's step.
 
 **Source of truth:** `INITIAL.md` holds the current design: decisions, HLD, LLD, the rule catalog and the milestones. The original project proposal (not published) is background only.
 - If the two disagree, `INITIAL.md` wins.
@@ -20,7 +21,7 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 - Ubuntu 24.04.5, kernel 7.0, Docker Engine 29.9.3 (API 1.56), Compose v5.7.1.
 - Go: the system install (`/usr/local/go`, root-owned) is 1.27.0, but `go.mod` pins `toolchain go1.27.4`. The go command downloads and uses that toolchain automatically (`GOTOOLCHAIN=auto`), and CI's `setup-go` reads the same directive. When `make vuln` reports a standard-library vulnerability, bump the `toolchain` line to the patch release that fixes it.
 - The user is in the `docker` group. Root is available only through `sudo`; ask before using it.
-- `golangci-lint` v2.15.0 is installed (via `go install`). `goreleaser` isn't installed yet (it's needed in M4).
+- `golangci-lint` v2.15.0 is installed (via `go install`). goreleaser isn't installed: the Makefile pins it (`GORELEASER`, v2.19.0) and runs it with `go run`, like govulncheck.
 
 ## Commands
 
@@ -34,8 +35,11 @@ make vuln       # govulncheck ./...  (pinned version; known CVEs in code we call
 make lab        # go test -tags lab -count=1 ./test/e2e/...  (needs Docker; scenarios in test/lab/)
 make lab-agent  # go test -tags lab,agent -count=1 -run TestAgent ./test/e2e/...  (Docker + claude CLI; a small model diagnoses each scenario over MCP)
 make lab-root   # builds as you, then sudo runs only the test binaries: the executor's root-only test and TestLabNetns (tags lab,privileged: every scenario through the netns executor, no Docker writes)
-make golden     # go test ./internal/report/... -update  (text, the compact MCP structured form, Diagnosis JSON)
+make golden     # go test ./internal/report/... ./internal/mcpserver/... -update  (text, the compact MCP structured form, Diagnosis JSON, the MCP tools)
 make cross      # compile check: GOOS=darwin and GOOS=windows (amd64, arm64) go build ./...
+make release-check     # goreleaser check (pinned, go run; downloads it)
+make release-snapshot  # goreleaser release --snapshot --skip=docker: archives and checksums.txt in dist/, nothing published
+make release           # the release workflow's step on a v* tag; it publishes, so it refuses to run outside GitHub Actions
 make clean      # rm -rf bin dist spikes/out
 ```
 
@@ -75,9 +79,10 @@ cli / mcpserver → policy → engine → { rules, collect/host, collect/docker,
 3. **Tool arguments can narrow permissions, never widen them.** Permission tiers come from the user's config or from MCP elicitation, never from an argument the agent supplies.
 4. **Probe policy.**
    - One host:port per call. Reject CIDRs, ranges, lists and wildcards.
-   - Block link-local and cloud-metadata addresses.
+   - Block link-local and cloud-metadata addresses, as targets and as nameservers.
    - Rate-limit probes.
    - Connect, then close; never send a payload.
+   - Through MCP, never send a lookup of an outside name (one with a dot, other than `localhost`, `*.localhost`, `host.docker.internal` and `gateway.docker.internal`) unless Docker's metadata or the source's hosts file knows it, the user approved that exact name through elicitation, or `[probe] names` covers it. The probe enforces this at send time (`probe.Limits`). The CLI is unrestricted (`INITIAL.md` §10 Q11).
 5. **stdout belongs to MCP in `mcp serve`.** Log with `log/slog` to stderr only. A stray `fmt.Print` breaks the protocol.
 6. **Collect no secrets.**
    - Evidence never includes env var values, or file contents other than `resolv.conf` and `hosts`. WR018 (v0.3) reads env var *keys* only.
@@ -116,6 +121,8 @@ The default answer to adding a tool is no. The surface stays at 4 tools: `diagno
 - Keep annotations honest: `readOnlyHint` must be false when tier 2b is enabled.
 - Return tool errors as results with `isError: true`.
 - Probe containers by consent: ask the user once per session, only when they'd change the answer, through the client's elicitation (both protocol paths; ADR 0003). Never let an argument answer it.
+- Outside names by consent too, per name: an approval covers that exact name for the session, and the request state says which question an answer belongs to (ADR 0003, M4 amendment).
+- No argument relaxes a privacy default: `save_report` always redacts; an unredacted bundle comes only from the CLI (`INITIAL.md` §10 Q12). `internal/mcpserver/testdata/tools.golden` pins the tools' schemas.
 - Claude Code shows the model the `structuredContent`, not the text (ADR 0001). Keep the structured output compact (about 1.5k tokens) and lead it with the verdict and summary. Also keep a text summary of similar size for other clients, and cover both with golden tests.
 - Name and describe tools with the words agents search for: network, connect, docker, diagnose.
 

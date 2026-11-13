@@ -187,7 +187,7 @@ Why probe-container is the right default:
 |---|---|---|---|---|
 | Native (default) | `whyreach mcp serve` / `whyreach diagnose …` | ✅ | ✅ via probe-container | Linux only |
 | Native as root | `sudo whyreach diagnose …` | ✅ | ✅ via the netns fast path, no Docker writes (M3; a probe container stands in only when entering fails and tier 2b is on) | for CLI use; avoid as an MCP server (`mcp serve` warns when it runs as root) |
-| As a container | `docker run --rm -i -v /var/run/docker.sock:/var/run/docker.sock <image> mcp serve` | ❌ (unless `--network host --pid host`) | ✅ | zero-install; the route to macOS and Windows (v0.3+) |
+| As a container | `docker run --rm -i --pid host -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/sandstrompl/whyreach:<version> mcp serve` | ❌ (unless `--network host`) | ✅ via `/proc/<pid>/net` with `--pid host` (without it, listeners can't be read and listener-based causes drop a level), and via probe-container | zero-install; the route to macOS and Windows (v0.3+). M4: the image is `FROM scratch` with the release binary, nothing pulled; config at `/config/whyreach/config.toml` (mount yours), audit log under `/state`, reports under `/data` (`Dockerfile`) |
 | Inside WSL2 (Windows) | the MCP client on Windows launches it with `wsl.exe -d <distro> --exec /abs/path/whyreach mcp serve` (§3.7, item 6) | describes the WSL2 VM, not Windows | ✅ via probe-container, through the socket that Docker Desktop's WSL integration provides (WSL 2 backend and Linux-containers mode only) | v0.2; the Linux build runs unchanged |
 
 ### 3.6 Non-functional requirements
@@ -302,9 +302,11 @@ whyreach/
 ├── docs/
 │   ├── adr/                architecture decision records (0001-execution-contexts.md, …)
 │   ├── research/           background research (failure-signatures.md)
-│   └── rules/WR001.md …    one page per rule (pitfall, evidence, fix), ShellCheck-wiki style
+│   └── rules/WR001.md …    one page per rule (pitfall, evidence, fix), ShellCheck-wiki style;
+│                           embedded in the binary for `whyreach rules explain` (package docs/rules, M4)
+├── demo/compose.yaml       the README's demo (WR007); also the lab scenario test/lab/demo-localhost (M4)
 ├── spikes/                 M0 throwaway spikes; not product code (ADR 0001)
-├── Makefile · go.mod · .golangci.yml · .goreleaser.yaml
+├── Makefile · go.mod · .golangci.yml · .goreleaser.yaml · Dockerfile · server.json (MCP Registry)
 └── README.md · SECURITY.md · CONTRIBUTING.md · LICENSE (Apache-2.0)
 ```
 
@@ -604,6 +606,14 @@ type Executor interface {
 - A token bucket allows 30 probes per minute, and a name resolves to at most 4 addresses.
 - **Names (decided 2026-11-13, built in M4; §10 Q11):** through MCP, a name with a dot that Docker doesn't resolve itself is looked up only after the user approves that name, or when it falls under a domain in `[probe] names`. The nameservers in a source's `resolv.conf` are checked against the block list.
 
+**As built in M4 (names, §10 Q11):**
+- **Where it holds:** in the probe, at the moment of sending, for every executor (in-process, a probe container through `__probe --names`, the netns executor). The hosts file answers first, as for the app; a lookup it doesn't answer whose name is held back sends nothing, and its record is a skipped check with code `policy_denied` (`probe.NameNotApproved`). A connect to the name shares that reason, so the two make one gap, which names the setting.
+- **Outside names** (`target.OutsideName`): a name with a dot, other than `localhost`, `*.localhost` (RFC 6761 keeps them local, as for `localhost`) and `host.docker.internal`, `gateway.docker.internal`. Addresses are not names.
+- **What the policy lets through**, per batch, for MCP clients only: names Docker's metadata knows (the engine passes a check through the context: from the diagnosis's view, or for `run_probe` from the container list and an inspect of up to 64 containers on the source's networks, read only when the answer matters), names `[probe] names` covers, and names the user approved this session. The CLI restricts nothing.
+- **Nameservers:** a nameserver from the source's `resolv.conf` on the block list gets no query, with any executor and any client: it is skipped with a limitation, and a lookup with none left is refused.
+- **Audit:** a held-back lookup counts as denied, not sent; each answer about a name is an entry of its own (`name_lookup_consent`, with the name).
+- **Accepted residual risk:** a container that rewrites its own `resolv.conf` controls where its free names go (search domains) and which nameserver gets them. Such a container already sees the agent's TCP probes to it, so it isn't a new kind of channel; the decision checks container-controlled nameservers against the block list only.
+
 **Hard rule:** tool arguments can only narrow permissions. Tiers come from the user's config or from MCP elicitation, never from the agent.
 
 **As built in M1:** the target grammar rejects everything but one host:port, blocked addresses are refused both when given literally and at dial time (inside the probe too, for every address a name resolves to), and a name resolves to at most 4 addresses. The allowlist option, the token bucket and the audit log arrive with the `policy` package in M2, together with the MCP server whose tool arguments they guard.
@@ -649,7 +659,7 @@ type Executor interface {
 - `inspect_environment` also takes `service:<name>[@<project>]`. `run_probe` returns every record its one check produced: a TCP check to a name is its lookup plus a connect per address.
 - **Probe containers by consent (§10 Q3):** when tier 2b is off and a diagnosis or probe would gain from a probe container (a settled high-confidence cause never asks), the server asks the user once per session, through the client's own elicitation dialog. Clients on protocols before 2026-07-28 get a server-initiated `elicitation/create`; newer ones get an input request in the tool result (SEP-2322) and call again with the answer, which the server accepts only with the request state it issued. An approval turns tier 2b on for the session, is audited, and re-registers the two probing tools with `readOnlyHint: false`. Clients without elicitation get the gap and the config advice.
 
-**Decided for M4 (§10 Q11, Q12):** a lookup of an outside name (one with a dot that Docker doesn't resolve itself) asks the user about that exact name, through the same two elicitation paths, unless `[probe] names` covers it; unlike probe containers, an approval covers only that name, for the session. `save_report` loses its `redact` argument.
+**As built in M4 (§10 Q11, Q12):** when a diagnosis (not settled at high confidence) or a `run_probe` had an outside name held back, the server asks the user about that exact name through the same two elicitation paths as probe containers, once per name per session, and runs the check again on approval. An approval covers that name only (not its subdomains), for the session; a decline isn't asked again. On the 2026-07-28 path the request state names the question it carries (probe containers, or which name), and an answer counts only for that question. When probe containers are needed too, they are asked about first. `save_report` has no `redact` argument: bundles saved through MCP are always redacted, and a call that passes `redact` fails the input schema. A golden file pins the four tools' schemas and annotations (`internal/mcpserver/testdata/tools.golden`).
 
 ### 4.11 CLI
 
@@ -667,6 +677,8 @@ whyreach mcp serve       # stdio
 **As built in M1:** the short form, `diagnose` (without `--report`, which arrives with reports in M4) and `version`, plus the hidden `__probe`. Text output goes to stdout, sanitized of control and bidi characters; `--json` prints the full `Diagnosis`, evidence included; logs are JSON on stderr (`WHYREACH_LOG=debug|info|warn`).
 
 **As built in M2:** `inspect`, `probe`, `doctor` and `mcp serve`, all through `policy`; `report` and `rules` remain for M4. **M3:** `doctor` has a `netns executor` line: as root it enters one running container's namespace and reads its `resolv.conf`, sending nothing; otherwise it says why it is off. `mcp serve` warns when it has root's privileges, and every command run as root warns when its state or data directory belongs to another user (`sudo -E`). `--from host` now has its own rules (WR019, and WR001–WR003 through published ports). `doctor` exits 0 when no check failed and 1 otherwise; it checks the config, the Docker API, interfaces, host and container listeners, probe-container readiness (read-only), the probe policy, privileges, whether whyreach runs in a container or WSL2, and the audit log.
+
+**As built in M4:** `diagnose --report` (and the short form) saves the diagnosis as an unredacted bundle in the data directory and says so on stderr, so `--json` output stays JSON alone. `report list` (newest first, `--json`), `report show <id>` (its `report.md`) and `report export <id> [--redact-private]` (§4.12). `rules list` (`--json`) and `rules explain <id>`, which prints the rule's page from `docs/rules`, embedded in the binary. In a container, `mcp serve` doesn't warn about root (the socket grants access, not root), and `doctor` suggests the `docker run` command.
 
 **Exit codes:**
 
@@ -694,6 +706,8 @@ whyreach mcp serve       # stdio
 
 **As built in M2 (for `save_report`):** the four files, under `$XDG_DATA_HOME/whyreach/reports/<diagnosis ID>/` (the ID begins with its UTC time; `-unredacted` is appended without redaction), so saving the same diagnosis again returns the same bundle. Redaction learns values from the structured fields (addresses, DNS names with a dot, aliases, links, registries, container and network IDs) and every address in any string, then replaces whole tokens everywhere, folding ASCII case only so byte offsets hold. The user's home directory becomes `~`. Redacted addresses are no longer addresses, so a redacted bundle decodes as plain JSON, not into whyreach's types. The CLI's `report` commands and `--report` come in M4.
 
+**As built in M4 (CLI):** `--report` saves an unredacted bundle, `<id>-unredacted/`: the user's own record, made by the user (§10 Q12). `report export <id>` writes a redacted copy as `<id>.tar.gz` in the reports directory (the four files under `<id>/`), never outside whyreach's own directories; it prints the path. An unredacted bundle is decoded back into a diagnosis and redacted afresh, under a new key; a bundle saved redacted through MCP is copied as it is, and with `--redact-private` (or `[report] redact_private`) its private addresses are replaced too. `show` and `export` take a diagnosis ID, or a bundle's directory name; both are checked against the ID grammar before any path is built, and an ID saved both ways means the unredacted bundle.
+
 ### 4.13 Config
 
 `$XDG_CONFIG_HOME/whyreach/config.toml`
@@ -716,7 +730,7 @@ diagnosis = "15s"
 redact_private = false
 ```
 
-M1 reads `[permissions]` and `[timeouts]` (the deadline must be 3–60 s) and accepts the other documented keys. M3 adds `[permissions] netns` (default true): false keeps the netns executor off even as root. An unknown key is an error, so a typo can't silently leave a permission at its default. A missing file means the defaults: Docker on, probe containers off. M2 also reads `[probe]` (`allow` entries must be a class, a CIDR or an address; `rate_per_minute` must be 1–600) and `[report] redact_private`. M4 adds `[probe] names` (§10 Q11): domains such as `example.com`, each covering its subdomains.
+M1 reads `[permissions]` and `[timeouts]` (the deadline must be 3–60 s) and accepts the other documented keys. M3 adds `[permissions] netns` (default true): false keeps the netns executor off even as root. An unknown key is an error, so a typo can't silently leave a permission at its default. A missing file means the defaults: Docker on, probe containers off. M2 also reads `[probe]` (`allow` entries must be a class, a CIDR or an address; `rate_per_minute` must be 1–600) and `[report] redact_private`. M4 adds `[probe] names` (§10 Q11): domains such as `example.com`, each covering its subdomains; entries are folded to lowercase without a trailing dot, and wildcards, addresses and anything that isn't a domain name are errors. It applies to MCP clients only.
 
 ### 4.14 Errors and logging
 
@@ -834,7 +848,8 @@ They cover the text, Markdown and MCP-text renderers, and the MCP `structuredCon
   - the healthy control
   - two scenarios that must stay inconclusive, e.g. listeners unreadable plus a timeout
 - **As built in M2:** 20 scenarios, all passing with probe containers on and with the default config in about 40 s: one per v0.1 rule, plus two more for WR019 from the M2 review (`wr019-random-port`, a port Docker picked; `wr019-ipv6-only`, a port published on `::` alone); `healthy` and `healthy-host-published` (the host reaching a container through docker-proxy); and two that must stay inconclusive, `inconclusive-stale-ip` (a connect to an address on the network that no container holds, WR024's case in v0.2) and `inconclusive-app-closes` (a server that accepts and closes every connection). Listeners can't be made unreadable on the dev box without root, so the second pair differs from the example above. The harness fills in `${LAB_PORT}` (a free host port, also given to Compose), `${HOST_PORT}` (with `host_listen: [loopback|docker0]`, a listener on the host) and `${UNUSED_IP}`.
-- **Agent check (`make lab-agent`, M2's exit criterion):** for each scenario, a headless Claude Code on a small model (`claude -p --model haiku`, `--strict-mcp-config`, `--tools ""` so only whyreach's four tools exist) gets a one-line problem report and must name the rule the lab expects, or none. It runs with probe containers on in the config, since a headless run can't answer a consent request.
+- **The demo (M4):** `test/lab/demo-localhost` runs `demo/compose.yaml` (its `compose.yaml` links to it) with the same expectations as WR007's scenario. Its `image:` key names the public image it runs (`python:3.13-slim`): the scenario is skipped where that image isn't present, so the lab still pulls nothing.
+- **Agent check (`make lab-agent`, M2's exit criterion):** for each scenario, a headless Claude Code on a small model (`claude -p --model haiku`, `--strict-mcp-config`, `--tools ""` so only whyreach's four tools exist) gets a one-line problem report and must name the rule the lab expects, or none. It runs with probe containers on in the config, since a headless run can't answer a consent request, and with `[probe] names = ["example.com"]` for WR020's scenario (M4).
 
 ### 6.4 Agent benchmark (the validation experiment)
 For each lab scenario, run a headless agent twice:
@@ -943,4 +958,5 @@ Record whether it found the right root cause, how many tool calls and tokens it 
     - **Without an approval** (a client without elicitation, a declined or cancelled request, a headless run) nothing is sent: the record is a policy refusal, and the diagnosis gets a gap that names the setting. Headless runs that diagnose outside names, such as `make lab-agent` for WR020's scenario, list their domains in `[probe] names`.
     - **The CLI is unchanged:** the user types its names, and it runs inside whatever sandbox its caller has.
     - **Nameservers** (raised by the M3 safety review): the nameservers in the source's `resolv.conf`, which the container controls, are checked against the block list (§4.9) for every executor, so `nameserver 169.254.169.254` gets no query.
-12. **Resolved (2026-11-13, built in M4): `save_report` loses its `redact` argument.** It was the one argument that relaxed a privacy default: `redact: false` wrote an unredacted bundle whatever `[report] redact_private` said, against non-negotiable 3 ("arguments only narrow"). The risk was small (the bundle stays on the user's machine, and the agent has already seen the diagnosis), but bundles exist to be attached to issues. From M4, bundles saved through MCP are always redacted, and an unredacted one is the user's to make with the CLI's `report` commands. No new setting is needed.
+    - **Built in M4** as decided (§4.9, §4.10). Two choices the decision left open: `*.localhost` counts with `localhost` (RFC 6761 keeps those names local), and an approval doesn't cover subdomains of the approved name.
+12. **Resolved (2026-11-13, built in M4): `save_report` loses its `redact` argument.** It was the one argument that relaxed a privacy default: `redact: false` wrote an unredacted bundle whatever `[report] redact_private` said, against non-negotiable 3 ("arguments only narrow"). The risk was small (the bundle stays on the user's machine, and the agent has already seen the diagnosis), but bundles exist to be attached to issues. From M4, bundles saved through MCP are always redacted, and an unredacted one is the user's to make with the CLI's `report` commands. No new setting is needed. **Built in M4:** `diagnose --report` makes the unredacted bundle; `report export` makes redacted copies (§4.12).
