@@ -231,6 +231,11 @@ func onlyOf(s, set string) bool {
 var (
 	awsMetadataV6     = netip.MustParseAddr("fd00:ec2::254")
 	alibabaMetadataV4 = netip.MustParseAddr("100.100.100.200")
+	// nat64 is RFC 6052's well-known prefix: a NAT64 gateway connects to
+	// the IPv4 address in its last 32 bits. (Where a local-use prefix,
+	// 64:ff9b:1::/48 in RFC 8215, puts the address depends on a length
+	// whyreach can't know.)
+	nat64 = netip.MustParsePrefix("64:ff9b::/96")
 )
 
 // Blocked reports whether whyreach refuses to connect to addr: link-local
@@ -246,6 +251,9 @@ func Blocked(addr netip.Addr) (reason string, blocked bool) {
 		return "cloud-metadata addresses are blocked by policy", true
 	case a.IsMulticast(), a == netip.AddrFrom4([4]byte{255, 255, 255, 255}):
 		return "multicast and broadcast addresses are not connection targets", true
+	case nat64.Contains(a.WithZone("")):
+		b := a.As16()
+		return Blocked(netip.AddrFrom4([4]byte(b[12:])))
 	default:
 		return "", false
 	}

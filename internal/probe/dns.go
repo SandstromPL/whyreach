@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"net"
 	"net/netip"
 	"os"
@@ -127,7 +128,7 @@ func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evide
 	// (link-local, cloud metadata) gets no query (INITIAL.md §10 Q11). The
 	// nameservers come before the name: a lookup that can't be made isn't
 	// worth asking the user about.
-	servers, notes, refusal := allowedServers(conf.servers, r.ResolvPath)
+	servers, next, notes, refusal := allowedServers(conf.servers, r.ResolvPath)
 	if refusal != "" {
 		return p, notes, &Refused{Reason: refusal}
 	}
@@ -154,6 +155,13 @@ func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evide
 			a.Query = cand.label
 			p.Attempts = append(p.Attempts, a)
 		}
+		if rc, ok := failover(res); ok && next != "" {
+			// The app would ask the blocked nameserver next, so its answer
+			// isn't one whyreach can see (INITIAL.md §10 Q11).
+			return p, notes, &Refused{Reason: fmt.Sprintf(
+				"not looked up fully: the lookup of %s from %s failed (%s), and the app would then ask %s, which is on the probe block list (link-local and cloud-metadata addresses)",
+				cand.label, p.Server, rc, next)}
+		}
 		if i == 0 {
 			p.Rcode = res.rcode
 		}
@@ -172,6 +180,22 @@ func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evide
 		p.Rcode = givenRcode
 	}
 	return p, notes, nil
+}
+
+// DockerResolvConf returns the resolv.conf Docker copies into containers on
+// the default bridge, as Docker decides it: systemd-resolved's own
+// (systemdPath) when hostPath lists only its stub, 127.0.0.53, which means
+// nothing inside a container; otherwise hostPath.
+func DockerResolvConf(hostPath, systemdPath string) string {
+	f, err := os.Open(hostPath) //nolint:gosec // G304: the caller's fixed resolver file
+	if err != nil {
+		return hostPath
+	}
+	defer func() { _ = f.Close() }() // read-only
+	if conf, err := parseResolvConf(f); err == nil && len(conf.servers) == 1 && conf.servers[0] == "127.0.0.53:53" {
+		return systemdPath
+	}
+	return hostPath
 }
 
 // FirstNameserverBlocked reads a resolv.conf and reports its first
@@ -200,11 +224,14 @@ func FirstNameserverBlocked(path string) (string, bool, error) {
 const maxNameservers = 3
 
 // allowedServers returns the nameservers ("addr:53") a lookup may use, as
-// the app's resolver would: the first three, without those on the block
-// list. When the first is blocked, the app's own lookup would go there, so
-// a lookup through the others would describe one the app doesn't make:
-// refusal says so, and nothing is sent. notes name the later ones skipped.
-func allowedServers(servers []string, path string) (ok, notes []string, refusal string) {
+// the app's resolver would: of the first three, those before the first on
+// the block list. The C library asks them in order and moves on when one
+// fails, so a blocked one is reached only after the ones before it fail:
+// next names it, and a lookup whose servers fail stops there (failover).
+// When the first is blocked, the app's own lookup would go there, so a
+// lookup through the others would describe one the app doesn't make:
+// refusal says so, and nothing is sent.
+func allowedServers(servers []string, path string) (ok []string, next string, notes []string, refusal string) {
 	if len(servers) > maxNameservers {
 		servers = servers[:maxNameservers]
 	}
@@ -215,14 +242,26 @@ func allowedServers(servers []string, path string) (ok, notes []string, refusal 
 		}
 		if reason, isBlocked := target.Blocked(ap.Addr()); isBlocked {
 			if i == 0 {
-				return nil, nil, fmt.Sprintf("not looked up: the first nameserver in %s, %s, which the app asks first, is on the probe block list (link-local and cloud-metadata addresses)", path, ap.Addr())
+				return nil, "", nil, fmt.Sprintf("not looked up: the first nameserver in %s, %s, which the app asks first, is on the probe block list (link-local and cloud-metadata addresses)", path, ap.Addr())
 			}
-			notes = append(notes, fmt.Sprintf("skipped nameserver %d of %s, %s, which the app asks only when the ones before it fail: %s", i+1, path, ap.Addr(), reason))
-			continue
+			notes = append(notes, fmt.Sprintf("nameserver %d of %s, %s, is on the probe block list (%s): the app asks it when the ones before it fail, and whyreach then makes no lookup", i+1, path, ap.Addr(), reason))
+			return ok, ap.Addr().String(), notes, ""
 		}
 		ok = append(ok, s)
 	}
-	return ok, notes, ""
+	return ok, "", nil, ""
+}
+
+// failover reports a result after which the C library asks the next
+// nameserver: no answer, or SERVFAIL, REFUSED or NOTIMP.
+func failover(res resolveResult) (string, bool) {
+	for _, a := range res.attempts {
+		switch a.Rcode {
+		case evidence.RcodeTimeout, "ERROR", "SERVFAIL", "REFUSED", "NOTIMP":
+			return a.Rcode, true
+		}
+	}
+	return "", false
 }
 
 type candidate struct {
@@ -432,7 +471,7 @@ func parseResolvConf(r io.Reader) (resolvConf, error) {
 		switch f[0] {
 		case "nameserver":
 			if len(f) > 1 {
-				if a, err := netip.ParseAddr(f[1]); err == nil {
+				if a, ok := parseNameserver(f[1]); ok {
 					c.servers = append(c.servers, netip.AddrPortFrom(a.Unmap(), 53).String())
 				}
 			}
@@ -449,6 +488,65 @@ func parseResolvConf(r io.Reader) (resolvConf, error) {
 		}
 	}
 	return c, sc.Err()
+}
+
+// parseNameserver reads a nameserver line's address the way glibc and musl
+// do, so that whyreach and the app agree on which server comes first: an
+// IPv4 address in any inet_aton(3) form (0xa9fea9fe, 0251.0376.0251.0376
+// and 169.254.43518 are all 169.254.169.254), or an IPv6 address, with an
+// optional zone.
+func parseNameserver(s string) (netip.Addr, bool) {
+	if a, ok := inetAton(s); ok {
+		return a, true
+	}
+	if a, err := netip.ParseAddr(s); err == nil && a.Is6() {
+		return a, true
+	}
+	return netip.Addr{}, false
+}
+
+// inetAton parses IPv4 the way inet_aton(3) does: one to four parts, each
+// decimal, octal (a leading 0) or hexadecimal (0x), the last filling the
+// remaining bytes. Nothing may follow the address.
+func inetAton(s string) (netip.Addr, bool) {
+	parts := strings.Split(s, ".")
+	if len(parts) > 4 {
+		return netip.Addr{}, false
+	}
+	vals := make([]uint64, len(parts))
+	for i, p := range parts {
+		base, digits := 10, p
+		switch {
+		case len(p) > 1 && p[0] == '0' && (p[1] == 'x' || p[1] == 'X'):
+			base, digits = 16, p[2:]
+		case len(p) > 1 && p[0] == '0':
+			base, digits = 8, p[1:]
+		}
+		if digits == "" {
+			return netip.Addr{}, false
+		}
+		v, err := strconv.ParseUint(digits, base, 64)
+		if err != nil {
+			return netip.Addr{}, false
+		}
+		vals[i] = v
+	}
+	// The leading parts are a byte each; the last fills the rest.
+	last := len(vals) - 1
+	if vals[last] > uint64(1)<<(8*(4-last))-1 {
+		return netip.Addr{}, false
+	}
+	var b [4]byte
+	for i, v := range vals[:last] {
+		if v > math.MaxUint8 {
+			return netip.Addr{}, false
+		}
+		b[i] = uint8(v)
+	}
+	for i, v := 3, vals[last]; i >= last; i, v = i-1, v>>8 {
+		b[i] = uint8(v & math.MaxUint8)
+	}
+	return netip.AddrFrom4(b), true
 }
 
 // hostsLookup returns the addresses /etc/hosts lists for name, in file order.

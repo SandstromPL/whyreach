@@ -556,16 +556,21 @@ func (h *holder) Run(ctx context.Context, where evidence.ContextRef, specs []pro
 	lim := probe.LimitsFrom(ctx)
 	var out []evidence.Evidence
 	for _, s := range specs {
-		if _, ok := lim.CheckName(s.Host); ok && s.Host != "nsblocked" {
+		if _, ok := lim.CheckName(s.Host); ok && s.Host != "nsblocked" && s.Host != "nsfailover" {
 			evs, _ := h.recorder.Run(ctx, where, []probe.Spec{s})
 			out = append(out, evs...)
 			continue
 		}
 		why := &evidence.Error{Code: evidence.CodePolicyDenied, Message: probe.NameNotApproved}
-		if s.Host == "nsblocked" { // its nameservers are on the block list
+		var data any
+		switch s.Host {
+		case "nsblocked": // its first nameserver is on the block list
 			why.Message = "not looked up: the first nameserver in /etc/resolv.conf, 169.254.169.254, which the app asks first, is on the probe block list"
+		case "nsfailover": // the first failed, and the next is on the block list
+			why.Message = "not looked up fully: the lookup of nsfailover from 10.8.0.1:53 failed (TIMEOUT), and the app would then ask 169.254.169.254, which is on the probe block list"
+			data = evidence.DNSProbe{Name: s.Host, Server: "10.8.0.1:53", Attempts: []evidence.DNSAttempt{{Type: "A", Rcode: evidence.RcodeTimeout}}}
 		}
-		out = append(out, evidence.Evidence{Kind: evidence.KindDNS, Subject: s.Host, Status: evidence.StatusSkipped, Err: why})
+		out = append(out, evidence.Evidence{Kind: evidence.KindDNS, Subject: s.Host, Status: evidence.StatusSkipped, Err: why, Data: data})
 		if s.Kind == probe.SpecTCP {
 			out = append(out, evidence.Evidence{Kind: evidence.KindTCP, Subject: s.Host + ":443", Status: evidence.StatusSkipped, Err: why})
 		}
@@ -573,8 +578,6 @@ func (h *holder) Run(ctx context.Context, where evidence.ContextRef, specs []pro
 	return out, nil
 }
 
-// A check whose name was held back sent nothing: the audit counts it as
-// denied, once per check, though a connect reports its lookup too.
 // Host checks that can't run (whyreach's image without --network host)
 // send nothing: no rate tokens, and the audit counts nothing.
 func TestUnsupportedHostSendsNothing(t *testing.T) {
@@ -609,6 +612,9 @@ func TestUnsupportedHostSendsNothing(t *testing.T) {
 	}
 }
 
+// A check whose name was held back sent nothing: the audit counts it as
+// denied, once per check, though a connect reports its lookup too. One
+// refused after its queries went out (the next nameserver blocked) was sent.
 func TestHeldBackNamesCountAsDenied(t *testing.T) {
 	audit := filepath.Join(t.TempDir(), "audit.jsonl")
 	h := &holder{}
@@ -617,7 +623,7 @@ func TestHeldBackNamesCountAsDenied(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	for _, a := range []ProbeArgs{{Kind: "tcp", Target: "example.com:443"}, {Kind: "dns", Target: "example.com"}, {Kind: "dns", Target: "api"}, {Kind: "tcp", Target: "nsblocked:5432"}} {
+	for _, a := range []ProbeArgs{{Kind: "tcp", Target: "example.com:443"}, {Kind: "dns", Target: "example.com"}, {Kind: "dns", Target: "api"}, {Kind: "tcp", Target: "nsblocked:5432"}, {Kind: "dns", Target: "nsfailover"}} {
 		if _, err := p.Probe(ctx, a); err != nil {
 			t.Fatal(err)
 		}
@@ -627,7 +633,7 @@ func TestHeldBackNamesCountAsDenied(t *testing.T) {
 	for _, e := range entries(t, audit) {
 		got = append(got, count{e.ProbesSent, e.ProbesDenied})
 	}
-	if want := []count{{0, 1}, {0, 1}, {1, 0}, {0, 1}}; !slices.Equal(got, want) {
+	if want := []count{{0, 1}, {0, 1}, {1, 0}, {0, 1}, {1, 0}}; !slices.Equal(got, want) {
 		t.Errorf("sent/denied per call = %v, want %v", got, want)
 	}
 }

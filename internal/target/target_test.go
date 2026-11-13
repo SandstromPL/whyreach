@@ -129,12 +129,12 @@ func TestParseToRejects(t *testing.T) {
 }
 
 func TestBlocked(t *testing.T) {
-	for _, s := range []string{"169.254.169.254", "fe80::1", "fd00:ec2::254", "100.100.100.200", "::ffff:169.254.0.1"} {
+	for _, s := range []string{"169.254.169.254", "fe80::1", "fd00:ec2::254", "100.100.100.200", "::ffff:169.254.0.1", "64:ff9b::a9fe:a9fe", "64:ff9b::100.100.100.200"} {
 		if _, blocked := Blocked(netip.MustParseAddr(s)); !blocked {
 			t.Errorf("Blocked(%s) = false, want true", s)
 		}
 	}
-	for _, s := range []string{"127.0.0.1", "::1", "172.22.0.3", "10.1.2.3", "192.168.1.1", "1.1.1.1", "100.100.100.201"} {
+	for _, s := range []string{"127.0.0.1", "::1", "172.22.0.3", "10.1.2.3", "192.168.1.1", "1.1.1.1", "100.100.100.201", "64:ff9b::808:808"} {
 		if reason, blocked := Blocked(netip.MustParseAddr(s)); blocked {
 			t.Errorf("Blocked(%s) = true (%s), want false", s, reason)
 		}

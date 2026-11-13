@@ -434,7 +434,7 @@ func (r *run) howToEnable(e evidence.Evidence) string {
 	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && e.Err.Message == probe.NameNotApproved:
 		return fmt.Sprintf("A lookup sends its name to the DNS servers of the name's domain, so for an MCP client whyreach looks up a name with a dot that Docker doesn't know only with the user's approval (the user's decision, not an agent's): approve the name if whyreach asks (it asks only through clients that support elicitation, about 3 names at most in a session, and not again about a name the user declined), or list its domain under names in [probe] in %s (example.com covers its subdomains).", cfg)
 	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && strings.Contains(e.Err.Message, "block list"):
-		return "whyreach never sends a query to a link-local or cloud-metadata address (INITIAL.md §10 Q11), and the first nameserver the source asks is one, so it can't make the lookup the app makes. " +
+		return "whyreach never sends a query to a link-local or cloud-metadata address (INITIAL.md §10 Q11), and the app's lookup would go to one (its first nameserver, or the next one after the first failed), so whyreach can't make that lookup. " +
 			"Some clouds use 169.254.169.254 as their resolver, and Docker copies the host's resolver into containers on the default bridge and on the host's network. " +
 			"From a container on a user-defined network, lookups go to Docker's DNS (127.0.0.11) instead."
 	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && strings.Contains(e.Err.Message, "allowlist"):

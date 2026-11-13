@@ -81,12 +81,14 @@ func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 			}
 		}
 	}
-	// A check whose lookup the probe refused (a name held back, or
-	// nameservers on the block list) sent nothing: it counts as denied.
-	// Counted per check, since a connect to a name reports its lookup too.
+	// A check whose lookup the probe refused before sending anything (a
+	// name held back, or the first nameserver on the block list) counts as
+	// denied; one refused after its queries went out (the next nameserver
+	// on the block list) stays sent. Counted per check, since a connect to
+	// a name reports its lookup too.
 	refusedLookups := map[string]bool{}
 	for _, e := range evs {
-		if e.Kind == evidence.KindDNS && e.Status == evidence.StatusSkipped && e.Err != nil && e.Err.Code == evidence.CodePolicyDenied {
+		if e.Kind == evidence.KindDNS && e.Status == evidence.StatusSkipped && e.Err != nil && e.Err.Code == evidence.CodePolicyDenied && !queried(e) {
 			refusedLookups[target.NormalizeName(e.Subject)] = true
 		}
 	}
@@ -98,6 +100,12 @@ func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 	}
 	countsFrom(ctx).add(-n, n)
 	return append(evs, refused...), err
+}
+
+// queried reports a lookup that sent queries.
+func queried(e evidence.Evidence) bool {
+	p, ok := e.Data.(evidence.DNSProbe)
+	return ok && len(p.Attempts) > 0
 }
 
 // names says whether a batch's lookups of outside names are held back, and
