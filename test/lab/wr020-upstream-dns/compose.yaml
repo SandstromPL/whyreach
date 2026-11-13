@@ -1,0 +1,23 @@
+# WR020 (promoted from spikes/experiments/e3.yaml): client's DNS server is
+# 192.0.2.53 (TEST-NET-1), where nothing answers. Docker's embedded DNS still
+# answers internal names; external ones time out. Nothing reaches a real
+# resolver: the only upstream is the dead address.
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  client:
+    <<: *server
+    command: ["serve", "0.0.0.0:7000"]
+    dns: ["192.0.2.53"]
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

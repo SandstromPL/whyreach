@@ -1,0 +1,13 @@
+description: api is up but nothing in it listens on 8080 (only 127.0.0.1:9000)
+from: service:worker@${PROJECT}
+to: api:8080
+expect:
+  verdict: cause_identified
+  top_rule: WR001
+  confidence: high
+  must_not_fire: [WR002, WR003, WR004, WR008, WR010]
+  tcp_outcomes: ["dns:refused"]
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR001
+  confidence: high

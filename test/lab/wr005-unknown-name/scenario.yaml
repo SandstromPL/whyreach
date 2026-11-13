@@ -1,0 +1,15 @@
+description: worker uses apii, a name no container on its network has; api is one edit away
+from: service:worker@${PROJECT}
+to: apii:8080
+expect:
+  verdict: cause_identified
+  top_rule: WR005
+  confidence: high
+  fix_contains: api:8080
+  must_not_fire: [WR004, WR020, WR009]
+# Metadata decides it; the failed lookup only confirms (Probe? partly).
+expect_without_probe:
+  verdict: likely_cause
+  top_rule: WR005
+  confidence: medium
+  fix_contains: api:8080

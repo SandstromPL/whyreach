@@ -1,0 +1,17 @@
+description: api is still starting (health starting, nothing listening yet) when worker connects
+# up --wait would wait for api to become healthy, which takes ten minutes.
+up_wait: false
+settle: { service: api, state: running }
+from: service:worker@${PROJECT}
+to: api:8080
+expect:
+  verdict: cause_identified
+  top_rule: WR010
+  confidence: high
+  fix_contains: "condition: service_healthy"
+  must_not_fire: [WR002, WR004, WR008]
+  tcp_outcomes: ["dns:refused"]
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR010
+  confidence: high

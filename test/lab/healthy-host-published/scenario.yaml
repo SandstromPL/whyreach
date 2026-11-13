@@ -1,0 +1,9 @@
+description: the host reaches web through its published port (the healthy control for host flows)
+from: host
+to: localhost:${LAB_PORT}
+expect:
+  verdict: no_problem_reproduced
+  must_not_fire: [WR001, WR002, WR003, WR004, WR005, WR006, WR007, WR008, WR009, WR010, WR011, WR012, WR019, WR020]
+expect_without_probe:
+  verdict: no_problem_reproduced
+  must_not_fire: [WR001, WR002, WR003, WR004, WR005, WR006, WR007, WR008, WR009, WR010, WR011, WR012, WR019, WR020]

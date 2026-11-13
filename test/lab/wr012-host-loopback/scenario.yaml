@@ -1,0 +1,15 @@
+description: a host service listens only on 127.0.0.1, so client can not reach it through host.docker.internal
+host_listen: [loopback]
+from: service:client@${PROJECT}
+to: host.docker.internal:${HOST_PORT}
+expect:
+  verdict: cause_identified
+  top_rule: WR012
+  confidence: high
+  must_not_fire: [WR011, WR006]
+  tcp_outcomes: ["hosts:refused"]
+# The host's listeners settle it without a probe.
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR012
+  confidence: high

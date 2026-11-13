@@ -1,0 +1,26 @@
+# WR001: api runs and is healthy (its admin port answers on loopback), but
+# nothing listens on 8080, the port worker uses.
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  api:
+    <<: *server
+    command: ["serve", "127.0.0.1:9000"]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "/labserver", "check", "127.0.0.1:9000"]
+  worker:
+    <<: *server
+    command: ["serve", "0.0.0.0:7000"]
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

@@ -1,0 +1,15 @@
+description: api listens on 8000, worker connects to 8080
+from: service:worker@${PROJECT}
+to: api:8080
+expect:
+  verdict: cause_identified
+  top_rule: WR003
+  confidence: high
+  fix_contains: api:8000
+  must_not_fire: [WR002, WR004, WR008, WR010]
+  tcp_outcomes: ["dns:refused"]
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR003
+  confidence: high
+  fix_contains: api:8000

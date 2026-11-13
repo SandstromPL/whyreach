@@ -1,0 +1,27 @@
+# WR006 (promoted from spikes/experiments/e6.yaml): weblo publishes its port 8080
+# on the host as LAB_PORT, and client uses that host port between containers.
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  weblo:
+    <<: *server
+    command: ["serve", "0.0.0.0:8080"]
+    ports: ["127.0.0.1:${LAB_PORT:?set by the lab harness}:8080"]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "/labserver", "check", "127.0.0.1:8080"]
+  client:
+    <<: *server
+    command: ["serve", "0.0.0.0:7000"]
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

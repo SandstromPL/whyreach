@@ -1,0 +1,24 @@
+# Healthy control for host-to-container flows: web publishes its port 8080 on the
+# host's loopback as LAB_PORT, and the host connects to it.
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  web:
+    <<: *server
+    command: ["serve", "0.0.0.0:8080"]
+    ports: ["127.0.0.1:${LAB_PORT:?set by the lab harness}:8080"]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "/labserver", "check", "127.0.0.1:8080"]
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

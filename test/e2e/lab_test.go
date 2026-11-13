@@ -22,8 +22,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/netip"
 	"os"
 	"os/exec"
+	"strconv"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -52,10 +55,14 @@ type scenario struct {
 		Service string `yaml:"service"`
 		State   string `yaml:"state"`
 	} `yaml:"settle"`
-	From               string  `yaml:"from"`
-	To                 string  `yaml:"to"`
-	Expect             *expect `yaml:"expect"`               // with probe containers on
-	ExpectWithoutProbe *expect `yaml:"expect_without_probe"` // with the default config
+	// HostListen starts listeners on the host for the scenario's duration:
+	// "loopback" (127.0.0.1) or "docker0" (the default bridge's gateway), on
+	// one free port, which ${HOST_PORT} names.
+	HostListen         []string `yaml:"host_listen"`
+	From               string   `yaml:"from"`
+	To                 string   `yaml:"to"`
+	Expect             *expect  `yaml:"expect"`               // with probe containers on
+	ExpectWithoutProbe *expect  `yaml:"expect_without_probe"` // with the default config
 }
 
 type expect struct {
@@ -243,13 +250,29 @@ func runScenario(t *testing.T, dir string) {
 		s.Projects = []string{"compose.yaml"}
 	}
 	project := "whyreach-lab-" + filepath.Base(dir) + "-" + randHex(2)
+	// ${LAB_PORT} is a free host port, for scenarios that publish one or
+	// listen on one: a fixed number could be taken on the machine.
+	vars := map[string]string{"${PROJECT}": project, "${LAB_PORT}": freePort(t)}
+	if len(s.HostListen) > 0 {
+		vars["${HOST_PORT}"] = hostListen(t, s.HostListen)
+	}
 	for _, file := range s.Projects {
-		up(t, dir, projectFor(project, file), file, s.UpWait == nil || *s.UpWait)
+		up(t, dir, projectFor(project, file), file, s.UpWait == nil || *s.UpWait, vars)
 	}
 	if s.Settle != nil {
 		settle(t, projectFor(project, s.Projects[0]), s.Settle.Service, s.Settle.State)
 	}
-	from := strings.ReplaceAll(s.From, "${PROJECT}", project)
+	if strings.Contains(s.From+s.To, "${UNUSED_IP}") {
+		vars["${UNUSED_IP}"] = unusedIP(t, project+"_default")
+	}
+	expand := func(v string) string {
+		for k, val := range vars {
+			v = strings.ReplaceAll(v, k, val)
+		}
+		return v
+	}
+	from, to := expand(s.From), expand(s.To)
+	s.To = to
 
 	t.Run("probe-containers", func(t *testing.T) {
 		d := diagnose(t, l.withProbe, from, s.To)
@@ -275,17 +298,17 @@ func projectFor(base, file string) string {
 	return base + "-" + strings.TrimSuffix(strings.TrimPrefix(file, "compose."), ".yaml")
 }
 
-func compose(dir, project, file string, args ...string) *exec.Cmd {
+func compose(dir, project, file string, vars map[string]string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(context.Background(), "docker", append([]string{"compose", "-p", project, "-f", file}, args...)...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "WHYREACH_LAB_IMAGE="+l.image)
+	cmd.Env = append(os.Environ(), "WHYREACH_LAB_IMAGE="+l.image, "LAB_PORT="+vars["${LAB_PORT}"])
 	return cmd
 }
 
-func up(t *testing.T, dir, project, file string, wait bool) {
+func up(t *testing.T, dir, project, file string, wait bool, vars map[string]string) {
 	t.Helper()
 	t.Cleanup(func() {
-		if out, err := compose(dir, project, file, "down", "-v", "--remove-orphans", "--timeout", "1").CombinedOutput(); err != nil {
+		if out, err := compose(dir, project, file, vars, "down", "-v", "--remove-orphans", "--timeout", "1").CombinedOutput(); err != nil {
 			t.Errorf("compose down %s: %v\n%s", project, err, out)
 		}
 	})
@@ -293,9 +316,79 @@ func up(t *testing.T, dir, project, file string, wait bool) {
 	if wait {
 		args = append(args, "--wait", "--wait-timeout", "60")
 	}
-	if out, err := compose(dir, project, file, args...).CombinedOutput(); err != nil {
+	if out, err := compose(dir, project, file, vars, args...).CombinedOutput(); err != nil {
 		t.Fatalf("compose up %s: %v\n%s", project, err, out)
 	}
+}
+
+// freePort returns a TCP port that is free on the host right now.
+func freePort(t *testing.T) string {
+	t.Helper()
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }()
+	return strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
+}
+
+// hostListen listens on the host for the rest of the test, on one free
+// port at each address asked for, and returns the port. Connections are
+// held open like a real server's.
+func hostListen(t *testing.T, where []string) string {
+	t.Helper()
+	port := "0"
+	for _, w := range where {
+		addr := "127.0.0.1"
+		if w == "docker0" {
+			addr = bridgeGateway(t)
+		}
+		ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp4", net.JoinHostPort(addr, port))
+		if err != nil {
+			t.Fatalf("host listener on %s: %v", addr, err)
+		}
+		port = strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
+		t.Cleanup(func() { _ = ln.Close() })
+		go func() {
+			for {
+				c, err := ln.Accept()
+				if err != nil {
+					return
+				}
+				go func() {
+					_, _ = io.Copy(io.Discard, c)
+					_ = c.Close()
+				}()
+			}
+		}()
+	}
+	return port
+}
+
+// bridgeGateway is the default bridge's gateway: the host's docker0 address.
+func bridgeGateway(t *testing.T) string {
+	t.Helper()
+	out, err := exec.CommandContext(context.Background(), "docker", "network", "inspect", "bridge", "--format", "{{(index .IPAM.Config 0).Gateway}}").Output()
+	if err != nil {
+		t.Fatalf("docker network inspect bridge: %v", err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// unusedIP returns an address on a network's subnet that no container holds.
+func unusedIP(t *testing.T, network string) string {
+	t.Helper()
+	out, err := exec.CommandContext(context.Background(), "docker", "network", "inspect", network, "--format", "{{(index .IPAM.Config 0).Subnet}}").Output()
+	if err != nil {
+		t.Fatalf("docker network inspect %s: %v", network, err)
+	}
+	p, err := netip.ParsePrefix(strings.TrimSpace(string(out)))
+	if err != nil || !p.Addr().Is4() || p.Bits() > 24 {
+		t.Fatalf("subnet of %s: %q %v", network, out, err)
+	}
+	b := p.Masked().Addr().As4()
+	b[3] = 200 // compose hands out low addresses
+	return netip.AddrFrom4(b).String()
 }
 
 // settle waits until a service's container reaches a state.

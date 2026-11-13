@@ -128,6 +128,8 @@ func outcomeText(p evidence.TCPProbe) string {
 		return "found no route (" + p.Errno + ")"
 	case evidence.OutcomeReset:
 		return "was reset"
+	case evidence.OutcomeClosed:
+		return "was accepted and closed at once, without a byte: the network path and a listener work, and something rejected the connection"
 	default:
 		return "failed (" + p.Outcome + ")"
 	}

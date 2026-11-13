@@ -1,0 +1,13 @@
+description: worker and api share only the default bridge network, where names do not resolve
+from: service:worker@${PROJECT}
+to: api:8080
+expect:
+  verdict: cause_identified
+  top_rule: WR009
+  confidence: high
+  fix_contains: docker network create
+  must_not_fire: [WR004, WR002, WR008]
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR009
+  confidence: high

@@ -1,0 +1,16 @@
+description: host.docker.internal does not exist in client (Docker Engine, no extra_hosts mapping)
+host_listen: [docker0]
+from: service:client@${PROJECT}
+to: host.docker.internal:${HOST_PORT}
+expect:
+  verdict: cause_identified
+  top_rule: WR011
+  confidence: high
+  fix_contains: host.docker.internal:host-gateway
+  must_not_fire: [WR005, WR012, WR020]
+# The mapping is visible in metadata; the failed lookup confirms it (Probe? partly).
+expect_without_probe:
+  verdict: likely_cause
+  top_rule: WR011
+  confidence: medium
+  fix_contains: host.docker.internal:host-gateway

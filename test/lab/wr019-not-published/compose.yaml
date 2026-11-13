@@ -1,0 +1,23 @@
+# WR019 (promoted from spikes/experiments/e6.yaml's web): web listens on LAB_PORT
+# inside its container and publishes nothing; the host connects to localhost.
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  web:
+    <<: *server
+    command: ["serve", "0.0.0.0:${LAB_PORT:?set by the lab harness}"]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "/labserver", "check", "127.0.0.1:${LAB_PORT}"]
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

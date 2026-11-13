@@ -1,0 +1,15 @@
+description: web listens on the port inside its container but does not publish it; the host connects to localhost
+from: host
+to: localhost:${LAB_PORT}
+expect:
+  verdict: cause_identified
+  top_rule: WR019
+  confidence: high
+  fix_contains: ports
+  must_not_fire: [WR002, WR007, WR012]
+  tcp_outcomes: ["hosts:refused"]
+# From the host, probes run in-process: no probe container either way.
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR019
+  confidence: high

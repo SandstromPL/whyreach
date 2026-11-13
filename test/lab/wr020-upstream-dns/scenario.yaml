@@ -1,0 +1,14 @@
+description: client's upstream DNS server does not answer; internal names resolve, example.com times out
+from: service:client@${PROJECT}
+to: example.com:443
+expect:
+  verdict: cause_identified
+  top_rule: WR020
+  confidence: high
+  fix_contains: "192.0.2.53"
+  must_not_fire: [WR005, WR004]
+# Only a lookup from inside client shows it (Probe? yes): without probe
+# containers it must stay inconclusive, not guess.
+expect_without_probe:
+  verdict: inconclusive
+  must_not_fire: [WR005, WR004, WR020]

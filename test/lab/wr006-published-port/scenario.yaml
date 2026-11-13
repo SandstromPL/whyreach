@@ -1,0 +1,15 @@
+description: client uses weblo's host-published port between containers; the container port is 8080
+from: service:client@${PROJECT}
+to: weblo:${LAB_PORT}
+expect:
+  verdict: cause_identified
+  top_rule: WR006
+  confidence: high
+  fix_contains: weblo:8080
+  must_not_fire: [WR002, WR004, WR008]
+  tcp_outcomes: ["dns:refused"]
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR006
+  confidence: high
+  fix_contains: weblo:8080

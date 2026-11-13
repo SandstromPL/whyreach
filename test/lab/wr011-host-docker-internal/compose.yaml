@@ -1,0 +1,21 @@
+# WR011 (promoted from spikes/experiments/e5.yaml's nohg): client uses
+# host.docker.internal on Docker Engine without the host-gateway mapping. The
+# harness listens on the docker0 address, so the mapping is all that's missing.
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  client:
+    <<: *server
+    command: ["serve", "0.0.0.0:7000"]
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

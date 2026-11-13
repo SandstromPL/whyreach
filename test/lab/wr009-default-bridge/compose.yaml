@@ -1,0 +1,24 @@
+# WR009 (promoted from spikes/experiments.sh's E7): both services run on Docker's
+# default bridge network, where container names don't resolve.
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  api:
+    <<: *server
+    command: ["serve", "0.0.0.0:8080"]
+    network_mode: bridge
+    healthcheck:
+      <<: *health
+      test: ["CMD", "/labserver", "check", "127.0.0.1:8080"]
+  worker:
+    <<: *server
+    command: ["serve", "0.0.0.0:7000"]
+    network_mode: bridge
