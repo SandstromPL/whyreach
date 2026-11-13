@@ -1,0 +1,331 @@
+//go:build linux
+
+package executor
+
+import (
+	"context"
+	"errors"
+	"io/fs"
+	"log/slog"
+	"net"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+	"syscall"
+	"testing"
+	"time"
+
+	"golang.org/x/sys/unix"
+
+	"github.com/SandstromPL/whyreach/internal/collect/docker"
+	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/probe"
+)
+
+// TestReadInRootStaysInside: a container's files are read as the container
+// sees them, and no symlink in it leads to the host's files.
+func TestReadInRootStaysInside(t *testing.T) {
+	root := t.TempDir()
+	etc := filepath.Join(root, "etc")
+	if err := os.MkdirAll(filepath.Join(etc, "dir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, content string) {
+		if err := os.WriteFile(filepath.Join(etc, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("hosts", "10.0.0.1 api\n")
+	write("big", strings.Repeat("x", 65))
+	for link, target := range map[string]string{
+		"absolute": "/etc/hosts",                 // means the container's own /etc/hosts
+		"escape":   "../../../../../etc/passwd",  // ".." stops at the container's root
+		"magic":    "/proc/self/root/etc/passwd", // whyreach's own root, through procfs
+	} {
+		if err := os.Symlink(target, filepath.Join(etc, link)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := unix.Mkfifo(filepath.Join(etc, "fifo"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fd, err := unix.Open(root, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = unix.Close(fd) }()
+
+	tests := []struct {
+		path    string
+		want    string // content; empty means an error containing errText
+		errText string
+	}{
+		{path: "/etc/hosts", want: "10.0.0.1 api\n"},
+		{path: "etc/hosts", want: "10.0.0.1 api\n"},
+		{path: "/etc/absolute", want: "10.0.0.1 api\n"},
+		{path: "/etc/escape", errText: "no such file"},
+		{path: "/../../../etc/passwd", errText: "no such file"},
+		{path: "/etc/magic", errText: "/etc/magic"},
+		{path: "/etc/fifo", errText: "not a regular file"},
+		{path: "/etc/dir", errText: "not a regular file"},
+		{path: "/etc/big", errText: "larger than 64 bytes"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			done := make(chan struct{})
+			var b []byte
+			var err error
+			go func() {
+				defer close(done)
+				b, err = readInRoot(fd, tt.path, 64)
+			}()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("readInRoot blocked")
+			}
+			if tt.want != "" {
+				if err != nil || string(b) != tt.want {
+					t.Errorf("got %q, %v; want %q", b, err, tt.want)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.errText) {
+				t.Errorf("got %q, %v; want an error with %q", b, err, tt.errText)
+			}
+		})
+	}
+}
+
+type fakeInspector struct {
+	c   evidence.Container
+	err error
+}
+
+func (f fakeInspector) InspectContainer(context.Context, string) (evidence.Container, error) {
+	return f.c, f.err
+}
+
+// TestNetnsRunRefusesWhatItCannotEnter: every way the executor can't get
+// into the namespace comes back as one record per check that says why, and
+// nothing runs.
+func TestNetnsRunRefusesWhatItCannotEnter(t *testing.T) {
+	id := strings.Repeat("ab", 32)
+	where := evidence.ContextRef{Kind: evidence.ContextContainer, Container: id[:12], Name: "worker"}
+	running := evidence.Container{ID: id, Name: "worker", State: evidence.StateRunning, Pid: os.Getpid()}
+	tests := []struct {
+		name       string
+		where      evidence.ContextRef
+		inspector  fakeInspector
+		wantStatus evidence.Status
+		wantCode   string
+		wantText   string
+	}{
+		{
+			name: "not a container", where: evidence.Host(),
+			wantStatus: evidence.StatusError, wantCode: evidence.CodeInternal, wantText: "only enter a container",
+		},
+		{
+			name: "container gone", where: where, inspector: fakeInspector{err: &docker.APIError{Status: 404, Message: "No such container"}},
+			wantStatus: evidence.StatusFailed, wantCode: evidence.CodeNotFound, wantText: "no longer exists",
+		},
+		{
+			name: "Docker unreachable", where: where, inspector: fakeInspector{err: errors.New("connection refused")},
+			wantStatus: evidence.StatusFailed, wantCode: evidence.CodeDockerUnavailable, wantText: "look up worker",
+		},
+		{
+			name: "another container", where: where, inspector: fakeInspector{c: evidence.Container{ID: strings.Repeat("cd", 32), State: evidence.StateRunning, Pid: 1}},
+			wantStatus: evidence.StatusError, wantCode: evidence.CodeInternal, wantText: "got cdcdcdcdcdcd",
+		},
+		{
+			name: "stopped", where: where, inspector: fakeInspector{c: evidence.Container{ID: id, Name: "worker", State: evidence.StateExited}},
+			wantStatus: evidence.StatusFailed, wantCode: evidence.CodeNotFound, wantText: "worker is exited",
+		},
+		{
+			// Docker's PID is whyreach's own process, whose cgroup names no
+			// container: the PID check refuses it before anything is opened.
+			name: "PID of another process", where: where, inspector: fakeInspector{c: running},
+			wantStatus: evidence.StatusFailed, wantCode: evidence.CodeNotFound, wantText: "does not name container",
+		},
+	}
+	specs := []probe.Spec{{Kind: probe.SpecDNS, Host: "api"}, {Kind: probe.SpecTCP, Host: "api", Port: 8080}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n := NewNetns(tt.inspector, nil)
+			evs, err := n.Run(context.Background(), tt.where, specs)
+			if err == nil {
+				t.Error("want an error")
+			}
+			if len(evs) != len(specs) {
+				t.Fatalf("%d records, want one per spec", len(evs))
+			}
+			for _, ev := range evs {
+				if ev.Status != tt.wantStatus || ev.Err == nil || ev.Err.Code != tt.wantCode || !strings.Contains(ev.Err.Message, tt.wantText) {
+					t.Errorf("%s: status %s err %+v; want %s/%s with %q", ev.Kind, ev.Status, ev.Err, tt.wantStatus, tt.wantCode, tt.wantText)
+				}
+				if ev.Context.Executor != evidence.ExecutorNetns || ev.Context.NetnsID != 0 {
+					t.Errorf("context %+v, want executor netns and no namespace", ev.Context)
+				}
+			}
+		})
+	}
+}
+
+// TestNetnsEnterNeedsThePrivilege: without CAP_SYS_ADMIN, setns fails, f
+// never runs, and the error keeps the errno.
+func TestNetnsEnterNeedsThePrivilege(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("as root setns works: TestNetnsEnterRunsInsideAndComesBack covers it")
+	}
+	fd, err := unix.Open("/proc/self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &netnsHandle{ns: fd, root: -1, logger: slog.New(slog.DiscardHandler)}
+	defer h.close()
+	ran := false
+	err = h.enter(func() { ran = true })
+	if !errors.Is(err, unix.EPERM) || ran {
+		t.Errorf("enter = %v (ran %v), want EPERM and f not run", err, ran)
+	}
+	if status, e := probe.Classify(err); status != evidence.StatusPermissionDenied || e.Errno != "EPERM" {
+		t.Errorf("classified as %s %+v, want permission_denied with EPERM", status, e)
+	}
+}
+
+// TestNetnsEnterRunsInsideAndComesBack needs root (make lab-root runs it):
+// a socket created through enter lives in the other namespace, and every
+// thread whyreach runs on afterwards is back in its own.
+func TestNetnsEnterRunsInsideAndComesBack(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("needs root: make lab-root runs it")
+	}
+	home := threadNetns(t)
+	fd, inode := newNetns(t)
+	if inode == home {
+		t.Fatal("the new namespace is whyreach's own")
+	}
+	h := &netnsHandle{ns: fd, root: -1, inode: inode, logger: slog.New(slog.DiscardHandler)}
+	defer h.close()
+
+	// Reachable from whyreach's own namespace; in a new namespace even
+	// loopback is down, so a connect from there finds no route.
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_ = c.Close()
+		}
+	}()
+
+	var wg sync.WaitGroup
+	for range 16 {
+		wg.Go(func() {
+			var inside uint64
+			var dialErr error
+			err := h.enter(func() {
+				inside = currentNetns()
+				var c net.Conn
+				c, dialErr = (&net.Dialer{Timeout: time.Second}).DialContext(context.Background(), "tcp", ln.Addr().String())
+				if c != nil {
+					_ = c.Close()
+				}
+			})
+			if err != nil {
+				t.Errorf("enter: %v", err)
+				return
+			}
+			if inside != inode {
+				t.Errorf("f ran in namespace %d, want %d", inside, inode)
+			}
+			if !errors.Is(dialErr, syscall.ENETUNREACH) {
+				t.Errorf("connect from the new namespace: %v, want ENETUNREACH (the socket was created elsewhere)", dialErr)
+			}
+		})
+	}
+	wg.Wait()
+
+	// Sample the threads in Go's pool: none may be left in the namespace.
+	for range 64 {
+		wg.Go(func() {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			if got := currentNetns(); got != home {
+				t.Errorf("a thread is in namespace %d after enter returned, want %d", got, home)
+			}
+		})
+	}
+	wg.Wait()
+	if c, err := (&net.Dialer{}).DialContext(context.Background(), "tcp", ln.Addr().String()); err != nil {
+		t.Errorf("connect from whyreach's own namespace: %v", err)
+	} else {
+		_ = c.Close()
+	}
+}
+
+// currentNetns is the namespace of the calling thread.
+func currentNetns() uint64 {
+	link, err := os.Readlink("/proc/thread-self/ns/net")
+	if err != nil {
+		return 0
+	}
+	n, _ := strconv.ParseUint(strings.TrimSuffix(strings.TrimPrefix(link, "net:["), "]"), 10, 64)
+	return n
+}
+
+func threadNetns(t *testing.T) uint64 {
+	t.Helper()
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	return currentNetns()
+}
+
+// newNetns creates a network namespace and returns a descriptor that keeps
+// it, and its inode. The thread that created it goes back home first.
+func newNetns(t *testing.T) (int, uint64) {
+	t.Helper()
+	type result struct {
+		fd    int
+		inode uint64
+		err   error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		runtime.LockOSThread()
+		home, err := unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+		if err != nil {
+			runtime.UnlockOSThread()
+			ch <- result{err: err}
+			return
+		}
+		defer func() { _ = unix.Close(home) }()
+		if err := unix.Unshare(unix.CLONE_NEWNET); err != nil {
+			runtime.UnlockOSThread()
+			ch <- result{err: err}
+			return
+		}
+		fd, err := unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+		inode := currentNetns()
+		if serr := unix.Setns(home, unix.CLONE_NEWNET); serr != nil {
+			ch <- result{err: serr} // stays locked: the thread dies with the goroutine
+			return
+		}
+		runtime.UnlockOSThread()
+		ch <- result{fd: fd, inode: inode, err: err}
+	}()
+	r := <-ch
+	if r.err != nil {
+		t.Fatal(&fs.PathError{Op: "create a network namespace", Path: "/proc/thread-self/ns/net", Err: r.err})
+	}
+	return r.fd, r.inode
+}

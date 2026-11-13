@@ -6,6 +6,14 @@ import (
 	"bytes"
 	"os"
 	"runtime"
+	"strconv"
+	"strings"
+)
+
+// Capability bits (capabilities(7)).
+const (
+	capSysPtrace = 19 // open another user's /proc/<pid>/ns/net and /proc/<pid>/root
+	capSysAdmin  = 21 // setns(2) into a network namespace
 )
 
 // Detect reads /proc and the root of the filesystem. A WSL kernel string is
@@ -24,5 +32,35 @@ func Detect() Info {
 			i.WSL = true
 		}
 	}
+	if caps, ok := effectiveCaps(); ok {
+		i.Netns = caps&(1<<capSysAdmin) != 0 && caps&(1<<capSysPtrace) != 0 && initialUserNS()
+	}
 	return i
+}
+
+// effectiveCaps reads whyreach's effective capability set.
+func effectiveCaps() (uint64, bool) {
+	b, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		return 0, false
+	}
+	for line := range strings.Lines(string(b)) {
+		if v, ok := strings.CutPrefix(line, "CapEff:"); ok {
+			caps, err := strconv.ParseUint(strings.TrimSpace(v), 16, 64)
+			return caps, err == nil
+		}
+	}
+	return 0, false
+}
+
+// initialUserNS reports whether whyreach runs in the machine's own user
+// namespace. Capabilities in a child namespace (rootless setups, unshare -r)
+// stop at that namespace, so they can't enter Docker's containers.
+func initialUserNS() bool {
+	b, err := os.ReadFile("/proc/self/uid_map")
+	if err != nil {
+		return false
+	}
+	f := strings.Fields(string(b))
+	return len(f) == 3 && f[0] == "0" && f[1] == "0" && f[2] == "4294967295"
 }
