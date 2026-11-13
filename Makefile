@@ -40,9 +40,9 @@ lab-root:
 	@if grep -rlqs 'go:build.*privileged' test/e2e; then sudo -E env "PATH=$$PATH" go test -tags lab,privileged -count=1 ./test/e2e/...; \
 	else echo "lab-root: no privileged scenarios yet (the netns executor arrives in M3)"; fi
 
-## golden: regenerate golden files for the renderers and the MCP structured output
+## golden: regenerate golden files: the text renderer, the compact MCP structured form, the Diagnosis JSON
 golden:
-	go test ./internal/report/... ./internal/mcpserver/... -update
+	go test ./internal/report/... -update
 
 ## cross: compile check for macOS and Windows (INITIAL.md §4.15)
 cross:
