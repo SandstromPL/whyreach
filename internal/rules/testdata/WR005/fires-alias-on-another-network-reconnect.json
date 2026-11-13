@@ -1,5 +1,5 @@
 {
-  "description": "the same; without Compose the fix reconnects with the alias, since Docker refuses a second connect to a network",
+  "description": "pg-main, a container without Compose, has the alias db only on shop_back: Docker refuses a second connect, and a reconnect keeps only the aliases it is given, so the fix repeats its alias pg on shop_front (not its name or short ID, which Docker adds) and warns about the gap",
   "question": {
     "from": {
       "kind": "container",
@@ -59,13 +59,13 @@
       "context": {
         "kind": "container",
         "container": "bbbbbbbbbbbb",
-        "name": "postgres"
+        "name": "pg-main"
       },
-      "subject": "container:shop-postgres-1",
+      "subject": "container:pg-main",
       "status": "ok",
       "data": {
         "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-        "name": "shop-postgres-1",
+        "name": "pg-main",
         "image": "img",
         "state": "running",
         "exit_code": 0,
@@ -74,19 +74,15 @@
         "restart_count": 0,
         "network_mode": "shop_back",
         "pid": 20,
-        "compose": {
-          "project": "shop",
-          "service": "postgres"
-        },
         "networks": [
           {
             "network": "shop_back",
             "network_id": "shop_back-id",
             "ipv4": "172.24.0.3",
             "names": [
+              "bbbbbbbbbbbb",
               "db",
-              "postgres",
-              "shop-postgres-1"
+              "pg-main"
             ]
           },
           {
@@ -94,8 +90,9 @@
             "network_id": "shop_front-id",
             "ipv4": "172.23.0.3",
             "names": [
-              "postgres",
-              "shop-postgres-1"
+              "bbbbbbbbbbbb",
+              "pg",
+              "pg-main"
             ]
           }
         ]
@@ -109,7 +106,7 @@
       "context": {
         "kind": "container",
         "container": "bbbbbbbbbbbb",
-        "name": "postgres"
+        "name": "pg-main"
       },
       "subject": "listeners",
       "status": "ok",
@@ -179,7 +176,7 @@
         "ev-04",
         "ev-05"
       ],
-      "fix_contains": "without Compose: docker network disconnect shop_front shop-postgres-1, then docker network connect --alias db shop_front shop-postgres-1"
+      "fix_contains": "docker network disconnect shop_front pg-main, then docker network connect --alias pg --alias db shop_front pg-main. It is off shop_front in between, and its address there may change."
     }
   ]
 }

@@ -29,6 +29,7 @@ type wantFinding struct {
 	Supporting    []string   `json:"supporting"`
 	Contradicting []string   `json:"contradicting,omitempty"`
 	FixContains   string     `json:"fix_contains,omitempty"` // checked separately
+	FixLacks      string     `json:"fix_lacks,omitempty"`    // checked separately: text the fix must not have
 }
 
 func loadFixture(t *testing.T, path string) fixture {
@@ -71,8 +72,11 @@ func TestFixtures(t *testing.T) {
 						if i < len(f.Want) && !strings.Contains(g.Fix, f.Want[i].FixContains) {
 							t.Errorf("fix %q lacks %q", g.Fix, f.Want[i].FixContains)
 						}
+						if i < len(f.Want) && f.Want[i].FixLacks != "" && strings.Contains(g.Fix, f.Want[i].FixLacks) {
+							t.Errorf("fix %q has %q", g.Fix, f.Want[i].FixLacks)
+						}
 					}
-					if diff := cmp.Diff(f.Want, gotW, cmpopts.EquateEmpty(), cmpopts.IgnoreFields(wantFinding{}, "FixContains")); diff != "" {
+					if diff := cmp.Diff(f.Want, gotW, cmpopts.EquateEmpty(), cmpopts.IgnoreFields(wantFinding{}, "FixContains", "FixLacks")); diff != "" {
 						t.Errorf("%s\n(-want +got):\n%s", f.Description, diff)
 					}
 				})

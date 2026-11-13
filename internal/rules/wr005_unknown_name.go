@@ -167,11 +167,43 @@ func (r wr005) aliasElsewhere(v evidence.View, src, owner evidence.ContainerEv, 
 	f.Title = fmt.Sprintf("%s answers to %s only on %s, which %s isn't on", name, q.To.Host, quoteList(m.Networks), src.C.DisplayName())
 	f.Explanation = fmt.Sprintf("%s has %s as an alias on %s %s only. Aliases are per network: on %s, which %s shares with it, Docker's DNS knows it as %s, not %s.%s",
 		containerLabel(m.C), q.To.Host, plural(len(m.Networks), "network", "networks"), quoteList(m.Networks), shared[0], src.C.DisplayName(), here, q.To.Host, looked)
-	// The container is on that network already, so without Compose the
-	// alias needs a reconnect: Docker refuses a second connect.
-	f.Fix = fmt.Sprintf("Use %s, or give %s the alias on %s too: networks: {%s: {aliases: [%s]}} for %s in Compose (without Compose: docker network disconnect %s %s, then docker network connect --alias %s %s %s).",
-		hostPort(here, q.To.Port), name, shared[0], composeKey(m.C, shared[0]), q.To.Host, name, shared[0], m.C.Name, q.To.Host, shared[0], m.C.Name)
+	use := hostPort(here, q.To.Port)
+	if m.C.Compose != nil && m.C.Compose.Service != "" {
+		// Compose recreates the container with the service's aliases, and
+		// would drop one added by hand at its next up.
+		f.Fix = fmt.Sprintf("Use %s, or give %s the alias on %s too: networks: {%s: {aliases: [%s]}} for %s in Compose, then docker compose up -d %s.",
+			use, name, shared[0], composeKey(m.C, shared[0]), q.To.Host, name, m.C.Compose.Service)
+		return []Finding{f}
+	}
+	// Docker refuses a second connect to a network the container is on, so
+	// the alias needs a reconnect, which keeps only the aliases it is given:
+	// the fix repeats the ones the container has there.
+	var flags []string
+	for _, a := range append(reconnectAliases(m.C, shared[0]), q.To.Host) {
+		flags = append(flags, "--alias "+a)
+	}
+	f.Fix = fmt.Sprintf("Use %s, or give %s the alias on %s too: docker network disconnect %s %s, then docker network connect %s %s %s. It is off %s in between, and its address there may change.",
+		use, name, shared[0], shared[0], m.C.Name, strings.Join(flags, " "), shared[0], m.C.Name, shared[0])
 	return []Finding{f}
+}
+
+// reconnectAliases lists the names a container answers to on a network
+// that a reconnect would drop: all but its name and short ID, which Docker
+// gives it on every network.
+func reconnectAliases(c evidence.Container, network string) []string {
+	a, ok := c.Attachment(network)
+	if !ok {
+		return nil
+	}
+	var out []string
+	for _, n := range a.Names {
+		if strings.EqualFold(n, c.Name) || n == evidence.ShortID(c.ID) {
+			continue
+		}
+		out = append(out, n)
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
 }
 
 // namesOn lists the names Docker's DNS answers on the source's user-defined
