@@ -144,4 +144,8 @@ func TestRenderTextSanitizesDockerStrings(t *testing.T) {
 	if got := Sanitize("a\tb\nc\rd"); got != "a\tb\nc\uFFFDd" {
 		t.Errorf("Sanitize = %q", got)
 	}
+	// Unicode tag characters hide text from the reader (M2 safety review).
+	if got := Sanitize("api\U000E0041\U000E0042\u200b"); strings.ContainsAny(got, "\U000E0041\U000E0042\u200b") {
+		t.Errorf("Sanitize kept invisible format characters: %q", got)
+	}
 }

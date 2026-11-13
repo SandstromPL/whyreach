@@ -93,7 +93,7 @@ func (a *Audit) Write(e Entry) error {
 // and may carry anything. Write masks credentials first.
 func sanitize(s string) string {
 	s = strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r) {
+		if unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r) || unicode.Is(unicode.Cf, r) {
 			return '�'
 		}
 		return r

@@ -171,6 +171,49 @@ func TestRedactorLearnsEverywhere(t *testing.T) {
 	}
 }
 
+// TestRedactorRawSpellings: Docker keeps extra_hosts as written, so a
+// non-canonical IPv6 address must be replaced as spelled; a network's
+// bridge, br-<short ID>, must not keep the ID that is pseudonymised
+// elsewhere (M2 safety review, finding 3).
+func TestRedactorRawSpellings(t *testing.T) {
+	d := identifying()
+	c := d.Evidence[0].Data.(evidence.Container)
+	c.ExtraHosts = []string{"db.corp.example:2001:0db8:85a3:0000:0000:8a2e:0370:7334", "up.corp.example=2001:DB8:0:0::1"}
+	d.Evidence[0].Data = c
+	netID := strings.Repeat("9c", 32)
+	d.Evidence = append(d.Evidence, evidence.Evidence{ID: "ev-04", Kind: evidence.KindHostAddrs, Status: evidence.StatusOK,
+		Data: evidence.HostAddrs{Interfaces: []evidence.Interface{{Name: "br-" + netID[:12], Addrs: []netip.Prefix{netip.MustParsePrefix("172.22.0.1/16")}}}}})
+	r := NewRedactor(false, "")
+	r.Learn(d)
+	text := r.Apply("2001:0db8:85a3:0000:0000:8a2e:0370:7334 2001:DB8:0:0::1 br-" + netID[:12] + " " + netID)
+	for _, leak := range []string{"2001:0db8", "2001:DB8", netID[:12]} {
+		if strings.Contains(text, leak) {
+			t.Errorf("not redacted: %q in %q", leak, text)
+		}
+	}
+	if !strings.Contains(text, "br-") {
+		t.Errorf("the bridge keeps its br- prefix: %q", text)
+	}
+}
+
+// TestReportMarkdownIsSanitized: report.md carries the summary and the
+// evidence lines, which can hold label text.
+func TestReportMarkdownIsSanitized(t *testing.T) {
+	d := identifying()
+	d.Summary = "worker\x1b[2J can't reach api\u202e\U000E0041"
+	saved, err := Save(d, SaveOptions{Dir: t.TempDir(), Redact: true, Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(saved.Path, "report.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.ContainsAny(string(b), "\x1b\u202e\U000E0041") {
+		t.Errorf("report.md keeps control or format characters: %q", b)
+	}
+}
+
 func TestReplaceWhole(t *testing.T) {
 	n := 0
 	count := func(k int) { n += k }

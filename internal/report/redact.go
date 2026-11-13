@@ -136,6 +136,10 @@ func (r *Redactor) Learn(d *engine.Diagnosis) {
 				for _, p := range i.Addrs {
 					r.ip(p.Addr())
 				}
+				// A user-defined network's bridge is br-<its short ID>.
+				if id, ok := strings.CutPrefix(i.Name, "br-"); ok && len(id) == 12 && strings.Trim(id, "0123456789abcdef") == "" {
+					r.addRepl(i.Name, ClassContainer, "br-"+r.mac(id))
+				}
 			}
 		}
 	}
@@ -175,34 +179,45 @@ func (r *Redactor) host(name string) {
 	r.add(name, ClassHost, "host-")
 }
 
-func (r *Redactor) ip(a netip.Addr) {
+// ip learns an address and returns its pseudonym, "" when it is kept.
+func (r *Redactor) ip(a netip.Addr) string {
 	if !a.IsValid() {
-		return
+		return ""
 	}
 	a = a.Unmap()
 	if a.IsLoopback() || a.IsUnspecified() {
-		return
+		return ""
 	}
 	private := a.IsPrivate() || a.IsLinkLocalUnicast() || cgnat.Contains(a)
 	if private && !r.RedactPrivate {
-		return
+		return ""
 	}
-	r.add(a.String(), ClassIP, "ip-")
+	repl := "ip-" + r.mac(a.String())
+	r.addRepl(a.String(), ClassIP, repl)
+	return repl
 }
 
-// ipText learns the addresses inside a string such as "host(127.0.0.53)".
+// ipText learns the addresses inside a string such as "host(127.0.0.53)",
+// and each as spelled there too: Docker keeps extra_hosts as written, so
+// 2001:0db8::0001 must be replaced where it appears, not only as 2001:db8::1.
 func (r *Redactor) ipText(s string) {
 	for _, m := range ipInText.FindAllString(s, -1) {
+		repl := ""
 		if a, err := netip.ParseAddr(m); err == nil {
-			r.ip(a)
+			repl = r.ip(a)
 		} else if ap, err := netip.ParseAddrPort(m); err == nil {
-			r.ip(ap.Addr())
+			repl = r.ip(ap.Addr())
+			m = ap.Addr().String()
+		}
+		if raw := asciiLower(m); repl != "" && strings.Contains(raw, ":") {
+			r.addRepl(raw, ClassIP, repl)
 		}
 	}
 }
 
 // container learns a container or network ID, and its 12-character short
-// form, which maps to the same pseudonym.
+// form, which maps to the same pseudonym (a network's bridge, br-<short
+// ID>, gets the same suffix).
 func (r *Redactor) container(id string) {
 	full := asciiLower(id)
 	if len(full) < 12 || strings.Trim(full, "0123456789abcdef") != "" {

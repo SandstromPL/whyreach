@@ -25,15 +25,17 @@ func RenderText(w io.Writer, d *engine.Diagnosis) {
 	_, _ = io.WriteString(w, Sanitize(b.String())) // a failed write to the terminal is not actionable
 }
 
-// Sanitize replaces control characters (escape sequences start with one)
-// and bidirectional-text overrides with U+FFFD, keeping newlines and tabs, so
-// a container label or an error message can't drive the terminal.
+// Sanitize replaces control characters (escape sequences start with one),
+// bidirectional-text overrides and other invisible format characters (the
+// Unicode tag block among them) with U+FFFD, keeping newlines and tabs, so a
+// container label or an error message can't drive the terminal or hide text
+// from the person reading it.
 func Sanitize(s string) string {
 	return strings.Map(func(r rune) rune {
 		switch {
 		case r == '\n', r == '\t':
 			return r
-		case unicode.IsControl(r), unicode.Is(unicode.Bidi_Control, r):
+		case unicode.IsControl(r), unicode.Is(unicode.Bidi_Control, r), unicode.Is(unicode.Cf, r):
 			return '\uFFFD'
 		default:
 			return r

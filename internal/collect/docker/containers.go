@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -169,6 +170,20 @@ func (c *Client) InspectContainer(ctx context.Context, idOrName string) (evidenc
 	return raw.toEvidence(), nil
 }
 
+// Labels and aliases are free text that reaches reports and an agent's
+// context, so only values in Compose's and DNS's grammar are kept.
+var (
+	composeProject = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,254}$`)
+	composeService = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$`)
+	dnsName        = regexp.MustCompile(`^[a-zA-Z0-9_]([a-zA-Z0-9_.-]{0,252}[a-zA-Z0-9_])?$`)
+	quoted         = regexp.MustCompile(`"[^"]*"|'[^']*'`)
+)
+
+// scrubQuoted drops the quoted parts of a daemon error: Docker quotes the
+// entrypoint it couldn't start (exec: "redis-server --requirepass …"),
+// which can carry a secret from the command line.
+func scrubQuoted(s string) string { return quoted.ReplaceAllString(s, `"…"`) }
+
 func (r containerJSON) toEvidence() evidence.Container {
 	c := evidence.Container{
 		ID:           r.ID,
@@ -176,7 +191,7 @@ func (r containerJSON) toEvidence() evidence.Container {
 		Image:        r.Config.Image,
 		State:        r.State.Status,
 		ExitCode:     r.State.ExitCode,
-		Error:        r.State.Error,
+		Error:        scrubQuoted(r.State.Error),
 		Pid:          r.State.Pid,
 		StartedAt:    parseTime(r.State.StartedAt),
 		FinishedAt:   parseTime(r.State.FinishedAt),
@@ -189,8 +204,11 @@ func (r containerJSON) toEvidence() evidence.Container {
 	if r.State.Health != nil && r.State.Health.Status != "none" {
 		c.Health = r.State.Health.Status
 	}
-	if p := r.Config.Labels[LabelComposeProject]; p != "" {
-		c.Compose = &evidence.ComposeRef{Project: p, Service: r.Config.Labels[LabelComposeService]}
+	if p, s := r.Config.Labels[LabelComposeProject], r.Config.Labels[LabelComposeService]; composeProject.MatchString(p) {
+		c.Compose = &evidence.ComposeRef{Project: p}
+		if composeService.MatchString(s) {
+			c.Compose.Service = s
+		}
 	}
 	for name, n := range r.NetworkSettings.Networks {
 		a := evidence.NetAttachment{
@@ -200,9 +218,11 @@ func (r containerJSON) toEvidence() evidence.Container {
 			IPv6:      parseAddr(n.GlobalIPv6Address),
 			Gateway:   parseAddr(n.Gateway),
 		}
-		names := append(slices.Clone(n.Aliases), n.DNSNames...)
-		for i := range names {
-			names[i] = strings.ToLower(names[i])
+		var names []string
+		for _, name := range append(slices.Clone(n.Aliases), n.DNSNames...) {
+			if dnsName.MatchString(name) {
+				names = append(names, strings.ToLower(name))
+			}
 		}
 		slices.Sort(names)
 		a.Names = slices.Compact(names)

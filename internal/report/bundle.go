@@ -111,7 +111,7 @@ func Save(d *engine.Diagnosis, o SaveOptions) (Saved, error) {
 	files := map[string][]byte{
 		"diagnosis.json": diagJSON,
 		"evidence.jsonl": evs.Bytes(),
-		"report.md":      []byte(clean(md.String())),
+		"report.md":      []byte(Sanitize(clean(md.String()))),
 	}
 	m := manifest{
 		Whyreach: o.Version, Schema: BundleSchema, DiagnosisID: d.ID, CreatedAt: o.Now().UTC(),
