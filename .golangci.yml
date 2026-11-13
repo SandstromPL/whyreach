@@ -1,0 +1,47 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose
+    - errorlint
+    - forbidigo
+    - gosec
+    - misspell
+    - noctx
+    - nolintlint
+    - unconvert
+  settings:
+    errcheck:
+      # A failed write of CLI text to stdout/stderr is not actionable.
+      # Files (reports, audit log) must still check Write/Close errors.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    forbidigo:
+      forbid:
+        # CLAUDE.md non-negotiable 5: stdout belongs to MCP in `mcp serve`.
+        - pattern: ^fmt\.Print(f|ln)?$
+          msg: "write to an explicit io.Writer; stdout belongs to the MCP protocol in `mcp serve`"
+        # CLAUDE.md non-negotiable 1: no shell-outs in product code.
+        - pattern: ^exec\.Command(Context)?$
+          msg: "no shell-outs in product code; use netlink, /proc, the Docker API or Go dialers"
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [forbidigo, gosec]
+      # Throwaway spikes and the lab harness may print and shell out.
+      - path: ^(spikes|test)/
+        linters: [forbidigo, gosec]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

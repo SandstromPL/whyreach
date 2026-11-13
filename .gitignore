@@ -1,0 +1,10 @@
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+
+# spike artefacts (binaries, tarballs, raw outputs)
+/spikes/out/
+
+.DS_Store
