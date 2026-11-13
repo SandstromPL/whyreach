@@ -309,9 +309,14 @@ func newProbe(o Options) *cobra.Command {
 }
 
 // probeHowTo is the advice for a check that needs probe containers.
-func probeHowTo(p *policy.Policy) string {
-	return "Checks from inside a container need probe containers: set probe_containers = true under [permissions] in " +
-		p.ConfigPath() + ", or approve them when an MCP client asks."
+func probeHowTo(p *policy.Policy) func(evidence.Evidence) string {
+	return func(e evidence.Evidence) string {
+		if e.Status != evidence.StatusPermissionDenied {
+			return ""
+		}
+		return "Checks from inside a container need probe containers: set probe_containers = true under [permissions] in " +
+			p.ConfigPath() + ", or approve them when an MCP client asks."
+	}
 }
 
 func writeJSON(w io.Writer, v any) error {

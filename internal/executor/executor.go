@@ -95,6 +95,30 @@ func specSubject(s probe.Spec) string {
 	}
 }
 
+// KnownNames reports whether Docker's own metadata knows name: a container
+// name, Compose service, network alias or DNS name. A lookup of such a
+// name carries nothing an agent chose, so it needs no approval (INITIAL.md
+// §10 Q11). The engine puts one in the context of each batch, from the
+// metadata it has; the policy asks it only about outside names it would
+// otherwise hold back.
+type KnownNames func(ctx context.Context, name string) bool
+
+type knownNamesKey struct{}
+
+// WithKnownNames returns a context whose batches use k.
+func WithKnownNames(ctx context.Context, k KnownNames) context.Context {
+	return context.WithValue(ctx, knownNamesKey{}, k)
+}
+
+// KnownNamesFrom returns the KnownNames set with WithKnownNames; without
+// one, Docker knows no name.
+func KnownNamesFrom(ctx context.Context) KnownNames {
+	if k, ok := ctx.Value(knownNamesKey{}).(KnownNames); ok && k != nil {
+		return k
+	}
+	return func(context.Context, string) bool { return false }
+}
+
 // SideEffects collects the Docker writes made for one diagnosis
 // (INITIAL.md §3.3). The engine puts one in the context of each diagnosis,
 // so a long-lived process never mixes up the writes of different ones.

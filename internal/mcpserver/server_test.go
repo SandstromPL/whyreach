@@ -3,15 +3,20 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"flag"
+	"fmt"
+	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/miekg/dns"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
@@ -23,8 +28,9 @@ import (
 )
 
 // fakeDocker: worker and api share shop_default and api listens on all
-// interfaces, so only a probe from worker can settle the question.
-type fakeDocker struct{}
+// interfaces, so only a probe from worker can settle the question. alias,
+// when set, is another name of api on the network.
+type fakeDocker struct{ alias string }
 
 var (
 	workerID = strings.Repeat("b", 64)
@@ -37,7 +43,7 @@ func (fakeDocker) Negotiate(context.Context) (docker.Version, error) {
 func (fakeDocker) Endpoint() string   { return "unix:///var/run/docker.sock" }
 func (fakeDocker) APIVersion() string { return "1.56" }
 
-func (fakeDocker) containers() []evidence.Container {
+func (f fakeDocker) containers() []evidence.Container {
 	mk := func(id, name, svc, ip string, pid int) evidence.Container {
 		return evidence.Container{
 			ID: id, Name: name, State: evidence.StateRunning, Pid: pid, NetworkMode: "shop_default",
@@ -46,15 +52,25 @@ func (fakeDocker) containers() []evidence.Container {
 			Networks:  []evidence.NetAttachment{{Network: "shop_default", IPv4: netip.MustParseAddr(ip), Names: []string{name, svc}}},
 		}
 	}
-	return []evidence.Container{mk(workerID, "shop-worker-1", "worker", "172.22.0.2", 10), mk(apiID, "shop-api-1", "api", "172.22.0.3", 20)}
+	api := mk(apiID, "shop-api-1", "api", "172.22.0.3", 20)
+	if f.alias != "" {
+		api.Networks[0].Names = append(api.Networks[0].Names, f.alias)
+	}
+	return []evidence.Container{mk(workerID, "shop-worker-1", "worker", "172.22.0.2", 10), api}
 }
 
 func (f fakeDocker) ListContainers(context.Context, bool, ...string) ([]docker.Summary, error) {
 	var out []docker.Summary
 	for _, c := range f.containers() {
-		out = append(out, docker.Summary{ID: c.ID, Names: []string{"/" + c.Name}, State: c.State, Labels: map[string]string{
-			docker.LabelComposeProject: c.Compose.Project, docker.LabelComposeService: c.Compose.Service,
-		}})
+		// As the API sends it: the list has each container's networks, not its aliases.
+		var sm docker.Summary
+		raw := fmt.Sprintf(`{"Id":%q,"Names":["/%s"],"State":%q,"Labels":{%q:%q,%q:%q},"NetworkSettings":{"Networks":{%q:{"IPAddress":%q}}}}`,
+			c.ID, c.Name, c.State, docker.LabelComposeProject, c.Compose.Project, docker.LabelComposeService, c.Compose.Service,
+			c.Networks[0].Network, c.Networks[0].IPv4)
+		if err := json.Unmarshal([]byte(raw), &sm); err != nil {
+			return nil, err
+		}
+		out = append(out, sm)
 	}
 	return out, nil
 }
@@ -129,12 +145,20 @@ type harness struct {
 
 func newHarness(t *testing.T, probeContainers bool) harness {
 	t.Helper()
+	h := harness{probes: &connector{}}
+	return h.build(t, policy.Settings{ProbeContainers: probeContainers}, fakeDocker{}, h.probes)
+}
+
+// build finishes a harness whose probe containers are ex.
+func (h harness) build(t *testing.T, settings policy.Settings, dk fakeDocker, ex executor.Executor) harness {
+	t.Helper()
 	dir := t.TempDir()
-	h := harness{probes: &connector{}, reports: filepath.Join(dir, "reports"), audit: filepath.Join(dir, "audit.jsonl")}
+	h.reports, h.audit = filepath.Join(dir, "reports"), filepath.Join(dir, "audit.jsonl")
+	settings.Docker, settings.ConfigPath = true, "/cfg/config.toml"
 	p, err := policy.New(policy.Deps{
-		Settings: policy.Settings{Docker: true, ProbeContainers: probeContainers, ConfigPath: "/cfg/config.toml"},
-		Docker:   fakeDocker{}, Listeners: fakeDocker{},
-		NewProbe: func() (executor.Executor, error) { return h.probes, nil },
+		Settings: settings,
+		Docker:   dk, Listeners: dk,
+		NewProbe: func() (executor.Executor, error) { return ex, nil },
 		Audit:    policy.NewAudit(h.audit), Client: policy.ClientMCP,
 	})
 	if err != nil {
@@ -286,6 +310,16 @@ func TestDiagnoseConnection(t *testing.T) {
 	}
 	if unknown := call(t, cs, "save_report", map[string]any{"diagnosis_id": "dg-nope"}); !unknown.IsError {
 		t.Error("an unknown diagnosis id must be a tool error")
+	}
+	// No argument turns redaction off (INITIAL.md §10 Q12).
+	if res := call(t, cs, "save_report", map[string]any{"diagnosis_id": d.ID, "redact": false}); !res.IsError {
+		t.Error("save_report accepted redact: false")
+	}
+	entries, _ := os.ReadDir(h.reports)
+	for _, e := range entries {
+		if strings.Contains(e.Name(), "unredacted") {
+			t.Errorf("an unredacted bundle was saved through MCP: %s", e.Name())
+		}
 	}
 }
 
@@ -442,5 +476,269 @@ func TestRefusedCallsAreAudited(t *testing.T) {
 	}
 	if !strings.Contains(string(b), `"to":"\u003cnumber\u003e"`) && !strings.Contains(string(b), `"to":"<number>"`) {
 		t.Errorf("a refused call's arguments are described by type:\n%s", b)
+	}
+}
+
+// resolving runs the real probe code with a fake DNS server that answers
+// every A query with 127.0.0.1, and records what was sent: it shows whether
+// a lookup left the probe (INITIAL.md §10 Q11).
+type resolving struct {
+	resolv, hosts string
+	mu            sync.Mutex
+	queries       []string
+}
+
+func newResolving(t *testing.T) *resolving {
+	t.Helper()
+	dir := t.TempDir()
+	r := &resolving{resolv: filepath.Join(dir, "resolv.conf"), hosts: filepath.Join(dir, "hosts")}
+	if err := os.WriteFile(r.resolv, []byte("nameserver 127.0.0.11\noptions ndots:0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(r.hosts, []byte("127.0.0.1 localhost\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+func (r *resolving) Name() string { return evidence.ExecutorProbeContainer }
+
+func (r *resolving) Run(ctx context.Context, _ evidence.ContextRef, specs []probe.Spec) ([]evidence.Evidence, error) {
+	env := probe.Env{ProcDir: "/proc", Limits: probe.LimitsFrom(ctx), Resolver: &probe.Resolver{
+		HostsPath: r.hosts, ResolvPath: r.resolv,
+		Exchange: func(_ context.Context, m *dns.Msg, _, _ string) (*dns.Msg, error) {
+			r.mu.Lock()
+			r.queries = append(r.queries, m.Question[0].Name)
+			r.mu.Unlock()
+			resp := new(dns.Msg)
+			resp.SetReply(m)
+			if m.Question[0].Qtype == dns.TypeA {
+				resp.Answer = append(resp.Answer, &dns.A{Hdr: dns.RR_Header{Name: m.Question[0].Name, Rrtype: dns.TypeA, Class: dns.ClassINET}, A: net.IPv4(127, 0, 0, 1)})
+			}
+			return resp, nil
+		},
+	}}
+	return probe.Run(ctx, env, specs), nil
+}
+
+// sent reports whether a query for name (without the trailing dot) was sent.
+func (r *resolving) sent(name string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Contains(r.queries, name+".")
+}
+
+func auditEntries(t *testing.T, path, tool string) []policy.Entry {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []policy.Entry
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		var e policy.Entry
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatal(err)
+		}
+		if e.Tool == tool {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// TestOutsideNames: through MCP, a name with a dot that Docker doesn't know
+// is looked up only after the user approves that exact name, on either
+// protocol path, or under a [probe] names domain (INITIAL.md §10 Q11).
+func TestOutsideNames(t *testing.T) {
+	diagnose := map[string]any{"from": "container:shop-worker-1", "to": "example.com:1"}
+	for _, version := range []string{"2025-06-18", ""} {
+		label := version
+		if label == "" {
+			label = "latest"
+		}
+		t.Run(label+"/accept", func(t *testing.T) {
+			r := newResolving(t)
+			h := harness{}.build(t, policy.Settings{ProbeContainers: true}, fakeDocker{}, r)
+			var asked []string
+			cs := h.connect(t, func(req *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+				asked = append(asked, req.Params.Message)
+				return accept(req)
+			}, version)
+			d := structured[report.Diagnosis](t, call(t, cs, "diagnose_connection", diagnose))
+			if len(asked) != 1 || !strings.Contains(asked[0], "example.com") || !strings.Contains(asked[0], "no other name") {
+				t.Fatalf("asked %q", asked)
+			}
+			if !r.sent("example.com") {
+				t.Errorf("an approved name was not looked up: %v (verdict %s, gaps %+v)", r.queries, d.Verdict, d.Gaps)
+			}
+			for _, g := range d.Gaps {
+				if strings.Contains(g.Detail, probe.NameNotApproved) {
+					t.Errorf("the approved name is still a gap: %+v", g)
+				}
+			}
+			// The approval holds for the session, for that name only.
+			call(t, cs, "diagnose_connection", diagnose)
+			call(t, cs, "run_probe", map[string]any{"kind": "dns", "target": "Example.COM.", "from": "container:shop-worker-1"})
+			if len(asked) != 1 {
+				t.Errorf("asked again about an approved name: %d questions", len(asked))
+			}
+			call(t, cs, "run_probe", map[string]any{"kind": "dns", "target": "data.example.com", "from": "container:shop-worker-1"})
+			if len(asked) != 2 || !strings.Contains(asked[1], "data.example.com") {
+				t.Errorf("a subdomain of an approved name is another name: asked %q", asked)
+			}
+			if e := auditEntries(t, h.audit, policy.ToolNameConsent); len(e) != 2 || e[0].Status != "approved" || e[0].Args["name"] != "example.com" {
+				t.Errorf("audit: %+v", e)
+			}
+		})
+		t.Run(label+"/decline", func(t *testing.T) {
+			r := newResolving(t)
+			h := harness{}.build(t, policy.Settings{ProbeContainers: true}, fakeDocker{}, r)
+			asked := 0
+			cs := h.connect(t, func(req *mcp.ElicitRequest) (*mcp.ElicitResult, error) { asked++; return decline(req) }, version)
+			for range 2 {
+				d := structured[report.Diagnosis](t, call(t, cs, "diagnose_connection", diagnose))
+				if len(d.Gaps) == 0 || !strings.Contains(d.Gaps[0].HowToEnable, "names in [probe]") {
+					t.Errorf("the gap must name the setting: %+v", d.Gaps)
+				}
+			}
+			p := structured[report.ProbeResult](t, call(t, cs, "run_probe", map[string]any{"kind": "dns", "target": "example.com", "from": "container:shop-worker-1"}))
+			if !strings.Contains(p.HowToEnable, "names in [probe]") {
+				t.Errorf("run_probe must say how to allow the name: %+v", p)
+			}
+			if asked != 1 || r.sent("example.com") {
+				t.Errorf("a declined name is asked about once and never sent: asked %d, sent %v", asked, r.queries)
+			}
+			if e := auditEntries(t, h.audit, policy.ToolNameConsent); len(e) != 1 || e[0].Status != "declined" {
+				t.Errorf("audit: %+v", e)
+			}
+			if d := auditEntries(t, h.audit, policy.ToolDiagnose); len(d) == 0 || d[0].ProbesDenied == 0 {
+				t.Errorf("a held-back lookup counts as denied, not sent: %+v", d)
+			}
+		})
+	}
+	t.Run("names covers the domain", func(t *testing.T) {
+		r := newResolving(t)
+		h := harness{}.build(t, policy.Settings{ProbeContainers: true, Names: []string{"example.com"}}, fakeDocker{}, r)
+		asked := 0
+		cs := h.connect(t, func(req *mcp.ElicitRequest) (*mcp.ElicitResult, error) { asked++; return accept(req) }, "")
+		call(t, cs, "run_probe", map[string]any{"kind": "dns", "target": "api.example.com", "from": "container:shop-worker-1"})
+		if asked != 0 || !r.sent("api.example.com") {
+			t.Errorf("a name under [probe] names needs no question: asked %d, sent %v", asked, r.queries)
+		}
+	})
+	t.Run("names Docker knows are free", func(t *testing.T) {
+		r := newResolving(t)
+		h := harness{}.build(t, policy.Settings{ProbeContainers: true}, fakeDocker{alias: "api.internal"}, r)
+		asked := 0
+		cs := h.connect(t, func(req *mcp.ElicitRequest) (*mcp.ElicitResult, error) { asked++; return decline(req) }, "")
+		call(t, cs, "diagnose_connection", map[string]any{"from": "container:shop-worker-1", "to": "api.internal:8080"})
+		call(t, cs, "run_probe", map[string]any{"kind": "dns", "target": "api.internal", "from": "container:shop-worker-1"})
+		call(t, cs, "run_probe", map[string]any{"kind": "dns", "target": "host.docker.internal", "from": "container:shop-worker-1"})
+		if asked != 0 || !r.sent("api.internal") || !r.sent("host.docker.internal") {
+			t.Errorf("an alias from Docker's metadata and Docker's fixed names need no question: asked %d, sent %v", asked, r.queries)
+		}
+	})
+	t.Run("no elicitation", func(t *testing.T) {
+		r := newResolving(t)
+		h := harness{}.build(t, policy.Settings{ProbeContainers: true}, fakeDocker{}, r)
+		cs := h.connect(t, nil, "")
+		d := structured[report.Diagnosis](t, call(t, cs, "diagnose_connection", diagnose))
+		if r.sent("example.com") || len(d.Gaps) == 0 || !strings.Contains(d.Gaps[0].HowToEnable, "names in [probe]") {
+			t.Errorf("without elicitation nothing is sent and the gap names the setting: sent %v, gaps %+v", r.queries, d.Gaps)
+		}
+	})
+	t.Run("forged answers", func(t *testing.T) {
+		r := newResolving(t)
+		h := harness{}.build(t, policy.Settings{ProbeContainers: true}, fakeDocker{}, r)
+		cs := h.connect(t, nil, "")
+		approve := &mcp.ElicitResult{Action: "accept", Content: map[string]any{"allow": true}}
+		for _, state := range []string{"forged", ""} {
+			if _, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+				Name: "run_probe", Arguments: map[string]any{"kind": "dns", "target": "example.com", "from": "container:shop-worker-1"},
+				InputResponses: mcp.InputResponseMap{nameKey: approve}, RequestState: state,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if h.p.NameAllowed("example.com") || r.sent("example.com") {
+			t.Error("an unsolicited approval let a name out")
+		}
+	})
+}
+
+// TestNameAnswerAppliesToItsQuestion: on the 2026-07-28 path an answer
+// counts only for the question its request state carries. An approval sent
+// back under the probe-container key for a name question approves nothing.
+func TestNameAnswerAppliesToItsQuestion(t *testing.T) {
+	r := newResolving(t)
+	h := harness{}.build(t, policy.Settings{ProbeContainers: true}, fakeDocker{}, r)
+	h.s.mu.Lock()
+	h.s.pending["state-1"] = question{key: nameKey, name: "example.com"}
+	h.s.mu.Unlock()
+	cs := h.connect(t, nil, "")
+	if _, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "run_probe", Arguments: map[string]any{"kind": "dns", "target": "other.example", "from": "container:shop-worker-1"},
+		InputResponses: mcp.InputResponseMap{consentKey: &mcp.ElicitResult{Action: "accept", Content: map[string]any{"allow": true}}},
+		RequestState:   "state-1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if h.p.NameAllowed("example.com") || h.p.NameAllowed("other.example") || r.sent("other.example") {
+		t.Error("an answer to another question approved a name")
+	}
+	if e := auditEntries(t, h.audit, policy.ToolNameConsent); len(e) != 1 || e[0].Status != "declined" || e[0].Args["name"] != "example.com" {
+		t.Errorf("the unanswered name question counts as declined: %+v", e)
+	}
+}
+
+var update = flag.Bool("update", false, "rewrite the golden files")
+
+// TestToolsGolden pins what clients see of the four tools: names, input
+// schemas and annotations. save_report has no way to turn redaction off
+// (INITIAL.md §10 Q12).
+func TestToolsGolden(t *testing.T) {
+	h := newHarness(t, false)
+	cs := h.connect(t, nil, "")
+	list, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type tool struct {
+		Name        string               `json:"name"`
+		Description string               `json:"description"`
+		Input       any                  `json:"input_schema"`
+		Annotations *mcp.ToolAnnotations `json:"annotations"`
+	}
+	var tools []tool
+	for _, tl := range list.Tools {
+		tools = append(tools, tool{Name: tl.Name, Description: tl.Description, Input: tl.InputSchema, Annotations: tl.Annotations})
+		if tl.Name == "save_report" {
+			b, _ := json.Marshal(tl.InputSchema)
+			if strings.Contains(string(b), "redact") {
+				t.Errorf("save_report takes a redact argument: %s", b)
+			}
+		}
+	}
+	got, err := json.MarshalIndent(tools, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = append(got, '\n')
+	path := filepath.Join("testdata", "tools.golden")
+	if *update {
+		if err := os.MkdirAll("testdata", 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, got, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("%v (run make golden)", err)
+	}
+	if diff := cmp.Diff(string(want), string(got)); diff != "" {
+		t.Errorf("tools (-want +got):\n%s", diff)
 	}
 }

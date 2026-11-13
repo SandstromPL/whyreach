@@ -62,6 +62,10 @@ type PermissionFacts struct {
 	Root            bool     `json:"root"`
 	Allow           []string `json:"probe_allow,omitempty"`
 	RatePerMinute   int      `json:"probes_per_minute"`
+	// OutsideNames says which names with a dot that Docker doesn't know are
+	// looked up: any (the CLI), or only with the user's approval (MCP),
+	// except under the [probe] names domains (INITIAL.md §10 Q11).
+	OutsideNames string `json:"outside_names"`
 }
 
 // IfaceFacts is one host interface.

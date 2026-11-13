@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
 	"sync/atomic"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/probe"
+	"github.com/SandstromPL/whyreach/internal/target"
 )
 
 // guard wraps an executor with the policy: the permission tier, the probe
@@ -61,6 +63,7 @@ func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 	if len(send) == 0 {
 		return refused, nil
 	}
+	lim.NamesRestricted, lim.Names = g.p.names(ctx, send)
 	ex, err := g.inner()
 	if err != nil {
 		return append(refused, executor.Failed(where, g.name, send, evidence.StatusFailed, &evidence.Error{
@@ -78,7 +81,41 @@ func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 			}
 		}
 	}
+	// A lookup the probe held back for its name was never sent.
+	if lim.NamesRestricted {
+		held := 0
+		for _, e := range evs {
+			if NameHeldBack(e) {
+				held++
+			}
+		}
+		countsFrom(ctx).add(-held, held)
+	}
 	return append(evs, refused...), err
+}
+
+// names says whether a batch's lookups of outside names are held back, and
+// which outside names among its checks may go to a nameserver anyway: those
+// Docker's metadata knows, those [probe] names covers, and those the user
+// approved this session (INITIAL.md §10 Q11).
+func (p *Policy) names(ctx context.Context, specs []probe.Spec) (restricted bool, allowed []string) {
+	if !p.NamesNeedApproval() {
+		return false, nil
+	}
+	known := executor.KnownNamesFrom(ctx)
+	for _, s := range specs {
+		if s.Kind == probe.SpecListeners || !target.OutsideName(s.Host) {
+			continue
+		}
+		n := target.NormalizeName(s.Host)
+		if slices.Contains(allowed, n) {
+			continue
+		}
+		if p.NameAllowed(n) || known(ctx, n) {
+			allowed = append(allowed, n)
+		}
+	}
+	return true, allowed
 }
 
 // deny is the record of a check the policy refused to send.

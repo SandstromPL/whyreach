@@ -28,8 +28,13 @@ func (p *Policy) Doctor(ctx context.Context) []engine.Check {
 	if len(p.d.Settings.Allow) > 0 {
 		allow = strings.Join(p.d.Settings.Allow, ", ")
 	}
+	names := "no domain is listed under [probe] names"
+	if len(p.d.Settings.Names) > 0 {
+		names = "names under " + strings.Join(p.d.Settings.Names, ", ") + " need no approval ([probe] names)"
+	}
 	out = append(out, engine.Check{Name: "probe policy", Status: engine.CheckInfo,
-		Detail: fmt.Sprintf("TCP probes may go to %s; at most %d probes a minute; link-local and cloud-metadata addresses are always blocked", allow, p.d.Settings.RatePerMinute)})
+		Detail: fmt.Sprintf("TCP probes may go to %s; at most %d probes a minute; link-local and cloud-metadata addresses are always blocked, as nameservers too. "+
+			"For MCP clients, a name with a dot that Docker doesn't know is looked up only after the user approves it; %s", allow, p.d.Settings.RatePerMinute, names)})
 
 	pl := platform.Detect()
 	out = append(out, p.netnsCheck(ctx, pl))

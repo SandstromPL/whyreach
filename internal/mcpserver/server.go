@@ -52,19 +52,31 @@ type Server struct {
 	o   Options
 	srv *mcp.Server
 
-	logOnce  sync.Once
-	mu       sync.Mutex
-	recent   []*engine.Diagnosis // the last few, for save_report
-	asked    bool                // the user was asked for probe containers this session
-	pending  map[string]bool     // request states of consent requests sent as input requests
-	readOnly bool                // the annotations currently registered
+	logOnce    sync.Once
+	mu         sync.Mutex
+	recent     []*engine.Diagnosis // the last few, for save_report
+	asked      bool                // the user was asked for probe containers this session
+	askedNames map[string]bool     // outside names the user was asked about this session
+	pending    map[string]question // request states of questions sent as input requests
+	readOnly   bool                // the annotations currently registered
+}
+
+// question is what an input request asked the user: to allow probe
+// containers, or to look up one outside name.
+type question struct {
+	key  string // consentKey or nameKey
+	name string // for nameKey: the name the server asked about
 }
 
 // keep is how many diagnoses save_report can find.
 const keep = 32
 
-// consentKey names the probe-container question in input requests.
-const consentKey = "probe_containers"
+// Keys of the questions in input requests: probe containers, and the
+// lookup of an outside name (INITIAL.md §10 Q11).
+const (
+	consentKey = "probe_containers"
+	nameKey    = "name_lookup"
+)
 
 // New builds the server and registers its tools.
 func New(p *policy.Policy, o Options) *Server {
@@ -74,7 +86,7 @@ func New(p *policy.Policy, o Options) *Server {
 	if o.ConsentTimeout <= 0 {
 		o.ConsentTimeout = 2 * time.Minute
 	}
-	s := &Server{p: p, o: o, pending: map[string]bool{}}
+	s := &Server{p: p, o: o, pending: map[string]question{}, askedNames: map[string]bool{}}
 	s.srv = mcp.NewServer(&mcp.Implementation{Name: "whyreach", Title: "whyreach: Docker network diagnosis", Version: o.Version}, &mcp.ServerOptions{
 		Logger:             o.Logger,
 		Instructions:       instructions,
@@ -261,7 +273,7 @@ func (s *Server) register() {
 		Name:  "save_report",
 		Title: "Save a diagnosis as a report bundle",
 		Description: "Save a diagnosis (its id from diagnose_connection) with all its evidence as a report bundle on disk, to attach to an issue. " +
-			"Public IP addresses, host names and container IDs are replaced by pseudonyms unless redact is false.",
+			"The bundle is redacted: public IP addresses, host names and container IDs are replaced by pseudonyms.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &no, IdempotentHint: true, OpenWorldHint: &no},
 	}, s.save)
 }
@@ -282,11 +294,22 @@ func (s *Server) diagnose(ctx context.Context, req *mcp.CallToolRequest, in Diag
 	if err != nil {
 		return nil, report.Diagnosis{}, err
 	}
-	settled := d.Verdict == engine.VerdictCause && d.Primary() != nil && d.Primary().Confidence == rules.High
-	if !settled && policy.NeedsProbeContainers(d.Evidence) {
+	// A cause that metadata and listeners settle needs no more permission.
+	if !settled(d) && policy.NeedsProbeContainers(d.Evidence) {
 		res, approved := s.askForProbeContainers(ctx, req, d.Question.From.Ref)
 		if res != nil {
 			return res, report.Diagnosis{}, nil // the client asks the user and calls again
+		}
+		if approved {
+			if again, err := s.p.Diagnose(ctx, args); err == nil {
+				d = again
+			}
+		}
+	}
+	if names := policy.NeedsNameApproval(d.Evidence); !settled(d) && len(names) > 0 {
+		res, approved := s.askForName(ctx, req, names, d.Question.From.Ref)
+		if res != nil {
+			return res, report.Diagnosis{}, nil
 		}
 		if approved {
 			if again, err := s.p.Diagnose(ctx, args); err == nil {
@@ -298,6 +321,12 @@ func (s *Server) diagnose(ctx context.Context, req *mcp.CallToolRequest, in Diag
 	var text bytes.Buffer
 	report.RenderText(&text, d)
 	return textResult(text.String()), report.Compact(d), nil
+}
+
+// settled reports a cause found at high confidence: no further check would
+// change the answer, so whyreach asks the user for nothing more.
+func settled(d *engine.Diagnosis) bool {
+	return d.Verdict == engine.VerdictCause && d.Primary() != nil && d.Primary().Confidence == rules.High
 }
 
 // InspectIn is inspect_environment's input.
@@ -344,33 +373,54 @@ func (s *Server) probe(ctx context.Context, req *mcp.CallToolRequest, in ProbeIn
 			}
 		}
 	}
-	out := report.CompactProbe(res, s.howToEnable())
+	if names := policy.NeedsNameApproval(res.Evidence); len(names) > 0 {
+		ask, approved := s.askForName(ctx, req, names, res.From)
+		if ask != nil {
+			return ask, report.ProbeResult{}, nil
+		}
+		if approved {
+			if again, err := s.p.Probe(ctx, args); err == nil {
+				res = again
+			}
+		}
+	}
+	out := report.CompactProbe(res, s.advice)
 	var text bytes.Buffer
 	report.RenderProbe(&text, out)
 	return textResult(text.String()), out, nil
 }
 
-// howToEnable is addressed to the user: turning a tier on is their
-// decision, never an agent's (an agent that can write files must not
-// change the config to widen its own permissions).
-func (s *Server) howToEnable() string {
-	return "This check runs inside the container through a probe container, which is off. Turning them on is the user's decision: " +
-		"approve probe containers when whyreach asks, or set probe_containers = true under [permissions] in " + s.p.ConfigPath() + "."
+// advice says how to allow a check that couldn't run, addressed to the
+// user: turning a tier on or approving a name is their decision, never an
+// agent's (an agent that can write files must not change the config to
+// widen its own permissions).
+func (s *Server) advice(e evidence.Evidence) string {
+	switch {
+	case e.Status == evidence.StatusPermissionDenied:
+		return "This check runs inside the container through a probe container, which is off. Turning them on is the user's decision: " +
+			"approve probe containers when whyreach asks, or set probe_containers = true under [permissions] in " + s.p.ConfigPath() + "."
+	case policy.NameHeldBack(e):
+		return "A lookup sends its name to the DNS servers of the name's domain, so whyreach looks up a name with a dot that Docker doesn't know " +
+			"only with the user's approval. That is the user's decision: approve the name when whyreach asks, or list its domain under names in [probe] in " +
+			s.p.ConfigPath() + "."
+	default:
+		return ""
+	}
 }
 
-// SaveIn is save_report's input.
+// SaveIn is save_report's input. It has no way to turn redaction off:
+// bundles saved through MCP are always redacted, and an unredacted one is
+// the user's to make with the CLI (INITIAL.md §10 Q12).
 type SaveIn struct {
 	DiagnosisID string `json:"diagnosis_id" jsonschema:"the id of a diagnosis from diagnose_connection in this session"`
-	Redact      *bool  `json:"redact,omitempty" jsonschema:"replace public IPs, host names and container IDs with pseudonyms (default true)"`
 }
 
 func (s *Server) save(ctx context.Context, req *mcp.CallToolRequest, in SaveIn) (*mcp.CallToolResult, report.Saved, error) {
 	reached(ctx)
 	s.logClient(req)
 	start := time.Now()
-	redact := in.Redact == nil || *in.Redact
-	saved, err := s.saveReport(in.DiagnosisID, redact)
-	s.p.Audit(policy.ToolSave, map[string]string{"diagnosis_id": in.DiagnosisID, "redact": fmt.Sprint(redact)}, start, err)
+	saved, err := s.saveReport(in.DiagnosisID)
+	s.p.Audit(policy.ToolSave, map[string]string{"diagnosis_id": in.DiagnosisID}, start, err)
 	if err != nil {
 		return nil, report.Saved{}, err
 	}
@@ -378,7 +428,7 @@ func (s *Server) save(ctx context.Context, req *mcp.CallToolRequest, in SaveIn) 
 	return textResult(text), saved, nil
 }
 
-func (s *Server) saveReport(id string, redact bool) (report.Saved, error) {
+func (s *Server) saveReport(id string) (report.Saved, error) {
 	d := s.lookup(id)
 	if d == nil {
 		return report.Saved{}, &policy.Error{Code: evidence.CodeNotFound, Message: fmt.Sprintf(
@@ -389,7 +439,7 @@ func (s *Server) saveReport(id string, redact bool) (report.Saved, error) {
 	}
 	home, _ := os.UserHomeDir()
 	return report.Save(d, report.SaveOptions{
-		Dir: s.o.ReportsDir, Redact: redact, RedactPrivate: s.o.RedactPrivate, Home: home, Version: s.o.Version,
+		Dir: s.o.ReportsDir, Redact: true, RedactPrivate: s.o.RedactPrivate, Home: home, Version: s.o.Version,
 	})
 }
 
@@ -441,7 +491,7 @@ func (s *Server) askForProbeContainers(ctx context.Context, req *mcp.CallToolReq
 	params := consentParams(source)
 	if req.ProtocolVersion() >= "2026-07-28" {
 		state := randomState()
-		s.pending[state] = true
+		s.pending[state] = question{key: consentKey}
 		s.mu.Unlock()
 		return &mcp.CallToolResult{InputRequests: mcp.InputRequestMap{consentKey: params}, RequestState: state}, false
 	}
@@ -457,26 +507,30 @@ func (s *Server) askForProbeContainers(ctx context.Context, req *mcp.CallToolReq
 	return nil, s.consent(answer)
 }
 
-// answered applies the answer to a consent request that this server sent
-// as an input request, when the client calls again with it. An answer
-// without a matching pending request is ignored.
+// answered applies the answer to a question that this server sent as an
+// input request, when the client calls again with it. The request state
+// says which question it was, and for a name which name: an answer applies
+// only to what the server asked, once. An answer without a matching pending
+// request is ignored.
 func (s *Server) answered(req *mcp.CallToolRequest) {
 	if req.Params == nil || req.Params.InputResponses == nil {
 		return
 	}
-	answer, ok := req.Params.InputResponses[consentKey].(*mcp.ElicitResult)
-	if !ok {
-		return
-	}
 	s.mu.Lock()
-	known := s.pending[req.Params.RequestState]
+	q, known := s.pending[req.Params.RequestState]
 	delete(s.pending, req.Params.RequestState)
 	s.mu.Unlock()
 	if !known {
-		s.o.Logger.Warn("ignored an answer to a probe-container request whyreach did not send")
+		s.o.Logger.Warn("ignored an answer to a request whyreach did not send")
 		return
 	}
-	s.consent(answer)
+	answer, _ := req.Params.InputResponses[q.key].(*mcp.ElicitResult) // nil: not answered, which declines
+	switch q.key {
+	case consentKey:
+		s.consent(answer)
+	case nameKey:
+		s.nameConsent(q.name, answer)
+	}
 }
 
 // consent records the user's answer and, on approval, re-registers the
@@ -492,6 +546,78 @@ func (s *Server) consent(answer *mcp.ElicitResult) bool {
 		s.register()
 	}
 	return approved
+}
+
+// askForName asks the user, once per name per session, to allow a lookup
+// of one outside name that a check needed (INITIAL.md §10 Q11), through the
+// same two paths as askForProbeContainers. An approval covers that exact
+// name only, for the rest of the session: one yes must not let other names
+// out. A name the user declined is not asked about again.
+func (s *Server) askForName(ctx context.Context, req *mcp.CallToolRequest, names []string, source string) (res *mcp.CallToolResult, approved bool) {
+	caps := req.ClientCapabilities()
+	if caps == nil || caps.Elicitation == nil {
+		return nil, false
+	}
+	s.mu.Lock()
+	name := ""
+	for _, n := range names {
+		if !s.askedNames[n] && !s.p.NameAllowed(n) {
+			name = n
+			break
+		}
+	}
+	if name == "" {
+		s.mu.Unlock()
+		return nil, false
+	}
+	s.askedNames[name] = true
+	params := nameParams(name, source, s.p.ConfigPath())
+	if req.ProtocolVersion() >= "2026-07-28" {
+		state := randomState()
+		s.pending[state] = question{key: nameKey, name: name}
+		s.mu.Unlock()
+		return &mcp.CallToolResult{InputRequests: mcp.InputRequestMap{nameKey: params}, RequestState: state}, false
+	}
+	s.mu.Unlock()
+	ectx, cancel := context.WithTimeout(ctx, s.o.ConsentTimeout)
+	defer cancel()
+	answer, err := req.Session.Elicit(ectx, params)
+	if err != nil {
+		s.o.Logger.Warn("could not ask about a name", "err", err)
+		s.p.RecordNameConsent(name, false, "no answer: "+err.Error())
+		return nil, false
+	}
+	return nil, s.nameConsent(name, answer)
+}
+
+// nameConsent records the user's answer about one name.
+func (s *Server) nameConsent(name string, answer *mcp.ElicitResult) bool {
+	approved := answer != nil && answer.Action == "accept" && answer.Content["allow"] == true
+	how := "cancel"
+	if answer != nil {
+		how = answer.Action
+	}
+	s.p.RecordNameConsent(name, approved, how)
+	return approved
+}
+
+func nameParams(name, source, configPath string) *mcp.ElicitParams {
+	return &mcp.ElicitParams{
+		Message: fmt.Sprintf("whyreach was asked to look up the name %s from %s. A lookup sends the name to the DNS servers of its domain, "+
+			"outside this machine, so whyreach asks you first: otherwise an agent could pass data out through the names it asks for. "+
+			"If you allow it, whyreach may look up exactly %s, and no other name, for the rest of this session. "+
+			"(To allow a whole domain without being asked, list it under names in [probe] in %s.) Allow looking up %s?",
+			name, source, name, configPath, name),
+		RequestedSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"allow": map[string]any{
+					"type": "boolean", "title": "Look up " + name + " for this session", "default": true,
+				},
+			},
+			"required": []string{"allow"},
+		},
+	}
 }
 
 func consentParams(source string) *mcp.ElicitParams {

@@ -173,7 +173,11 @@ func setup(dir string) error {
 	if err := os.MkdirAll(l.noProbe, 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(l.withProbe, "whyreach", "config.toml"), []byte("[permissions]\nprobe_containers = true\n"), 0o600)
+	// [probe] names: a headless agent can't approve a lookup of an outside
+	// name, and WR020's scenario diagnoses example.com (INITIAL.md §10 Q11).
+	// The CLI looks up any name, so it changes nothing for TestLab.
+	cfg := "[permissions]\nprobe_containers = true\n\n[probe]\nnames = [\"example.com\"]\n"
+	return os.WriteFile(filepath.Join(l.withProbe, "whyreach", "config.toml"), []byte(cfg), 0o600)
 }
 
 func repoRoot() (string, error) {

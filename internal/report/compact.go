@@ -210,9 +210,9 @@ type Record struct {
 	Text   string `json:"text"`
 }
 
-// CompactProbe derives run_probe's result. howTo is the advice for a check
-// that needs a permission it doesn't have.
-func CompactProbe(r *engine.ProbeResult, howTo string) ProbeResult {
+// CompactProbe derives run_probe's result. howTo returns the advice for a
+// record that needs a permission or an approval it doesn't have, or "".
+func CompactProbe(r *engine.ProbeResult, howTo func(evidence.Evidence) string) ProbeResult {
 	out := ProbeResult{Kind: r.Kind, From: r.From, Target: r.Target, Results: []Record{}, SideEffects: r.SideEffects, ChangesMade: r.ChangesMade}
 	if out.SideEffects == nil {
 		out.SideEffects = []string{}
@@ -222,8 +222,8 @@ func CompactProbe(r *engine.ProbeResult, howTo string) ProbeResult {
 		line := EvidenceLine(e)
 		out.Results = append(out.Results, Record{ID: e.ID, Kind: kindName(e.Kind), Status: string(e.Status), Text: line})
 		lines = append(lines, line)
-		if e.Status == evidence.StatusPermissionDenied {
-			out.HowToEnable = howTo
+		if h := howTo(e); h != "" && out.HowToEnable == "" {
+			out.HowToEnable = h
 		}
 	}
 	out.Summary = strings.Join(lines, "; ")

@@ -69,6 +69,9 @@ func (r *run) probe(ctx context.Context) error {
 		return nil
 	}
 
+	// Names Docker's metadata knows carry nothing an agent chose: the
+	// policy lets their lookups through without asking (INITIAL.md §10 Q11).
+	ctx = executor.WithKnownNames(ctx, func(_ context.Context, name string) bool { return dockerKnows(view.Containers(), name) })
 	evs, err := ex.Run(ctx, where, specs)
 	if err != nil {
 		r.e.d.Logger.Warn("probe batch failed", "executor", ex.Name(), "err", err)
@@ -122,6 +125,17 @@ func (r *run) specs(view evidence.View) []probe.Spec {
 		}
 	}
 	return specs
+}
+
+// dockerKnows reports whether one of cs answers to name in Docker's
+// metadata: its container name, Compose service, an alias or a DNS name.
+func dockerKnows(cs []evidence.ContainerEv, name string) bool {
+	for _, c := range cs {
+		if c.C.Matches(name) {
+			return true
+		}
+	}
+	return false
 }
 
 // destinationDown says why probing is pointless: every container the name

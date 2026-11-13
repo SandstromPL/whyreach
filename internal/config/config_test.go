@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +36,7 @@ probe_containers = true        # tier 2b
 [probe]
 allow = ["loopback", "rfc1918", "docker"]
 rate_per_minute = 30
+names = ["Example.COM.", "corp.example"]
 
 [timeouts]
 diagnosis = "10s"
@@ -48,6 +50,12 @@ redact_private = false
 	}
 	if !c.Permissions.ProbeContainers || c.Timeouts.Diagnosis.Duration != 10*time.Second {
 		t.Errorf("loaded = %+v", c)
+	}
+	if want := []string{"example.com", "corp.example"}; !slices.Equal(c.Probe.Names, want) {
+		t.Errorf("names = %q, want %q (folded)", c.Probe.Names, want)
+	}
+	if d := Default(); len(d.Probe.Names) != 0 {
+		t.Errorf("by default no domain is covered: %q", d.Probe.Names)
 	}
 
 	c, err = Load(write(t, "[permissions]\nprobe_containers = true\n"))
@@ -74,6 +82,11 @@ func TestLoadRejects(t *testing.T) {
 		"bad CIDR":       "[probe]\nallow = [\"10.0.0.0/33\"]\n",
 		"zero rate":      "[probe]\nrate_per_minute = 0\n",
 		"huge rate":      "[probe]\nrate_per_minute = 100000\n",
+		"name wildcard":  "[probe]\nnames = [\"*.example.com\"]\n",
+		"name address":   "[probe]\nnames = [\"10.0.0.1\"]\n",
+		"name with port": "[probe]\nnames = [\"example.com:53\"]\n",
+		"empty name":     "[probe]\nnames = [\"\"]\n",
+		"names a string": "[probe]\nnames = \"example.com\"\n",
 	}
 	for name, content := range tests {
 		if _, err := Load(write(t, content)); err == nil {

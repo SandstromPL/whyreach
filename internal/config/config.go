@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -41,10 +42,14 @@ type Permissions struct {
 
 // Probe narrows probe targets (INITIAL.md §4.9). Allow lists the address
 // classes ("loopback", "rfc1918", "docker") and CIDRs that TCP probes may
-// connect to; an empty list means any address the block list allows.
+// connect to; an empty list means any address the block list allows. Names
+// lists domains whose names an MCP client may have looked up without
+// asking the user (§10 Q11): "example.com" covers itself and its
+// subdomains.
 type Probe struct {
 	Allow         []string `toml:"allow"`
 	RatePerMinute int      `toml:"rate_per_minute"`
+	Names         []string `toml:"names"`
 }
 
 // Probe allowlist classes.
@@ -145,8 +150,33 @@ func Load(path string) (Config, error) {
 	if r := c.Probe.RatePerMinute; r < 1 || r > maxRate {
 		return c, fmt.Errorf("%s: probe.rate_per_minute must be between 1 and %d, got %d", path, maxRate, r)
 	}
+	for i, n := range c.Probe.Names {
+		d, err := domain(n)
+		if err != nil {
+			return c, fmt.Errorf("%s: probe.names: %w", path, err)
+		}
+		c.Probe.Names[i] = d
+	}
 	return c, nil
 }
+
+// domain validates a [probe] names entry and folds it: a DNS name such as
+// example.com, which covers its subdomains, so no wildcard is needed.
+func domain(s string) (string, error) {
+	d := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(s)), ".")
+	switch {
+	case strings.HasPrefix(d, "*.") || strings.HasPrefix(d, "."):
+		return "", fmt.Errorf("%q: write the domain alone, such as %s; it covers its subdomains", s, strings.TrimLeft(d, "*."))
+	case d == "" || len(d) > 253 || !domainName.MatchString(d):
+		return "", fmt.Errorf("%q is not a domain name such as example.com", s)
+	}
+	if _, err := netip.ParseAddr(d); err == nil {
+		return "", fmt.Errorf("%q is an address: names lists domains whose names may be looked up", s)
+	}
+	return d, nil
+}
+
+var domainName = regexp.MustCompile(`^[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?)*$`)
 
 // AllowPrefixes returns the addresses an allowlist entry stands for: a
 // class's fixed ranges, a CIDR, or a single address. "docker" stands for

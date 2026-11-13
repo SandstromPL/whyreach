@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/probe"
@@ -42,6 +43,7 @@ func (e *Engine) Probe(ctx context.Context, from target.From, spec probe.Spec) (
 			r := &run{e: e}
 			evs = []evidence.Evidence{r.hostListeners()}
 		} else {
+			ctx := executor.WithKnownNames(ctx, func(ctx context.Context, name string) bool { return e.knownName(ctx, nil, name) })
 			out, err := ex.Run(ctx, evidence.Host(), []probe.Spec{spec})
 			if err != nil {
 				e.d.Logger.Warn("probe failed", "executor", ex.Name(), "err", err)
@@ -123,11 +125,53 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 			Code: evidence.CodePermissionDenied, Message: executor.ProbeContainersOff,
 		}), nil
 	}
+	ctx = executor.WithKnownNames(ctx, func(ctx context.Context, name string) bool { return e.knownName(ctx, &owner, name) })
 	evs, err := ex.Run(ctx, evidence.InContainer(owner), []probe.Spec{spec})
 	if err != nil {
 		e.d.Logger.Warn("probe failed", "executor", ex.Name(), "err", err)
 	}
 	return restamp(evs), nil
+}
+
+// knownName reports whether Docker's metadata knows name, for a check run
+// on its own (INITIAL.md §10 Q11): a container name or Compose service in
+// the container list, or an alias or DNS name of a container on owner's
+// networks (only an inspect shows those; at most maxPeers are read). The
+// policy asks only about outside names it would otherwise hold back, so a
+// check that needs no answer reads nothing.
+func (e *Engine) knownName(ctx context.Context, owner *evidence.Container, name string) bool {
+	if e.d.Docker == nil {
+		return false
+	}
+	lctx, cancel := context.WithTimeout(ctx, dockerTimeout)
+	list, err := e.d.Docker.ListContainers(lctx, true)
+	cancel()
+	if err != nil {
+		e.d.Logger.Warn("could not list containers to look for a name", "err", err)
+		return false
+	}
+	var srcNets []string
+	if owner != nil && !owner.HostNetwork() {
+		srcNets = owner.NetworkNames()
+	}
+	var peers []docker.Summary
+	for _, s := range list {
+		if nameMatches(s, name) {
+			return true
+		}
+		if shares(s.Networks(), srcNets) && len(peers) < maxPeers {
+			peers = append(peers, s)
+		}
+	}
+	for _, s := range peers {
+		ictx, cancel := context.WithTimeout(ctx, dockerTimeout)
+		c, err := e.d.Docker.InspectContainer(ictx, s.ID)
+		cancel()
+		if err == nil && c.Matches(name) {
+			return true
+		}
+	}
+	return false
 }
 
 func specTarget(s probe.Spec) string {

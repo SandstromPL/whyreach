@@ -8,10 +8,13 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/evidence"
@@ -472,5 +475,75 @@ func TestProbeContainerListenerReadsAreRateLimited(t *testing.T) {
 	c.fill(&e)
 	if e.ProbesDenied != 2 || off.probe.count() != 0 {
 		t.Errorf("tier 2b off: denied %d, runs %d; want 2 and 0", e.ProbesDenied, off.probe.count())
+	}
+}
+
+// TestOutsideNameLimits: for MCP clients the guard restricts names and
+// lists the outside ones allowed ([probe] names, approvals); the CLI looks
+// up any name (INITIAL.md §10 Q11). The approval takes the exact name.
+func TestOutsideNameLimits(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t, Settings{Docker: true, Names: []string{"corp.example"}}, nil)
+	if _, err := f.p.Probe(ctx, ProbeArgs{Kind: "dns", Target: "Api.Corp.Example."}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.p.Probe(ctx, ProbeArgs{Kind: "tcp", Target: "data.attacker.example:443"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.p.Probe(ctx, ProbeArgs{Kind: "dns", Target: "api"}); err != nil {
+		t.Fatal(err)
+	}
+	want := []probe.Limits{
+		{NamesRestricted: true, Names: []string{"api.corp.example"}},
+		{NamesRestricted: true},
+		{NamesRestricted: true},
+	}
+	if diff := cmp.Diff(want, f.host.lims); diff != "" {
+		t.Errorf("limits (-want +got):\n%s", diff)
+	}
+
+	f.p.RecordNameConsent("Data.Attacker.Example.", true, "accept")
+	if !f.p.NameAllowed("data.attacker.example") || f.p.NameAllowed("other.attacker.example") || f.p.NameAllowed("attacker.example") {
+		t.Error("an approval covers exactly the name approved")
+	}
+	if _, err := f.p.Probe(ctx, ProbeArgs{Kind: "tcp", Target: "data.attacker.example:443"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.host.lims[len(f.host.lims)-1]; !got.NamesRestricted || !slices.Equal(got.Names, []string{"data.attacker.example"}) {
+		t.Errorf("after approval: %+v", got)
+	}
+	e := entries(t, f.audit)
+	if last := e[len(e)-2]; last.Tool != ToolNameConsent || last.Status != "approved" || last.Args["name"] != "data.attacker.example" {
+		t.Errorf("consent audit = %+v", last)
+	}
+
+	cli, err := New(Deps{Settings: Settings{Docker: true}, Docker: fakeDocker{}, Listeners: fakeDocker{}, Host: f.host, Client: ClientCLI})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cli.NamesNeedApproval() {
+		t.Error("the CLI's user types the names: nothing to approve")
+	}
+	if _, err := cli.Probe(ctx, ProbeArgs{Kind: "dns", Target: "data.attacker.example"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.host.lims[len(f.host.lims)-1]; got.NamesRestricted {
+		t.Errorf("CLI limits = %+v", got)
+	}
+}
+
+func TestNeedsNameApproval(t *testing.T) {
+	held := func(kind evidence.Kind, subject string) evidence.Evidence {
+		return evidence.Evidence{Kind: kind, Subject: subject, Status: evidence.StatusSkipped,
+			Err: &evidence.Error{Code: evidence.CodePolicyDenied, Message: probe.NameNotApproved}}
+	}
+	evs := []evidence.Evidence{
+		held(evidence.KindDNS, "Zeta.Example."), held(evidence.KindTCP, "zeta.example:443"),
+		held(evidence.KindDNS, "alpha.example"), held(evidence.KindDNS, "zeta.example"),
+		{Kind: evidence.KindDNS, Subject: "other.example", Status: evidence.StatusSkipped,
+			Err: &evidence.Error{Code: evidence.CodePolicyDenied, Message: "rate limit"}},
+	}
+	if got, want := NeedsNameApproval(evs), []string{"alpha.example", "zeta.example"}; !slices.Equal(got, want) {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }

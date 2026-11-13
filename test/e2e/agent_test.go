@@ -89,8 +89,10 @@ func runAgent(t *testing.T, dir string) agentResult {
 	tmp := t.TempDir()
 	logPath := filepath.Join(tmp, "server.log")
 	// Probe containers are on by default: a headless run has no one to
-	// answer a consent request. WHYREACH_AGENT_PROBES=off runs with the
-	// default config instead, so the server asks the client.
+	// answer a consent request, and the config lists example.com under
+	// [probe] names for the same reason (WR020's scenario looks it up).
+	// WHYREACH_AGENT_PROBES=off runs with the default config instead, so the
+	// server asks the client.
 	configHome := l.withProbe
 	if os.Getenv("WHYREACH_AGENT_PROBES") == "off" {
 		configHome = l.noProbe
@@ -175,7 +177,7 @@ func runAgent(t *testing.T, dir string) agentResult {
 	}
 	if b, err := os.ReadFile(filepath.Join(tmp, "state", "whyreach", "audit.jsonl")); err == nil {
 		for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
-			if strings.Contains(line, `"tool":"probe_containers_consent"`) {
+			if strings.Contains(line, `"tool":"probe_containers_consent"`) || strings.Contains(line, `"tool":"name_lookup_consent"`) {
 				t.Logf("consent: %s", line)
 			}
 		}

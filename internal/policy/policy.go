@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net/netip"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,6 +37,9 @@ const (
 	ToolProbe    = "run_probe"
 	ToolSave     = "save_report"
 	ToolConsent  = "probe_containers_consent" // the user's answer to an elicitation
+	// ToolNameConsent records the user's answer to a request to look up an
+	// outside name (INITIAL.md §10 Q11).
+	ToolNameConsent = "name_lookup_consent"
 )
 
 // Clients that go through the policy.
@@ -51,14 +55,17 @@ type Settings struct {
 	NetnsOff        bool     // [permissions] netns = false: tier 3 stays off, even as root
 	Allow           []string // [probe] allow: classes and CIDRs; empty means no allowlist
 	RatePerMinute   int      // [probe] rate_per_minute
-	ConfigPath      string   // named in advice
+	// Names are the domains whose names MCP clients may have looked up
+	// without asking the user ([probe] names), each covering its subdomains.
+	Names      []string
+	ConfigPath string // named in advice
 }
 
 // SettingsFrom reads the settings out of a loaded config.
 func SettingsFrom(c config.Config, path string) Settings {
 	return Settings{
 		Docker: c.Permissions.Docker, ProbeContainers: c.Permissions.ProbeContainers, NetnsOff: !c.Permissions.Netns,
-		Allow: c.Probe.Allow, RatePerMinute: c.Probe.RatePerMinute, ConfigPath: path,
+		Allow: c.Probe.Allow, RatePerMinute: c.Probe.RatePerMinute, Names: c.Probe.Names, ConfigPath: path,
 	}
 }
 
@@ -96,6 +103,9 @@ type Policy struct {
 	engine  *engine.Engine
 	granted atomic.Bool // tier 2b approved for this session
 
+	namesMu  sync.Mutex
+	approved map[string]bool // outside names the user approved for this session
+
 	probeOnce sync.Once
 	probeEx   executor.Executor
 	probeErr  error
@@ -121,7 +131,7 @@ func New(d Deps) (*Policy, error) {
 	if d.Docker == nil || d.Settings.NetnsOff {
 		d.Netns = nil // it finds containers through the Docker API; and the user can turn it off
 	}
-	p := &Policy{d: d, limiter: newLimiter(d.Settings.RatePerMinute, d.Now)}
+	p := &Policy{d: d, limiter: newLimiter(d.Settings.RatePerMinute, d.Now), approved: map[string]bool{}}
 	for _, entry := range d.Settings.Allow {
 		prefixes, err := config.AllowPrefixes(entry)
 		if err != nil {
@@ -187,6 +197,41 @@ func (p *Policy) RecordConsent(approved bool, how string) {
 		status = "approved"
 	}
 	p.audit(Entry{Tool: ToolConsent, Args: map[string]string{"answer": how}, Status: status, SideEffects: []string{}}, time.Now(), nil)
+}
+
+// NamesNeedApproval reports whether lookups of outside names are held back
+// until the user approves them (INITIAL.md §10 Q11): for MCP clients. The
+// CLI's user types the names, so it looks up any.
+func (p *Policy) NamesNeedApproval() bool { return p.d.Client == ClientMCP }
+
+// NameAllowed reports whether an outside name may be looked up without
+// asking: [probe] names covers it, or the user approved it this session.
+func (p *Policy) NameAllowed(name string) bool {
+	if target.CoveredBy(name, p.d.Settings.Names) {
+		return true
+	}
+	p.namesMu.Lock()
+	defer p.namesMu.Unlock()
+	return p.approved[target.NormalizeName(name)]
+}
+
+// RecordNameConsent records the user's answer to a request to look up one
+// outside name; an approval lets that exact name, and no other, be looked
+// up for the rest of the session. Only the MCP server calls it, with what
+// the user chose in the client's own dialog about the name the server
+// asked about: never with anything the model sent.
+func (p *Policy) RecordNameConsent(name string, approved bool, how string) {
+	n := target.NormalizeName(name)
+	if approved {
+		p.namesMu.Lock()
+		p.approved[n] = true
+		p.namesMu.Unlock()
+	}
+	status := "declined"
+	if approved {
+		status = "approved"
+	}
+	p.audit(Entry{Tool: ToolNameConsent, Args: map[string]string{"name": n, "answer": how}, Status: status, SideEffects: []string{}}, time.Now(), nil)
 }
 
 // Netns reports whether tier 3 is in effect: as root, container checks
@@ -262,6 +307,13 @@ func (p *Policy) permissionFacts() *engine.PermissionFacts {
 	f := &engine.PermissionFacts{
 		Docker: p.d.Docker != nil, Root: os.Geteuid() == 0, Allow: p.d.Settings.Allow,
 		RatePerMinute: p.d.Settings.RatePerMinute, ProbeContainers: "off", Netns: "off",
+		OutsideNames: "any (CLI)",
+	}
+	if p.NamesNeedApproval() {
+		f.OutsideNames = "ask the user"
+		if len(p.d.Settings.Names) > 0 {
+			f.OutsideNames += "; without asking under " + strings.Join(p.d.Settings.Names, ", ")
+		}
 	}
 	if p.Netns() {
 		f.Netns = "on (root)"
@@ -343,6 +395,29 @@ func NeedsProbeContainers(evs []evidence.Evidence) bool {
 		}
 	}
 	return false
+}
+
+// NeedsNameApproval lists the outside names whose lookups were held back
+// because no one approved them, sorted and without repeats: the names the
+// MCP server may ask the user about.
+func NeedsNameApproval(evs []evidence.Evidence) []string {
+	var out []string
+	for _, e := range evs {
+		if NameHeldBack(e) {
+			if n := target.NormalizeName(e.Subject); !slices.Contains(out, n) {
+				out = append(out, n)
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// NameHeldBack reports a lookup the probe didn't send because its outside
+// name wasn't approved.
+func NameHeldBack(e evidence.Evidence) bool {
+	return e.Kind == evidence.KindDNS && e.Status == evidence.StatusSkipped && e.Err != nil &&
+		e.Err.Code == evidence.CodePolicyDenied && e.Err.Message == probe.NameNotApproved
 }
 
 // Error is a request the policy refused or could not serve.

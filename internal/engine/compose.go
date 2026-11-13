@@ -10,6 +10,7 @@ import (
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
+	"github.com/SandstromPL/whyreach/internal/probe"
 	"github.com/SandstromPL/whyreach/internal/rules"
 )
 
@@ -426,6 +427,10 @@ func (r *run) howToEnable(e evidence.Evidence) string {
 		return fmt.Sprintf("whyreach runs as root, so it enters containers' network namespaces itself, and couldn't here. Allow probe containers for whyreach to use one instead (the user's decision: approve them when an MCP client asks, or set probe_containers = true under [permissions] in %s), or run whyreach as a regular user.", cfg)
 	case e.Status == evidence.StatusPermissionDenied && e.Err.Message == executor.ProbeContainersOff:
 		return fmt.Sprintf("Enable probe containers (the user's decision, not an agent's): approve them when an MCP client asks, or set probe_containers = true under [permissions] in %s. whyreach then imports its own binary as the image whyreach-probe and runs each check in a short-lived, hardened container labeled io.whyreach.probe=1, which it removes afterwards.", cfg)
+	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && e.Err.Message == probe.NameNotApproved:
+		return fmt.Sprintf("A lookup sends its name to the DNS servers of the name's domain, so for an MCP client whyreach looks up a name with a dot that Docker doesn't know only with the user's approval (the user's decision, not an agent's): approve the name when whyreach asks, or list its domain under names in [probe] in %s (example.com covers its subdomains).", cfg)
+	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && strings.Contains(e.Err.Message, "block list"):
+		return "The source's resolv.conf names only nameservers on the probe block list (link-local or cloud-metadata addresses), which whyreach never queries. Check its dns: setting."
 	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && strings.Contains(e.Err.Message, "allowlist"):
 		return fmt.Sprintf("Add the address or its range to allow under [probe] in %s (classes: loopback, rfc1918, docker; or CIDRs).", cfg)
 	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && strings.Contains(e.Err.Message, "rate limit"):

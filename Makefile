@@ -50,9 +50,9 @@ lab-root:
 	cd test/e2e && sudo $(LAB_ROOT)/e2e.test -test.run 'TestLabNetns' -test.count=1 -test.v -test.timeout 30m \
 		-lab.bin $(LAB_ROOT)/whyreach -lab.server $(LAB_ROOT)/labserver
 
-## golden: regenerate golden files: the text renderer, the compact MCP structured form, the Diagnosis JSON
+## golden: regenerate golden files: the text renderer, the compact MCP structured form, the Diagnosis JSON, the MCP tools
 golden:
-	go test ./internal/report/... -update
+	go test ./internal/report/... ./internal/mcpserver/... -update
 
 ## cross: compile check for macOS and Windows (INITIAL.md §4.15)
 cross:

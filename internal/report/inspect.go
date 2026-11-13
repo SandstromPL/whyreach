@@ -25,6 +25,9 @@ func RenderInspection(w io.Writer, in *engine.Inspection) {
 		if p := h.Permissions; p != nil {
 			line("permissions", []string{fmt.Sprintf("docker %v, probe containers %s, netns %s, root %v, %d probes/min, allow %s",
 				p.Docker, p.ProbeContainers, p.Netns, p.Root, p.RatePerMinute, orAny(p.Allow))})
+			if p.OutsideNames != "" {
+				line("names", []string{"outside names (with a dot, unknown to Docker): " + p.OutsideNames})
+			}
 		}
 		var ifs []string
 		for _, i := range h.Interfaces {

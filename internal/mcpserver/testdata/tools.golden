@@ -1,0 +1,110 @@
+[
+  {
+    "name": "diagnose_connection",
+    "description": "Diagnose why a network connection fails between Docker containers, or between a container and the host: connection refused, timeouts, names that don't resolve. Use this first when one service can't connect to another. to is the destination as the app uses it (host:port: a Compose service, container name, IP, localhost or host.docker.internal); from is where the connection starts: host (default), container:\u003cname\u003e or service:\u003ccompose service\u003e[@\u003cproject\u003e]. whyreach checks Docker metadata, listening sockets, DNS and TCP from the source's own network namespace, and returns the cause with evidence and a fix. It never changes containers, networks or config.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "expect": {
+          "description": "connect (the default): the connection should succeed",
+          "type": "string"
+        },
+        "from": {
+          "description": "where the connection starts: host (default), container:\u003cname or id\u003e, or service:\u003ccompose service\u003e[@\u003cproject\u003e]",
+          "type": "string"
+        },
+        "to": {
+          "description": "the destination as host:port, e.g. api:8080, localhost:5432, 172.22.0.3:8080 or host.docker.internal:5432",
+          "type": "string"
+        }
+      },
+      "required": [
+        "to"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "inspect_environment",
+    "description": "Inspect Docker networking: scope host (Docker version, interfaces, listening ports, containers and published ports), container:\u003cname\u003e or service:\u003cname\u003e[@\u003cproject\u003e] (state, networks, IPs, DNS names, published ports, listening sockets), or network:\u003cname\u003e (driver, subnet, members). Use it to see what exists. Read-only.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "scope": {
+          "description": "host, container:\u003cname or id\u003e, service:\u003ccompose service\u003e[@\u003cproject\u003e] or network:\u003cname\u003e",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "run_probe",
+    "description": "Run one network check from the host or from inside a container's network namespace: kind dns (target: a name), kind tcp (target: host:port; connects and closes, sends nothing) or kind listeners (no target: the listening TCP sockets). from is host (default), container:\u003cname\u003e or service:\u003cname\u003e[@\u003cproject\u003e]. Use it to confirm a fix or test one thing; use diagnose_connection to find a cause.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "description": "where the check runs: host (default), container:\u003cname or id\u003e, or service:\u003ccompose service\u003e[@\u003cproject\u003e]",
+          "type": "string"
+        },
+        "kind": {
+          "description": "dns, tcp or listeners",
+          "type": "string"
+        },
+        "target": {
+          "description": "for tcp host:port; for dns a name; for listeners leave it empty",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "save_report",
+    "description": "Save a diagnosis (its id from diagnose_connection) with all its evidence as a report bundle on disk, to attach to an issue. The bundle is redacted: public IP addresses, host names and container IDs are replaced by pseudonyms.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "diagnosis_id": {
+          "description": "the id of a diagnosis from diagnose_connection in this session",
+          "type": "string"
+        }
+      },
+      "required": [
+        "diagnosis_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    }
+  }
+]

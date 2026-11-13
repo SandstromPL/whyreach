@@ -65,7 +65,12 @@ func TestCompactProbe(t *testing.T) {
 			Context: evidence.ContextRef{Kind: evidence.ContextContainer, Name: "worker"},
 			Err:     &evidence.Error{Code: evidence.CodePermissionDenied, Message: "probe containers are off (tier 2b)"}},
 	}}
-	c := CompactProbe(r, "turn them on")
+	c := CompactProbe(r, func(e evidence.Evidence) string {
+		if e.Status == evidence.StatusPermissionDenied {
+			return "turn them on"
+		}
+		return ""
+	})
 	if c.HowToEnable != "turn them on" || len(c.Results) != 1 || c.Results[0].Kind != "tcp" ||
 		!strings.Contains(c.Summary, "permission_denied") || c.SideEffects == nil {
 		t.Errorf("compact probe = %+v", c)
