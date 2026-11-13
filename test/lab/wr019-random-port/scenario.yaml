@@ -1,0 +1,15 @@
+description: web publishes its port on a host port Docker picked (ports ["8080"], -p 8080, -P, as testcontainers does); the host connects to the container port's number
+from: host
+to: localhost:${LAB_PORT}
+expect:
+  verdict: cause_identified
+  top_rule: WR019
+  confidence: high
+  fix_contains: "Connect to localhost:"
+  must_not_fire: [WR002, WR012]
+  tcp_outcomes: ["hosts:refused"]
+# From the host, probes run in-process: no probe container either way.
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR019
+  confidence: high

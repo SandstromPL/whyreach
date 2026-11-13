@@ -140,6 +140,10 @@ type containerJSON struct {
 		Links        []string                 `json:"Links"`
 	} `json:"HostConfig"`
 	NetworkSettings struct {
+		// Ports holds a running container's actual bindings, with the host
+		// ports Docker picked for -p 8080 and -P; exposed ports that are not
+		// published have no bindings.
+		Ports    map[string][]portBinding `json:"Ports"`
 		Networks map[string]struct {
 			NetworkID         string   `json:"NetworkID"`
 			IPAddress         string   `json:"IPAddress"`
@@ -205,15 +209,19 @@ func (r containerJSON) toEvidence() evidence.Container {
 		c.Networks = append(c.Networks, a)
 	}
 	slices.SortFunc(c.Networks, func(a, b evidence.NetAttachment) int { return strings.Compare(a.Network, b.Network) })
-	for spec, bindings := range r.HostConfig.PortBindings {
+	// A running container's actual bindings carry the host ports Docker
+	// picked (-p 8080, -P, Compose ports: ["8080"]), which the configured
+	// PortBindings leave empty; a stopped container has only the latter.
+	bindings := r.NetworkSettings.Ports
+	if len(bindings) == 0 {
+		bindings = r.HostConfig.PortBindings
+	}
+	for spec, bs := range bindings {
 		port, proto := parsePortSpec(spec)
 		if port == 0 {
 			continue
 		}
-		if len(bindings) == 0 {
-			c.Ports = append(c.Ports, evidence.PortMap{ContainerPort: port, Proto: proto})
-		}
-		for _, b := range bindings {
+		for _, b := range bs {
 			hp, _ := strconv.ParseUint(b.HostPort, 10, 16)
 			c.Ports = append(c.Ports, evidence.PortMap{ContainerPort: port, Proto: proto, HostIP: b.HostIP, HostPort: uint16(hp)})
 		}

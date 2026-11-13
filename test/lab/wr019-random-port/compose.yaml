@@ -1,0 +1,26 @@
+# WR019, the published-elsewhere variant from the M2 review: ports: ["PORT"]
+# publishes the container port on a host port Docker picks, which only the
+# running container's actual bindings show (its configured PortBindings have
+# an empty host port).
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  web:
+    <<: *server
+    command: ["serve", "0.0.0.0:${LAB_PORT:?set by the lab harness}"]
+    ports: ["${LAB_PORT}"]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "/labserver", "check", "127.0.0.1:${LAB_PORT}"]
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

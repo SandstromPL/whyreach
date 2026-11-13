@@ -212,9 +212,14 @@ func TestInspectContainer(t *testing.T) {
 				Names: []string{"36bf89fd2b24", "api", "apialias", "shop-api-1"},
 			},
 		},
+		// The actual bindings: 7070 is published on a port Docker picked,
+		// 5000 is only exposed.
 		Ports: []evidence.PortMap{
+			{ContainerPort: 7070, Proto: "tcp", HostIP: "0.0.0.0", HostPort: 32768},
+			{ContainerPort: 7070, Proto: "tcp", HostIP: "::", HostPort: 32768},
 			{ContainerPort: 8080, Proto: "tcp", HostIP: "127.0.0.1", HostPort: 18080},
-			{ContainerPort: 9090, Proto: "tcp", HostPort: 19090},
+			{ContainerPort: 9090, Proto: "tcp", HostIP: "0.0.0.0", HostPort: 19090},
+			{ContainerPort: 9090, Proto: "tcp", HostIP: "::", HostPort: 19090},
 		},
 		ExtraHosts: []string{"host.docker.internal:host-gateway"},
 		DNS:        []string{"192.0.2.53"},
@@ -231,6 +236,25 @@ func TestInspectContainer(t *testing.T) {
 	}
 	if _, err := c.InspectContainer(context.Background(), "nope"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("missing container: err = %v, want ErrNotFound", err)
+	}
+}
+
+// A stopped container has no actual bindings: its configured ones stand in,
+// with host port 0 where Docker picks one at start.
+func TestPortBindingsOfStoppedContainer(t *testing.T) {
+	var raw containerJSON
+	in := `{"State": {"Status": "exited"},
+		"HostConfig": {"PortBindings": {"8080/tcp": [{"HostIp": "", "HostPort": ""}], "9090/tcp": [{"HostIp": "127.0.0.1", "HostPort": "19090"}]}},
+		"NetworkSettings": {"Ports": {}}}`
+	if err := json.Unmarshal([]byte(in), &raw); err != nil {
+		t.Fatal(err)
+	}
+	want := []evidence.PortMap{
+		{ContainerPort: 8080, Proto: "tcp"},
+		{ContainerPort: 9090, Proto: "tcp", HostIP: "127.0.0.1", HostPort: 19090},
+	}
+	if diff := cmp.Diff(want, raw.toEvidence().Ports); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
 	}
 }
 

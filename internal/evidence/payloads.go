@@ -72,7 +72,9 @@ type NetAttachment struct {
 	Names     []string   `json:"names,omitempty"` // names Docker's DNS answers for on this network (aliases and DNSNames), sorted
 }
 
-// PortMap is one published port: container port → host address.
+// PortMap is one published port: container port → host address. A running
+// container's ports are its actual bindings; a stopped one's are configured,
+// and HostPort 0 there means Docker picks a port when it starts.
 type PortMap struct {
 	ContainerPort uint16 `json:"container_port"`
 	Proto         string `json:"proto"`
