@@ -88,7 +88,18 @@ func TestAgentNewUser(t *testing.T) {
 		}
 	})
 
+	// The sandbox is the agents' home; Claude Code keeps reading its own
+	// config (and sign-in) from the real one.
+	claudeConfig := os.Getenv("CLAUDE_CONFIG_DIR")
+	if claudeConfig == "" {
+		realHome, err := os.UserHomeDir()
+		if err != nil {
+			t.Fatal(err)
+		}
+		claudeConfig = filepath.Join(realHome, ".claude")
+	}
 	env := append(os.Environ(),
+		"HOME="+home, "CLAUDE_CONFIG_DIR="+claudeConfig,
 		"XDG_CONFIG_HOME="+filepath.Join(sandbox, "config"),
 		"XDG_STATE_HOME="+filepath.Join(sandbox, "state"),
 		"XDG_DATA_HOME="+filepath.Join(sandbox, "data"),
@@ -96,14 +107,18 @@ func TestAgentNewUser(t *testing.T) {
 
 	// 1. Install, connect, start the demo: the README and the release files.
 	install := fmt.Sprintf(`You are a developer trying whyreach for the first time. All you have is its README (%s) and the release files you already downloaded into %s: the archive for this machine and checksums.txt. You have no internet access, so skip the download step. Follow the README to do three things, without asking questions:
-1. Verify the checksum and install whyreach. Treat %s as your home directory: install the binary to %s, and write nothing outside %s.
+1. Verify the checksum and install whyreach. Your home directory is %s (HOME is set to it): install the binary to %s, and write nothing outside %s.
 2. Connect an MCP client. This machine's client reads the JSON configuration form the README gives, from the file %s. Write that file for the whyreach you installed.
-3. Start the README's demo and leave it running, but name its Compose project %s instead of the name in the file: add -p %s to every docker compose command.
+3. Start the README's demo and leave it running, but name its Compose project %s instead of the name in the file: start every docker compose command with docker compose -p %s.
 When all three are done, reply with the single line DONE.`,
 		filepath.Join(sandbox, "README.md"), release, home, binary, sandbox, mcpConfig, demoProject, demoProject)
+	// Reads and writes stay in the sandbox, and Compose only touches the
+	// demo's project.
 	allowed := []string{
-		"Read", "Write", "Bash(tar:*)", "Bash(sha256sum:*)", "Bash(mkdir:*)", "Bash(install:*)", "Bash(ls:*)", "Bash(cat:*)",
-		"Bash(cd:*)", "Bash(uname:*)", "Bash(chmod:*)", "Bash(cp:*)", "Bash(docker compose:*)", "Bash(" + binary + ":*)",
+		"Read(/" + sandbox + "/**)", "Edit(/" + sandbox + "/**)",
+		"Bash(tar:*)", "Bash(sha256sum:*)", "Bash(mkdir:*)", "Bash(install:*)", "Bash(ls:*)", "Bash(cat:*)",
+		"Bash(cd:*)", "Bash(uname:*)", "Bash(chmod:*)", "Bash(cp:*)", "Bash(docker compose -p " + demoProject + ":*)",
+		"Bash(" + binary + ":*)",
 	}
 	first := runClaude(t, sandbox, env, install, "--tools", "Bash,Read,Write", "--allowedTools", strings.Join(allowed, ","))
 	t.Logf("install: %d turns, $%.4f, %.0f s\ncommands:\n  %s\nanswer: %s", first.turns, first.cost, first.seconds,
