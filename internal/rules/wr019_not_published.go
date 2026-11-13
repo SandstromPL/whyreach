@@ -34,8 +34,15 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 	if len(d.Published) > 0 {
 		return nil // the port is published where the client connects
 	}
-	if hl, ok := v.HostListeners(); ok && hostAccepts(hl.L, port, *d.Host, v6Only(v, port)) {
+	hl, read := v.HostListeners()
+	if read && hostAccepts(hl.L, port, *d.Host, v6Only(v, port)) {
 		return nil // something on the host answers there
+	}
+	if !read && !hostRefused(v) {
+		// Without the host's listeners, only a refused connect from the
+		// host shows that nothing there takes the port; the host's own
+		// service might (a gap says why they weren't read).
+		return nil
 	}
 	f := Finding{RuleID: r.ID(), Layer: r.Layer(), DocURL: DocURL(r.ID()), Confidence: High}
 	target := q.To.String()
@@ -210,6 +217,12 @@ func (r wr019) byName(v evidence.View, d evidence.Destinations) []Finding {
 		f.Fix = fmt.Sprintf("Publish the port: ports: [\"%d:%d\"] for %s in Compose (-p %d:%d), then connect to localhost:%d.", q.To.Port, q.To.Port, name, q.To.Port, q.To.Port, q.To.Port)
 	}
 	return []Finding{f}
+}
+
+// hostRefused reports a connect from the host that was refused: nothing on
+// the host took the port at that address.
+func hostRefused(v evidence.View) bool {
+	return slices.ContainsFunc(fromSource(v), func(t evidence.TCPEv) bool { return t.P.Outcome == evidence.OutcomeRefused })
 }
 
 // confirm adds the refused or closed connects from the host to supporting IDs.

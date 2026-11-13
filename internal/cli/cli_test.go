@@ -18,11 +18,16 @@ import (
 var (
 	workerID = strings.Repeat("b", 64)
 	apiID    = strings.Repeat("a", 64)
+	dbID     = strings.Repeat("d", 64)
 )
 
 // fakeDocker is a tiny Docker host for command tests: worker and api share
-// a network, and api is bound to loopback.
-type fakeDocker struct{}
+// a network, and api is bound to loopback. With db set, shop-db-1 joins
+// them, listening on 5432 and publishing dbPorts.
+type fakeDocker struct {
+	db      bool
+	dbPorts []evidence.PortMap
+}
 
 func (fakeDocker) Negotiate(context.Context) (docker.Version, error) {
 	return docker.Version{Version: "29.9.3", APIVersion: "1.56", Os: "linux", Arch: "amd64"}, nil
@@ -30,7 +35,7 @@ func (fakeDocker) Negotiate(context.Context) (docker.Version, error) {
 func (fakeDocker) Endpoint() string   { return "unix:///var/run/docker.sock" }
 func (fakeDocker) APIVersion() string { return "1.56" }
 
-func (fakeDocker) containers() []evidence.Container {
+func (f fakeDocker) containers() []evidence.Container {
 	mk := func(id, name, svc, ip string, pid int) evidence.Container {
 		return evidence.Container{
 			ID: id, Name: name, State: evidence.StateRunning, Pid: pid, NetworkMode: "shop_default",
@@ -38,7 +43,13 @@ func (fakeDocker) containers() []evidence.Container {
 			Networks: []evidence.NetAttachment{{Network: "shop_default", IPv4: netip.MustParseAddr(ip), Names: []string{name, svc}}},
 		}
 	}
-	return []evidence.Container{mk(workerID, "shop-worker-1", "worker", "172.22.0.2", 10), mk(apiID, "shop-api-1", "api", "172.22.0.3", 20)}
+	out := []evidence.Container{mk(workerID, "shop-worker-1", "worker", "172.22.0.2", 10), mk(apiID, "shop-api-1", "api", "172.22.0.3", 20)}
+	if f.db {
+		db := mk(dbID, "shop-db-1", "db", "172.22.0.4", 30)
+		db.Ports = f.dbPorts
+		out = append(out, db)
+	}
+	return out
 }
 
 func (f fakeDocker) ListContainers(context.Context, bool, ...string) ([]docker.Summary, error) {
@@ -74,8 +85,11 @@ func (fakeDocker) InspectNetwork(_ context.Context, ref string) (docker.Network,
 func (fakeDocker) Host() ([]evidence.Socket, error) { return nil, nil }
 
 func (fakeDocker) Container(pid int, _ string) ([]evidence.Socket, error) {
-	if pid == 20 {
+	switch pid {
+	case 20:
 		return []evidence.Socket{{Proto: "tcp", Local: netip.MustParseAddrPort("127.0.0.1:8080")}}, nil
+	case 30:
+		return []evidence.Socket{{Proto: "tcp", Local: netip.MustParseAddrPort("0.0.0.0:5432")}}, nil
 	}
 	return nil, nil
 }
@@ -192,40 +206,50 @@ func TestLogsGoToStderr(t *testing.T) {
 // pass for the host's: a host target gets unsupported gaps that say how to
 // fix it, never a finding about the host (M4 correctness review).
 func TestHiddenHostIsAGap(t *testing.T) {
-	deps := policy.Deps{
-		Settings: policy.Settings{Docker: true, ConfigPath: "/test/config.toml"},
-		Docker:   fakeDocker{}, Listeners: fakeDocker{}, Client: policy.ClientCLI,
-		Interfaces: func() (evidence.HostAddrs, error) { return evidence.HostAddrs{}, nil },
-	}
-	hideHost(&deps)
-	p, err := policy.New(deps)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, args := range []policy.DiagnoseArgs{{From: "host", To: "localhost:5432"}, {From: "container:shop-worker-1", To: "host.docker.internal:5432"}} {
-		d, err := p.Diagnose(context.Background(), args)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, f := range d.Findings {
-			if f.RuleID == "WR001" || f.RuleID == "WR012" || f.RuleID == "WR019" {
-				t.Errorf("%v: %s judged the host from whyreach's own namespace: %s", args, f.RuleID, f.Title)
+	// A container on the port, published elsewhere or not at all, mustn't
+	// stand in for the host's own listeners: the host may serve 5432 itself.
+	for name, dk := range map[string]fakeDocker{
+		"no db":                     {},
+		"db published as 15432":     {db: true, dbPorts: []evidence.PortMap{{ContainerPort: 5432, Proto: "tcp", HostPort: 15432}}},
+		"db listens, not published": {db: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			deps := policy.Deps{
+				Settings: policy.Settings{Docker: true, ConfigPath: "/test/config.toml"},
+				Docker:   dk, Listeners: dk, Client: policy.ClientCLI,
+				Interfaces: func() (evidence.HostAddrs, error) { return evidence.HostAddrs{}, nil },
 			}
-		}
-		if args.From == "host" && d.Verdict != "inconclusive" {
-			t.Errorf("%v: %s, want inconclusive", args, d.Verdict)
-		}
-		advised := false
-		for _, g := range d.Gaps {
-			advised = advised || (g.Why == "unsupported" && strings.Contains(g.HowToEnable, "--network host"))
-		}
-		if !advised {
-			t.Errorf("%v: no gap says to run with --network host: %+v", args, d.Gaps)
-		}
-	}
-	// Containers' listeners, read through /proc/<pid> (--pid host), stay.
-	in, err := p.Inspect(context.Background(), "container:shop-api-1")
-	if err != nil || !strings.Contains(strings.Join(in.Container.Listening, " "), "127.0.0.1:8080") {
-		t.Errorf("container listeners: %+v, %v", in, err)
+			hideHost(&deps)
+			p, err := policy.New(deps)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, args := range []policy.DiagnoseArgs{{From: "host", To: "localhost:5432"}, {From: "container:shop-worker-1", To: "host.docker.internal:5432"}} {
+				d, err := p.Diagnose(context.Background(), args)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, f := range d.Findings {
+					if f.RuleID == "WR001" || f.RuleID == "WR012" || f.RuleID == "WR019" {
+						t.Errorf("%v: %s judged the host from whyreach's own namespace: %s", args, f.RuleID, f.Title)
+					}
+				}
+				if args.From == "host" && d.Verdict != "inconclusive" {
+					t.Errorf("%v: %s, want inconclusive", args, d.Verdict)
+				}
+				advised := false
+				for _, g := range d.Gaps {
+					advised = advised || (g.Why == "unsupported" && strings.Contains(g.HowToEnable, "--network host"))
+				}
+				if !advised {
+					t.Errorf("%v: no gap says to run with --network host: %+v", args, d.Gaps)
+				}
+			}
+			// Containers' listeners, read through /proc/<pid> (--pid host), stay.
+			in, err := p.Inspect(context.Background(), "container:shop-api-1")
+			if err != nil || !strings.Contains(strings.Join(in.Container.Listening, " "), "127.0.0.1:8080") {
+				t.Errorf("container listeners: %+v, %v", in, err)
+			}
+		})
 	}
 }

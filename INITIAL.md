@@ -517,7 +517,7 @@ Sources for the columns:
 | WR016 | Timeout means a silent drop. Last resort: suppressed when WR004, WR005, WR008, WR009, WR011, WR013, WR015 or WR024 explains the timeout | 4 | TCP timeout + route | yes | not measured | v0.2 |
 | WR017 | MTU mismatch. Advisory until a size probe confirms a stall | 6 | link MTUs | no | 16 | v0.3 |
 | WR018 | Proxy env vars intercept traffic. Reads env var **keys only**, never values | 6 | env keys | no | not measured | v0.3 |
-| WR019 | Port not published, published under another host port or on another host address, or a container name used from the host's network namespace (host → container) | 2 | actual port bindings + container listeners | no | 6 | v0.1 · **M2** |
+| WR019 | Port not published, published under another host port or on another host address, or a container name used from the host's network namespace (host → container) | 2 | actual port bindings + container listeners, and for a target on the host the host's listeners or a refused connect from the host (M4) | no | 6 | v0.1 · **M2** |
 | WR020 | The container's upstream DNS fails: internal names resolve, external ones time out | 3 | DNS from the source + `resolv.conf` `ExtServers` | yes | 3 | v0.1 · **M2** |
 | WR021 | The host firewall rejects container-to-host traffic (EHOSTUNREACH to the host) | 4 | errno + host listener (+ firewall rules, needs root) | yes | 9 | v0.2 |
 | WR022 | No outbound NAT or forwarding | 4 | `ip_forward`, daemon firewall settings | yes | 10 | v0.3 |
