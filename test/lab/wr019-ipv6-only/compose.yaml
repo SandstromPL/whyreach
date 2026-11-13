@@ -1,0 +1,25 @@
+# WR019, the IPv6-only variant from the M2 review: a port published on "::"
+# alone is served by docker-proxy on [::] with IPV6_V6ONLY, so 127.0.0.1
+# is refused, while Ubuntu's /etc/hosts maps localhost to 127.0.0.1 only.
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  web:
+    <<: *server
+    command: ["serve", "0.0.0.0:${LAB_PORT:?set by the lab harness}"]
+    ports: ["[::]:${LAB_PORT}:${LAB_PORT}"]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "/labserver", "check", "127.0.0.1:${LAB_PORT}"]
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

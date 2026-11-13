@@ -397,22 +397,37 @@ const (
 // HostTarget is how the target refers to the host.
 type HostTarget struct {
 	Via      string
-	Addr     netip.Addr // the host address the connection goes to, when known
-	Iface    string     // the host interface holding Addr, when known
-	Evidence []string   // the records that show it
+	Addr     netip.Addr   // the host address the connection goes to, when known
+	Resolved []netip.Addr // for a loopback name: what it resolved to in the source, when looked up
+	Iface    string       // the host interface holding Addr, when known
+	Evidence []string     // the records that show it
+}
+
+// Addresses lists the host addresses the target stands for: Addr, or for
+// a loopback name what it resolved to ("localhost" is often 127.0.0.1
+// alone), or else both loopback addresses. Empty when unknown.
+func (h HostTarget) Addresses() []netip.Addr {
+	switch {
+	case h.Addr.IsValid():
+		return []netip.Addr{h.Addr.Unmap()}
+	case len(h.Resolved) > 0:
+		return h.Resolved
+	case h.Via == HostViaLoopback:
+		return []netip.Addr{netip.AddrFrom4([4]byte{127, 0, 0, 1}), netip.IPv6Loopback()}
+	default:
+		return nil
+	}
 }
 
 // coveredBy reports whether a port binding accepts connections to the host
 // address the target stands for.
 func (h HostTarget) coveredBy(pm PortMap) bool {
-	switch {
-	case h.Addr.IsValid():
-		return pm.Covers(h.Addr)
-	case h.Via == HostViaLoopback: // "localhost": 127.0.0.1 or ::1
-		return pm.Covers(netip.AddrFrom4([4]byte{127, 0, 0, 1})) || pm.Covers(netip.IPv6Loopback())
-	default:
-		return false
+	for _, a := range h.Addresses() {
+		if pm.Covers(a) {
+			return true
+		}
 	}
+	return false
 }
 
 // HostSource reports a source that runs in the host's network namespace:
@@ -445,7 +460,18 @@ func (v View) HostTarget() (HostTarget, bool) {
 	if v.HostSource() {
 		switch {
 		case t.Class == TargetLoopback:
-			return HostTarget{Via: HostViaLoopback, Addr: t.Addr}, true
+			ht := HostTarget{Via: HostViaLoopback, Addr: t.Addr}
+			if d, ok := v.SourceDNS(t.Host); ok && !t.Addr.IsValid() {
+				for _, a := range d.P.Answers {
+					if a.Unmap().IsLoopback() {
+						ht.Resolved = append(ht.Resolved, a.Unmap())
+					}
+				}
+				if len(ht.Resolved) > 0 {
+					ht.Evidence = append(ht.Evidence, d.ID)
+				}
+			}
+			return ht, true
 		case t.Addr.IsValid():
 			return owned(t.Addr)
 		}

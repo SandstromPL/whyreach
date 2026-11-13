@@ -34,7 +34,7 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 	if len(d.Published) > 0 {
 		return nil // the port is published where the client connects
 	}
-	if hl, ok := v.HostListeners(); ok && hostAccepts(hl.L, port, *d.Host) {
+	if hl, ok := v.HostListeners(); ok && hostAccepts(hl.L, port, *d.Host, v6Only(v, port)) {
 		return nil // something on the host answers there
 	}
 	f := Finding{RuleID: r.ID(), Layer: r.Layer(), DocURL: DocURL(r.ID()), Confidence: High}
@@ -56,8 +56,14 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 			f.Explanation = fmt.Sprintf("%s publishes its port %d on the host as %s, which accepts connections only to that address, not to %s.",
 				containerLabel(c.C), b[0].ContainerPort, strings.Join(where, ", "), target)
 		}
+		instead := b[0].HostAddr()
+		if a, err := netip.ParseAddr(b[0].HostIP); err == nil && a.IsUnspecified() && a.Is6() {
+			// docker-proxy binds [::] IPv6-only: from the host, [::1] reaches it
+			instead = hostPort("::1", b[0].HostPort)
+			f.Explanation += fmt.Sprintf(" On [::] Docker's proxy accepts IPv6 only, and %s resolves to IPv4.", q.To.Host)
+		}
 		f.Fix = fmt.Sprintf("Connect to %s instead, or publish it on every address: ports: [\"%d:%d\"] for %s in Compose (-p %d:%d), then docker compose up -d %s.",
-			b[0].HostAddr(), port, b[0].ContainerPort, name, port, b[0].ContainerPort, name)
+			instead, port, b[0].ContainerPort, name, port, b[0].ContainerPort, name)
 		r.others(&f, pubs)
 		return []Finding{f}
 	}
@@ -218,17 +224,45 @@ func (wr019) confirm(v evidence.View, base ...string) []string {
 }
 
 // hostAccepts reports a host listener that takes connections to the port at
-// the address the target stands for.
-func hostAccepts(l evidence.Listeners, port uint16, h evidence.HostTarget) bool {
+// an address the target stands for. 0.0.0.0 takes IPv4; [::] takes both
+// families unless it is IPv6-only (v6only: docker-proxy for a binding on
+// "::", which /proc can't show).
+func hostAccepts(l evidence.Listeners, port uint16, h evidence.HostTarget, v6only bool) bool {
+	targets := h.Addresses()
 	for _, s := range l.OnPort(port) {
 		a := s.Local.Addr().Unmap()
-		switch {
-		case a.IsUnspecified():
-			return true
-		case h.Addr.IsValid() && a == h.Addr.Unmap():
-			return true
-		case !h.Addr.IsValid() && h.Via == evidence.HostViaLoopback && a.IsLoopback():
-			return true
+		if len(targets) == 0 {
+			if a.IsUnspecified() {
+				return true // the address is unknown: a wildcard takes it either way
+			}
+			continue
+		}
+		for _, t := range targets {
+			switch {
+			case a.IsUnspecified() && a.Is4():
+				if t.Is4() {
+					return true
+				}
+			case a.IsUnspecified():
+				if t.Is6() || !v6only {
+					return true
+				}
+			case a == t:
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// v6Only reports a container that publishes the host port on "::": Docker's
+// proxy then listens on [::] IPv6-only.
+func v6Only(v evidence.View, port uint16) bool {
+	for _, c := range v.Containers() {
+		for _, pm := range c.C.PublishedAs(port) {
+			if a, err := netip.ParseAddr(pm.HostIP); err == nil && a.IsUnspecified() && a.Is6() {
+				return true
+			}
 		}
 	}
 	return false

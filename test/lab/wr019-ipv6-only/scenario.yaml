@@ -1,0 +1,15 @@
+description: web publishes its port on [::] only, where docker-proxy accepts IPv6 alone; the host connects to localhost, which resolves to 127.0.0.1
+from: host
+to: localhost:${LAB_PORT}
+expect:
+  verdict: cause_identified
+  top_rule: WR019
+  confidence: high
+  fix_contains: "Connect to [::1]:"
+  must_not_fire: [WR002, WR012]
+  tcp_outcomes: ["hosts:refused"]
+# From the host, probes run in-process: no probe container either way.
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR019
+  confidence: high
