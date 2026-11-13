@@ -504,20 +504,20 @@ Sources for the columns:
 | WR003 | Service listens on a different port (suggest that port) | 5 | listeners | no | — | v0.1 · **M2** |
 | WR004 | The two containers share no network (e.g. separate Compose projects) | 3 | network membership, Compose project labels | no | 2 | v0.1 · **M1** |
 | WR005 | The name matches no container, service or alias on the source's networks (suggest the closest), or is an alias only on a network the source doesn't share. Decided from metadata, **not** from the DNS rcode | 3 | network members (+ DNS view) | partly | 8 | v0.1 · **M2** |
-| WR006 | The host-published port is used between containers, or a published port is reached through the host's address | 2 | port mappings + target | no | 17 | v0.1 · **M2** |
-| WR007 | `localhost`/127.0.0.1 (or a name `extra_hosts` map to loopback) used inside a container to reach another container or the host. The fix differs: the service name, or `host.docker.internal` | 2 | target + source listeners + other containers' and host listeners | no | **1** | v0.1 · **M1** |
+| WR006 | The host-published port is used between containers, or a port published only on the host's loopback is reached from a container through the host's address | 2 | port mappings + target | no | 17 | v0.1 · **M2** |
+| WR007 | `localhost`/127.0.0.1 (or a name `extra_hosts` map to loopback, or that resolves to loopback) used inside a container to reach another container or the host. The fix differs: the service name, or `host.docker.internal` | 2 | target + source listeners + other containers' and host listeners | no | **1** | v0.1 · **M1** |
 | WR008 | The destination is not running, is restarting, or is unhealthy. Checked before any probe | 1 | state, health, RestartCount | no | not measured | v0.1 · **M1** (moved from M2: the engine's gate needs it) |
-| WR009 | Default `bridge` network: containers can't resolve each other's names | 3 | network name and driver | no | 12 | v0.1 · **M2** |
+| WR009 | Default `bridge` network: containers can't resolve each other's names | 3 | network name (`bridge`) | no | 12 | v0.1 · **M2** |
 | WR010 | Startup race: the destination isn't ready yet | 1 | health `starting`, StartedAt, listeners | no | 4 | v0.1 · **M2** |
 | WR011 | `host.docker.internal` doesn't resolve on Docker Engine (no `host-gateway` mapping). Never fires on Docker Desktop | 2 | ExtraHosts + platform (+ DNS) | partly | 7 | v0.1 · **M2** |
 | WR012 | A host service is bound to 127.0.0.1, so containers can't reach it (Linux Engine, and WSL2 without Desktop) | 5 | host listeners + target is the host | no | 5 | v0.1 · **M2** |
 | WR013 | A Docker subnet overlaps a VPN or LAN route | 4 | host route lookup + network subnets | no | 15 | v0.2 |
 | WR014 | IPv6/IPv4 mismatch: `localhost` resolves to `::1` first, but the listener is IPv4-only | 5 | DNS answers + listener families | yes | 18 | v0.2 |
 | WR015 | `internal: true` network, but the target is outside it | 4 | network Internal flag | no | not measured | v0.2 |
-| WR016 | Timeout means a silent drop. Last resort: suppressed when WR004, WR008, WR013, WR015 or WR024 explains the timeout | 4 | TCP timeout + route | yes | not measured | v0.2 |
+| WR016 | Timeout means a silent drop. Last resort: suppressed when WR004, WR005, WR008, WR009, WR011, WR013, WR015 or WR024 explains the timeout | 4 | TCP timeout + route | yes | not measured | v0.2 |
 | WR017 | MTU mismatch. Advisory until a size probe confirms a stall | 6 | link MTUs | no | 16 | v0.3 |
 | WR018 | Proxy env vars intercept traffic. Reads env var **keys only**, never values | 6 | env keys | no | not measured | v0.3 |
-| WR019 | Port not published, or published on another host address (host → container) | 2 | actual port bindings + container listeners | no | 6 | v0.1 · **M2** |
+| WR019 | Port not published, published under another host port or on another host address, or a container name used from the host's network namespace (host → container) | 2 | actual port bindings + container listeners | no | 6 | v0.1 · **M2** |
 | WR020 | The container's upstream DNS fails: internal names resolve, external ones time out | 3 | DNS from the source + `resolv.conf` `ExtServers` | yes | 3 | v0.1 · **M2** |
 | WR021 | The host firewall rejects container-to-host traffic (EHOSTUNREACH to the host) | 4 | errno + host listener (+ firewall rules, needs root) | yes | 9 | v0.2 |
 | WR022 | No outbound NAT or forwarding | 4 | `ip_forward`, daemon firewall settings | yes | 10 | v0.3 |
