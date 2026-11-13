@@ -81,15 +81,23 @@ func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 			}
 		}
 	}
-	// A lookup the probe held back for its name was never sent.
+	// A check whose lookup the probe held back for its name sent nothing:
+	// it counts as denied. Counted per check, since a connect to a name
+	// reports its lookup too.
 	if lim.NamesRestricted {
-		held := 0
+		held := map[string]bool{}
 		for _, e := range evs {
 			if NameHeldBack(e) {
-				held++
+				held[target.NormalizeName(e.Subject)] = true
 			}
 		}
-		countsFrom(ctx).add(-held, held)
+		n := 0
+		for _, s := range send {
+			if (s.Kind == probe.SpecDNS || s.Kind == probe.SpecTCP) && held[target.NormalizeName(s.Host)] {
+				n++
+			}
+		}
+		countsFrom(ctx).add(-n, n)
 	}
 	return append(evs, refused...), err
 }

@@ -547,3 +547,50 @@ func TestNeedsNameApproval(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+// holder answers like the probe for a name the limits hold back: the lookup
+// and, for a connect, a skipped connect with the same reason.
+type holder struct{ recorder }
+
+func (h *holder) Run(ctx context.Context, where evidence.ContextRef, specs []probe.Spec) ([]evidence.Evidence, error) {
+	lim := probe.LimitsFrom(ctx)
+	var out []evidence.Evidence
+	for _, s := range specs {
+		if _, ok := lim.CheckName(s.Host); ok {
+			evs, _ := h.recorder.Run(ctx, where, []probe.Spec{s})
+			out = append(out, evs...)
+			continue
+		}
+		why := &evidence.Error{Code: evidence.CodePolicyDenied, Message: probe.NameNotApproved}
+		out = append(out, evidence.Evidence{Kind: evidence.KindDNS, Subject: s.Host, Status: evidence.StatusSkipped, Err: why})
+		if s.Kind == probe.SpecTCP {
+			out = append(out, evidence.Evidence{Kind: evidence.KindTCP, Subject: s.Host + ":443", Status: evidence.StatusSkipped, Err: why})
+		}
+	}
+	return out, nil
+}
+
+// A check whose name was held back sent nothing: the audit counts it as
+// denied, once per check, though a connect reports its lookup too.
+func TestHeldBackNamesCountAsDenied(t *testing.T) {
+	audit := filepath.Join(t.TempDir(), "audit.jsonl")
+	h := &holder{}
+	p, err := New(Deps{Settings: Settings{Docker: true}, Docker: fakeDocker{}, Listeners: fakeDocker{}, Host: h, Audit: NewAudit(audit), Client: ClientMCP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	for _, a := range []ProbeArgs{{Kind: "tcp", Target: "example.com:443"}, {Kind: "dns", Target: "example.com"}, {Kind: "dns", Target: "api"}} {
+		if _, err := p.Probe(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	type count struct{ sent, denied int }
+	var got []count
+	for _, e := range entries(t, audit) {
+		got = append(got, count{e.ProbesSent, e.ProbesDenied})
+	}
+	if want := []count{{0, 1}, {0, 1}, {1, 0}}; !slices.Equal(got, want) {
+		t.Errorf("sent/denied per call = %v, want %v", got, want)
+	}
+}
