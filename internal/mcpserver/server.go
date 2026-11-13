@@ -116,7 +116,7 @@ func (s *Server) auditRejected(next mcp.MethodHandler) mcp.MethodHandler {
 			if slices.Contains(tools, r.Params.Name) {
 				tool = r.Params.Name
 			} else {
-				args["name"] = r.Params.Name
+				args["name"] = cutRunes(target.MaskCredentials(r.Params.Name), 64)
 			}
 			rejectedArgs(r.Params.Arguments, args)
 		}
@@ -136,29 +136,48 @@ func (s *Server) auditRejected(next mcp.MethodHandler) mcp.MethodHandler {
 	}
 }
 
-// rejectedArgs adds a refused call's arguments, by name (the audit masks
-// credentials per argument and cuts each one short).
+// rejectedArgs describes a refused call's arguments by name, type and
+// length only: they failed validation, so they can hold anything under any
+// name, a password included, and their values are of no use to the audit.
 func rejectedArgs(raw json.RawMessage, args map[string]string) {
 	if len(raw) == 0 {
 		return
 	}
 	var m map[string]any
 	if json.Unmarshal(raw, &m) != nil {
-		args["arguments"] = target.MaskCredentials(string(raw))
+		args["arguments"] = fmt.Sprintf("<not an object, %d bytes>", len(raw))
 		return
 	}
 	keys := slices.Sorted(maps.Keys(m))
 	if len(keys) > 8 {
+		args["arguments"] = fmt.Sprintf("<%d names>", len(keys))
 		keys = keys[:8]
 	}
 	for _, k := range keys {
-		v, ok := m[k].(string)
-		if !ok {
-			b, _ := json.Marshal(m[k])
-			v = string(b)
+		var kind string
+		switch v := m[k].(type) {
+		case string:
+			kind = fmt.Sprintf("<string, %d chars>", len([]rune(v)))
+		case float64:
+			kind = "<number>"
+		case bool:
+			kind = "<boolean>"
+		case nil:
+			kind = "<null>"
+		case []any:
+			kind = "<array>"
+		default:
+			kind = "<object>"
 		}
-		args[k] = v
+		args[cutRunes(k, 64)] = kind
 	}
+}
+
+func cutRunes(s string, n int) string {
+	if r := []rune(s); len(r) > n {
+		return string(r[:n]) + "…"
+	}
+	return s
 }
 
 const instructions = `whyreach diagnoses network connections between Docker containers and between containers and the host, read-only. ` +
@@ -331,9 +350,12 @@ func (s *Server) probe(ctx context.Context, req *mcp.CallToolRequest, in ProbeIn
 	return textResult(text.String()), out, nil
 }
 
+// howToEnable is addressed to the user: turning a tier on is their
+// decision, never an agent's (an agent that can write files must not
+// change the config to widen its own permissions).
 func (s *Server) howToEnable() string {
-	return "This check runs inside the container through a probe container, which is off. Approve probe containers when whyreach asks, " +
-		"or set probe_containers = true under [permissions] in " + s.p.ConfigPath() + "."
+	return "This check runs inside the container through a probe container, which is off. Turning them on is the user's decision: " +
+		"approve probe containers when whyreach asks, or set probe_containers = true under [permissions] in " + s.p.ConfigPath() + "."
 }
 
 // SaveIn is save_report's input.
@@ -474,9 +496,11 @@ func (s *Server) consent(answer *mcp.ElicitResult) bool {
 
 func consentParams(source string) *mcp.ElicitParams {
 	return &mcp.ElicitParams{
-		Message: fmt.Sprintf("whyreach wants to test DNS and TCP from inside %s's network namespace with a probe container. "+
-			"It imports whyreach's own binary as the local image whyreach-probe (no registry pull), runs one short-lived, locked-down "+
-			"container (no capabilities, read-only, labeled io.whyreach.probe=1) joined to that network namespace, and removes it. "+
+		Message: fmt.Sprintf("whyreach wants to test DNS and TCP from inside containers' network namespaces with probe containers, "+
+			"starting with %s's. If you allow it, for the rest of this session whyreach may: import its own binary as the local image "+
+			"whyreach-probe (no registry pull; whyreach never deletes images, so it stays until you remove it); run short-lived, "+
+			"locked-down containers (no capabilities, read-only, labeled io.whyreach.probe=1) joined to the network namespace of any "+
+			"container it checks; and remove them, along with leftovers of earlier runs that carry that label. "+
 			"Nothing else changes. Allow probe containers for this session?", source),
 		RequestedSchema: map[string]any{
 			"type": "object",

@@ -146,12 +146,16 @@ func fit(c *Diagnosis) {
 		case len(c.Facts) > 0:
 			c.Facts = c.Facts[:len(c.Facts)-1]
 			c.note("later facts")
+		case len(c.Findings) > 0 && c.Findings[0].Explanation != "":
+			c.Findings[0].Explanation = ""
+			c.note("the explanation")
+		case len(c.NextChecks) > 1:
+			c.NextChecks = c.NextChecks[:len(c.NextChecks)-1]
+			c.note("later next checks")
+		case len([]rune(c.Summary)) > 300:
+			c.Summary = cut(c.Summary, 300)
+			c.note("the end of the summary")
 		default:
-			if len(c.Findings) > 0 && c.Findings[0].Explanation != "" {
-				c.Findings[0].Explanation = ""
-				c.note("the explanation")
-				continue
-			}
 			return // nothing left to trim
 		}
 	}

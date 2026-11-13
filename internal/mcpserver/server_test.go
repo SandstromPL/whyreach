@@ -440,4 +440,7 @@ func TestRefusedCallsAreAudited(t *testing.T) {
 	if strings.Contains(string(b), "hunter2") {
 		t.Errorf("a refused call's password reached the audit:\n%s", b)
 	}
+	if !strings.Contains(string(b), `"to":"\u003cnumber\u003e"`) && !strings.Contains(string(b), `"to":"<number>"`) {
+		t.Errorf("a refused call's arguments are described by type:\n%s", b)
+	}
 }

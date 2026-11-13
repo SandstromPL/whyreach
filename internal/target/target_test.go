@@ -185,6 +185,9 @@ func TestMaskArg(t *testing.T) {
 		{"to", "api:8080", "api:8080"},
 		{"target", "u:p@api", "***@api"},
 		{"from", "service:api@shop", "service:api@shop"},
+		{"from", "container:u:pw@x", "***@x"},
+		{"scope", "service:api@shop", "service:api@shop"},
+		{"error", "want host:port?", "want host:port?"},
 		{"from", "http://u:p@x", "http://***@x"},
 		{"scope", "network:shop_default", "network:shop_default"},
 	}
@@ -196,5 +199,12 @@ func TestMaskArg(t *testing.T) {
 	_, err := ParseTo("tcp://admin:hunter2@db:5432")
 	if err == nil || strings.Contains(err.Error(), "hunter2") {
 		t.Errorf("ParseTo's error repeats the password: %v", err)
+	}
+}
+
+func TestParseToCapsNames(t *testing.T) {
+	long := strings.Repeat("a.", 127) + "ab" // 256 characters
+	if _, err := ParseTo(long + ":80"); err == nil {
+		t.Error("a 256-character name was accepted")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"strconv"
 	"sync"
@@ -48,7 +49,7 @@ func (s Spec) Validate() error {
 		if s.Port != 0 {
 			return errors.New("a dns spec takes no port")
 		}
-		_, err := target.ParseTo(s.Host + ":1")
+		_, err := target.ParseTo(net.JoinHostPort(s.Host, "1")) // brackets an IPv6 literal
 		return err
 	case SpecTCP:
 		if s.Via != "" && s.Via != evidence.ViaMetadata {

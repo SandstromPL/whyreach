@@ -29,13 +29,21 @@ func (e *Error) Error() string {
 }
 
 // MaskArg masks credentials in an argument as given (see MaskCredentials):
-// always in a destination ("to", "target"), and in the others only in a
-// URL, because "service:api@shop" names a Compose project with its "@".
+// in a destination ("to", "target") always; in a source or scope unless it
+// is service:<name>@<project>, whose "@" names a Compose project; in
+// anything else (an error message, an answer) only in a URL.
 func MaskArg(arg, s string) string {
-	if arg == "to" || arg == "target" || strings.Contains(s, "://") {
+	switch {
+	case arg == "to" || arg == "target" || strings.Contains(s, "://"):
 		return MaskCredentials(s)
+	case arg == "from" || arg == "scope":
+		if strings.HasPrefix(strings.TrimSpace(s), FromService+":") {
+			return s
+		}
+		return MaskCredentials(s)
+	default:
+		return s
 	}
-	return s
 }
 
 // MaskCredentials hides what a URL-like argument may carry besides the
@@ -176,6 +184,9 @@ func ParseTo(s string) (evidence.Target, error) {
 	}
 	if host == "" {
 		return bad("missing host")
+	}
+	if len(host) > 253 {
+		return bad("a host name has at most 253 characters")
 	}
 	if _, err := netip.ParseAddr(host); err != nil && !hostName.MatchString(host) {
 		return bad("not a host name or IP address")

@@ -76,3 +76,27 @@ func TestCompactProbe(t *testing.T) {
 		t.Errorf("text = %s", b.String())
 	}
 }
+
+// TestCompactFitsTheBudgetWithLongNames: with names at the longest the
+// parser accepts (253 characters; a longer one overflowed the budget, M2
+// safety review), repeated in the summary, facts and every next check, the
+// structured result still fits.
+func TestCompactFitsTheBudgetWithLongNames(t *testing.T) {
+	d := diagnoses()["cause"]
+	label := strings.Repeat("a", 62)
+	name := strings.Join([]string{label, label, label, label}, ".") // 251 characters
+	d.Summary = strings.Repeat("worker can't reach "+name+":8080. ", 6)
+	for range 8 {
+		d.NextChecks = append(d.NextChecks, engine.NextCheck{Why: "look up " + name + " again", Tool: "run_probe",
+			Args: map[string]string{"kind": "dns", "target": name, "from": "container:" + name}})
+		d.Facts = append(d.Facts, engine.Fact{Text: name + " resolves to nothing in worker", Evidence: []string{"ev-04"}})
+	}
+	c := Compact(d)
+	b, _ := json.Marshal(c)
+	if len(b) > Budget {
+		t.Errorf("compact form is %d bytes, over the %d budget", len(b), Budget)
+	}
+	if c.Verdict != d.Verdict || c.Summary == "" || len(c.NextChecks) == 0 {
+		t.Errorf("trimming must keep the verdict, a summary and a next check: %+v", c)
+	}
+}
