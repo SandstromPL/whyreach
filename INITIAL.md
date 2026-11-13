@@ -148,19 +148,20 @@ To answer "can worker reach api:8080?", the DNS lookup and TCP connect have to h
 
 | Strategy | How it works | Privilege needed | Works on distroless images? | Docker Desktop / remote daemon? | Docker writes | Latency |
 |---|---|---|---|---|---|---|
-| **probe-container** (default) | Create a tiny container with `NetworkMode: container:<target>`, run the whyreach probe in it, read its stdout, remove it | Docker API only | ✅ | ✅ (later) | creates, starts and removes 1 labeled container | ~0.5–2 s |
+| **probe-container** (default) | Create a tiny container with `NetworkMode: container:<target>`, run the whyreach probe in it, read its stdout, remove it | Docker API only | ✅ | ✅ (later) | imports the labeled probe image once per version; creates, starts and removes 1 labeled container | ~0.5–2 s |
 | **netns** (fast path) | `setns()` into `/proc/<pid>/ns/net` on a locked OS thread | root or `CAP_SYS_ADMIN` | ✅ | ❌ (Linux Engine only) | none | ms |
 | `docker exec` | Run `ss` or `nslookup` inside the target | Docker API | ❌ (the tools are missing) | ✅ | an exec | ~0.3 s |
 
 **Decision:** implement `probe-container` first and `netns` second (selected automatically when running as root). Never use `docker exec`.
 
 Why probe-container is the right default:
-- A container started with `--network container:X` shares X's network namespace. Docker also gives it **X's own `/etc/resolv.conf` and `/etc/hosts`**, so the probe's DNS view matches the app's exactly: the embedded DNS at 127.0.0.11, `extra_hosts`, and aliases. *(To be verified in an M0 spike.)*
+- A container started with `--network container:X` shares X's network namespace. Docker also gives it **X's own `/etc/resolv.conf` and `/etc/hosts`**, so the probe's DNS view matches the app's exactly: the embedded DNS at 127.0.0.11, `extra_hosts`, and aliases. *(Verified in M0, ADR 0001.)*
 - Reading `/proc/net/tcp` and `/proc/net/tcp6` from inside the probe lists X's sockets. That checks the bind address without root and without any tools inside X.
 - No registry pull is needed. On Linux, whyreach imports its own static binary as a `FROM scratch` image named `whyreach-probe:<version>`. When whyreach itself runs as a container, it reuses its own image.
-- The probe is hardened: AutoRemove, `CapDrop: ALL`, `ReadonlyRootfs`, `User: 65534`, `no-new-privileges`, no mounts, no environment, a pids limit and a memory limit, the label `io.whyreach.probe=1`, and a hard timeout. Leftover probes are cleaned up at startup.
+- The probe is hardened: `CapDrop: ALL`, `ReadonlyRootfs`, `User: 65534`, `no-new-privileges`, no mounts, no environment, a pids limit and a memory limit, the label `io.whyreach.probe=1`, and a hard timeout.
+- It does **not** use AutoRemove: the daemon deletes an auto-removed container, logs included, as soon as it exits, before whyreach can read its output (ADR 0001, amendment). whyreach removes each probe itself after reading the logs, and sweeps leftovers from a crash at startup by label.
 
-**Trade-off:** creating a container is a Docker write. Probe containers are therefore **tier 2b** (§4.9): off unless the user enables them in config, or approves through MCP elicitation where the client supports it. Every result reports them in `side_effects` (for example: `"ephemeral probe container wr-probe-3f2a (removed)"`). `changes_made` stays `false`.
+**Trade-off:** importing the probe image and creating a container are Docker writes. Both are therefore **tier 2b** (§4.9): off unless the user enables them in config, or approves through MCP elicitation where the client supports it. Every result reports them in `side_effects` (for example: `"ephemeral probe container wr-probe-3f2a (removed)"`, plus `"imported image whyreach-probe:0.1.0"` on first use). `changes_made` stays `false`.
 
 **Verified in M0 (ADR 0001):** the probe container works exactly as described above, hardened and without a registry pull.
 - **Listeners from the host:** on Linux Docker Engine, the destination's listeners can also be read from the host through `/proc/<pid>/net/tcp{,6}`. This needs no root and no Docker write, once `/proc/<pid>/cgroup` confirms that the PID belongs to the container.
@@ -506,10 +507,10 @@ type Executor interface {
 
 - **`host`** calls the `probe` package in-process.
 - **`probecontainer`**:
-  1. Make sure the image `whyreach-probe:<ver>` exists. If it doesn't, import the binary's own executable as a scratch image (`POST /images/create?fromSrc=-`). Check that the daemon's architecture (from `/version`) matches.
-  2. Create the container with the hardened config from §3.3, start it, and wait for it under the timeout.
+  1. Make sure the image `whyreach-probe:<ver>` exists. If it doesn't, import the binary's own executable as a scratch image (`POST /images/create?fromSrc=-`, setting the label `io.whyreach.probe=1` through `changes`), and report the import in `side_effects`. Check that the daemon's architecture (from `/version`) matches.
+  2. Create the container with the hardened config from §3.3 (no AutoRemove), start it, and wait for it under the timeout (`wait?condition=not-running`).
   3. Read the logs: stdout is one JSON evidence object per line. Without a TTY the log stream is **multiplexed with 8-byte frame headers**, so demux it.
-  4. Remove the container.
+  4. Remove the container (`DELETE …?force=1`). This runs on every path, timeouts and cancellation included, under its own short context, so a cancelled diagnosis still cleans up.
 
   There is one container per (diagnosis, context), and all specs for that context run in it as a batch.
 - **`netns`**:

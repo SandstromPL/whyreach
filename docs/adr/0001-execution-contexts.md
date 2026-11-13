@@ -17,7 +17,7 @@ Usually the containers are distroless, so there are no tools inside them to run.
 
 ## Decision
 
-1. **The probe container is the default executor for container-side DNS and TCP probes.** It is a FROM-scratch image of whyreach's own static binary, imported with `docker import` (no registry pull) and run with `--network container:<target>`. It is hardened: AutoRemove, `--cap-drop ALL`, `--user 65534:65534`, `--read-only`, `no-new-privileges`, a pids limit, a memory limit, and the label `io.whyreach.probe=1`. Every part of this was verified (below).
+1. **The probe container is the default executor for container-side DNS and TCP probes.** It is a FROM-scratch image of whyreach's own static binary, imported with `docker import` (no registry pull) and run with `--network container:<target>`. It is hardened: `--cap-drop ALL`, `--user 65534:65534`, `--read-only`, `no-new-privileges`, a pids limit, a memory limit, and the label `io.whyreach.probe=1`. Every part of this was verified (below). The spike also used AutoRemove (`--rm`), but the product must not: see the amendment at the end.
 2. **New: on Linux Docker Engine, read the destination's listeners from the host** via `/proc/<pid>/net/tcp{,6}`. This needs no root and no Docker write.
    - Before trusting the PID, verify that `/proc/<pid>/cgroup` contains the full container ID. Re-check it after the read to rule out PID reuse.
    - On Docker Desktop, where the PIDs belong to the VM, read the listeners inside the probe container instead (also verified).
@@ -32,7 +32,7 @@ On Linux Docker Engine, Docker metadata plus host-read listeners are enough for:
 - **WR001 and WR003:** nothing listening on the port, or listening on a different port.
 - **WR004 (no shared network), WR006 (published port used internally) and WR008 (destination not running).**
 
-DNS-view rules (WR005, WR009) and confirming actual reachability from the source still need the probe container or root. Without them, whyreach reports those as gaps (§3.6).
+DNS-view rules (WR005, WR009) and confirming actual reachability from the source still need the probe container or root. Without them, whyreach reports those as gaps (§3.6). *(Refined by ADR 0002: WR005 and WR009 are decided from Docker metadata, so without the probe they lose only the DNS view.)*
 
 ## Evidence
 
@@ -97,3 +97,17 @@ DNS-view rules (WR005, WR009) and confirming actual reachability from the source
   - Q3: which MCP clients support elicitation or input-required results
   - Q7: probe containers under Docker Desktop's Enhanced Container Isolation
   - Q8: alternative runtimes
+
+## Amendment (2026-11-13, before M1): no AutoRemove on the probe container
+
+The M0 spikes ran the probe with `docker run --rm`. The CLI attaches to the output streams before it starts the container, so the output arrives even though the container is auto-removed. The product calls the API instead (create, start, wait, logs, delete; no attach on the allowlist), and there AutoRemove loses the output. `spikes/probelifecycle.sh` checked this on Docker Engine 29.9.3:
+
+| Sequence | Result |
+|---|---|
+| AutoRemove, then create → start → wait → logs | The logs were gone in 5 of 5 runs: `409 can not get logs from container which is dead or marked for removal` once, then `404 No such container` |
+| AutoRemove, following the logs from before start | 0 bytes: the daemon doesn't follow a container that isn't running |
+| No AutoRemove: create → start → wait → logs → `DELETE ?force=1` | 699 bytes of multiplexed stdout (frame header 1), then a clean removal |
+
+**Decision:** the probe container doesn't use AutoRemove. The executor removes it after reading the logs, on every path including timeouts and cancellation, and sweeps labeled leftovers at startup. The allowlist stays as it is.
+
+The probe image import is a Docker write too. It is part of tier 2b, carries the label `io.whyreach.probe=1`, and is reported in `side_effects` (`INITIAL.md` §3.3, §4.7).

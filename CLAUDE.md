@@ -65,7 +65,7 @@ cli / mcpserver → policy → engine → { rules, collect/host, collect/docker,
 1. **No shell.** Never `exec.Command("sh", "-c", …)`, and never shell out to `ip`, `ss`, `dig` or similar in product code. Use netlink, `/proc`, the Docker API and Go dialers. Tests and lab scripts may use the CLI tools.
 2. **Read-only.**
    - Never change routes, firewall rules, interfaces, DNS, containers, networks, or files outside whyreach's own config, state and data directories. Those are the XDG directories on Linux and the platform's standard user directories on macOS and Windows (`INITIAL.md` §4.15).
-   - The one allowed Docker write is the tier-2b probe container. It is gated by config, hardened, labeled `io.whyreach.probe=1`, and reported in `side_effects`.
+   - The only allowed Docker writes are tier 2b's: importing the probe image (`whyreach-probe:<version>`, once per version) and running the probe container. Both are gated by config, labeled `io.whyreach.probe=1`, and reported in `side_effects`. The container is also hardened, and whyreach removes it itself after reading its logs: no AutoRemove, which would delete the output first (ADR 0001, amendment).
 3. **Tool arguments can narrow permissions, never widen them.** Permission tiers come from the user's config or from MCP elicitation, never from an argument the agent supplies.
 4. **Probe policy.**
    - One host:port per call. Reject CIDRs, ranges, lists and wildcards.
