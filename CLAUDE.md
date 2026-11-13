@@ -34,9 +34,10 @@ make lab        # go test -tags lab ./test/e2e/...  (needs Docker)
 make lab-root   # sudo -E go test -tags lab,privileged ./test/e2e/...  (netns executor)
 make golden     # go test ./internal/report/... -update
 make cross      # compile check: GOOS=darwin and GOOS=windows (amd64, arm64) go build ./...
+make clean      # rm -rf bin dist spikes/out
 ```
 
-Run a single test: `go test ./internal/rules -run TestWR002 -v`
+Run a single test (once `internal/rules` exists, from M1): `go test ./internal/rules -run TestWR002 -v`
 
 ## Architecture (details: INITIAL.md §3–4)
 
@@ -92,7 +93,7 @@ cli / mcpserver → policy → engine → { rules, collect/host, collect/docker,
 - Listener-based rules ignore Docker's embedded-DNS listeners on `127.0.0.11` (ADR 0001).
 - Every rule has a layer (`INITIAL.md` §4.5, ADR 0002). The primary finding comes from the earliest broken layer. Consequences of it are suppressed through `Supersedes()`, and independent findings are kept as "also found".
 - Decide "name not found" (WR005) from Docker metadata, never from the DNS rcode. Unknown names come back SERVFAIL or NXDOMAIN depending on the host's resolver.
-- "Refused" alone proves nothing: seven rules produce it. Listeners and metadata decide which one applies.
+- "Refused" alone proves nothing: at least nine rules produce it (`docs/research/rule-experiments.md`). Listeners and metadata decide which one applies.
 - `Unmap()` every address that comes from Go's resolver: `/etc/hosts` entries come back as `::ffff:a.b.c.d`.
 
 ## Adding a rule (checklist)
@@ -125,9 +126,11 @@ The default answer to adding a tool is no. The surface stays at 4 tools: `diagno
   - `github.com/miekg/dns`
   - `github.com/spf13/cobra`
   - `golang.org/x/sys`
+  - `golang.org/x/sync` (`errgroup`, for the engine's collect stage)
   - `github.com/google/go-cmp`
   - `github.com/BurntSushi/toml`
   - `github.com/Microsoft/go-winio` (Windows named pipe; only once native Windows support lands in v0.3)
+  - `golang.org/x/net` (`route` for routing sockets; only once native macOS support lands in v0.3)
 
   Anything else needs a one-line justification in the commit message.
 
@@ -147,4 +150,4 @@ The default answer to adding a tool is no. The surface stays at 4 tools: `diagno
 - Before starting a milestone, re-read `INITIAL.md` §2, §4 and the relevant ADR in `docs/adr/`.
 - Build the smallest thing that makes the milestone's lab scenario pass. Don't build ahead.
 - When a design decision changes, update `INITIAL.md` or add an ADR in the same change.
-- Only touch Docker resources that whyreach's own lab, spikes or probes created: those named `whyreach-lab-*` or `whyreach-spike-*`, or labeled `io.whyreach.probe=1` or `io.whyreach.spike=1`. Clean up with `docker compose -p <project> down -v`. Never prune or remove anything else on this machine.
+- Only touch Docker resources that whyreach's own lab, spikes or probes created: those named `whyreach-lab-*`, `whyreach-spike-*` or `whyreach-exp-*`, or labeled `io.whyreach.probe=1` or `io.whyreach.spike=1`. Clean up with `docker compose -p <project> down -v`. Never prune or remove anything else on this machine.

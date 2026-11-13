@@ -1,6 +1,6 @@
 # Rule experiments: what whyreach can observe for each failure
 
-> **How to reproduce:** run `spikes/experiments.sh`. The scenarios are `spikes/experiments/*.yaml`.
+> **How to reproduce:** run `spikes/experiments.sh`. The Compose scenarios are `spikes/experiments/*.yaml`; E7 and E9 run inline in the script.
 > **When and where:** run on 2026-11-13 on Ubuntu 24.04.5 (kernel 7.0) with Docker Engine 29.9.3, as a non-root user in the `docker` group. Re-run the same day before M1, with the toolchain pinned to go1.27.4: every outcome matched.
 > **Feeds:** the rule order in `INITIAL.md` §4.5–4.6 and ADR 0002.
 
@@ -53,7 +53,7 @@ Rules marked "probe container" need tier 2b (or root, from M3).
 
    So **WR005 decides from Docker metadata** (the name matches no container, service or alias on the source's networks), and the rcode is only recorded as evidence. **WR020 requires** that internal names resolve while external names time out or fail.
 2. **Traffic between networks times out (a silent drop).** Without precedence rules, WR016 would fire on every WR004 case. ADR 0002 handles this with layers.
-3. **"Refused" alone proves nothing.** WR001, WR002, WR003, WR006, WR007, WR012 and WR019 all produce ECONNREFUSED; listeners and metadata decide between them. EHOSTUNREACH is ambiguous in the same way (a stale IP versus a firewall reject), and the owner of the target address decides.
+3. **"Refused" alone proves nothing.** WR001, WR002, WR003, WR006, WR007, WR010, WR012, WR014 and WR019 all produce ECONNREFUSED; listeners and metadata decide between them. EHOSTUNREACH is ambiguous in the same way (a stale IP versus a firewall reject), and the owner of the target address decides.
 4. **Most of the frequent rules need no probe container.** With tier 2b off, v0.1 still covers frequency ranks 1, 2 and 4–7. Only WR020, WR014, WR016, WR005's DNS view, and confirming reachability need the probe.
 5. **`host-gateway` maps to the docker0 address** for containers on any network.
 6. **Go's resolver puts `::1` before `127.0.0.1` for `localhost`,** and returns IPv4 hosts-file entries as `::ffff:` addresses. Unmap them (ADR 0001).

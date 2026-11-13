@@ -724,7 +724,7 @@ expect:
 - **Requirements:** no Docker, no network and no root. `go test ./...` must pass on any Linux machine.
 
 ### 6.2 Golden tests
-They cover the text, Markdown and MCP-text renderers. Regenerate the golden files with `go test ./internal/report/... -update`.
+They cover the text, Markdown and MCP-text renderers, and the MCP `structuredContent` JSON, which is what agents actually read (ADR 0001). Regenerate the golden files with `go test ./internal/report/... -update`.
 
 ### 6.3 Lab (integration)
 - **Layout:** each scenario is `test/lab/<scenario>/`, containing `compose.yaml` and `scenario.yaml`.
@@ -734,7 +734,7 @@ They cover the text, Markdown and MCP-text renderers. Regenerate the golden file
   3. assert on the result
   4. `down -v`
 - Unique project names let scenarios run in parallel without touching any other containers.
-- **Starting point:** the experiment scenarios in `spikes/experiments/` (E1–E8). M1 promotes the slice scenarios first (ADR 0002). Note that `up --wait` would hang on the slow-start and crash-loop scenarios, so those need their own wait conditions.
+- **Starting point:** the experiment scenarios: E1–E6 and E8 are Compose files in `spikes/experiments/`, and E7 and E9 run inline in `spikes/experiments.sh`. M1 promotes the slice scenarios first (ADR 0002). Note that `up --wait` would hang on the slow-start and crash-loop scenarios, so those need their own wait conditions.
 - **netns variants** need root: `sudo -E go test -tags lab,privileged …`.
 - **CI** runs on GitHub Actions Ubuntu runners, which have Docker and sudo.
 - **v0.1 scenario set:**

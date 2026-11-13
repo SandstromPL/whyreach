@@ -86,7 +86,7 @@ down e2a
 down e2b
 
 echo
-echo "== E3 upstream DNS unreachable (candidate WR020)"
+echo "== E3 upstream DNS unreachable (WR020)"
 up e3
 probe_in e3-from-client "$(cname e3 client)" --timeout 6s --dns peer --dns example.com --tcp 1.1.1.1:443
 summ resolv "$R/e3-from-client.json" "" e3-client
@@ -134,7 +134,7 @@ host_pid=""
 down e5
 
 echo
-echo "== E6 publishing ports (candidate WR019, WR006)"
+echo "== E6 publishing ports (WR019, WR006)"
 up e6
 brief "$(cname e6 web)" "$(cname e6 weblo)"
 "$BIN" report --timeout 2s --tcp 127.0.0.1:8080 --tcp 127.0.0.1:18090 --tcp "$gw:18090" >"$R/e6-from-host.json" 2>"$R/e6-from-host.err"
