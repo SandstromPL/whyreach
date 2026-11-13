@@ -14,10 +14,10 @@ spikes/out/serve serve 127.0.0.1:18080 &
 serve_pid=$!
 trap 'kill "$serve_pid" 2>/dev/null || true' EXIT
 
-cfg=$(printf '{"mcpServers":{"ndspike":{"command":"%s"}}}' "$PWD/spikes/out/mcphello")
+cfg=$(printf '{"mcpServers":{"whyreach-spike":{"command":"%s"}}}' "$PWD/spikes/out/mcphello")
 timeout 240 claude -p 'Call the host_listeners tool exactly once with {"port": 18080}. Then answer in two lines. Line 1: copy the exact text you received from the tool. Line 2: write "STRUCTURED: yes" if the tool result you received included a JSON object with a "listeners" field, otherwise "STRUCTURED: no".' \
   --model haiku --mcp-config "$cfg" --strict-mcp-config \
-  --allowedTools mcp__ndspike__host_listeners \
+  --allowedTools mcp__whyreach-spike__host_listeners \
   --output-format stream-json --verbose > spikes/out/claude-stream.jsonl
 
 python3 -I - spikes/out/claude-stream.jsonl <<'EOF'
