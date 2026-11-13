@@ -189,6 +189,10 @@ func (p *Policy) RecordConsent(approved bool, how string) {
 	p.audit(Entry{Tool: ToolConsent, Args: map[string]string{"answer": how}, Status: status, SideEffects: []string{}}, time.Now(), nil)
 }
 
+// Netns reports whether tier 3 is in effect: as root, container checks
+// enter the containers' network namespaces (the netns executor).
+func (p *Policy) Netns() bool { return p.d.Netns != nil }
+
 // ConfigPath is the config file the settings came from.
 func (p *Policy) ConfigPath() string { return p.d.Settings.ConfigPath }
 
@@ -259,7 +263,7 @@ func (p *Policy) permissionFacts() *engine.PermissionFacts {
 		Docker: p.d.Docker != nil, Root: os.Geteuid() == 0, Allow: p.d.Settings.Allow,
 		RatePerMinute: p.d.Settings.RatePerMinute, ProbeContainers: "off", Netns: "off",
 	}
-	if p.d.Netns != nil {
+	if p.Netns() {
 		f.Netns = "on (root)"
 	}
 	switch {
@@ -419,7 +423,7 @@ func (p *Policy) audit(e Entry, start time.Time, err error) {
 	e.Client = p.d.Client
 	e.DurationMS = evidence.Millis(time.Since(start))
 	e.ProbeContainers = p.ProbeContainers()
-	e.Netns = p.d.Netns != nil
+	e.Netns = p.Netns()
 	if e.Status == "" {
 		e.Status = "ok"
 	}

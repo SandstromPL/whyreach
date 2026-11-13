@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -154,6 +155,17 @@ type netnsHandle struct {
 	root   int    // /proc/<pid>/root, opened O_PATH: the container's root directory
 	inode  uint64 // the namespace's inode, which identifies it (ContextRef.NetnsID)
 	logger *slog.Logger
+
+	mu    sync.Mutex
+	files map[string]*fileRead // the batch's one read of each resolver file
+}
+
+// fileRead is one read of a container's file, shared by every lookup of a
+// batch that needs it.
+type fileRead struct {
+	done chan struct{} // closed once b and err are set
+	b    []byte
+	err  error
 }
 
 // openNetns opens what a batch needs from the container's process between
@@ -268,28 +280,17 @@ func (h *netnsHandle) onThread(f func()) error {
 }
 
 // open reads one of the container's resolver files (probe.Resolver.Open)
-// through its root directory, as the container sees it, within
-// fileTimeout. The read works on its own copy of the root descriptor, so a
-// read that is given up on can't use the batch's after it is closed.
+// through its root directory, as the container sees it. A batch reads each
+// file once, however many lookups need it, so a container that grows its
+// /etc/hosts is held in memory once per batch, and each caller waits at
+// most fileTimeout. A read that is given up on (a file system that hangs)
+// is left to finish on its own copy of the root descriptor.
 func (h *netnsHandle) open(ctx context.Context, path string) (io.ReadCloser, error) {
-	root, err := unix.FcntlInt(uintptr(h.root), unix.F_DUPFD_CLOEXEC, 0)
-	if err != nil {
-		return nil, &fs.PathError{Op: "dup", Path: "/proc/<pid>/root", Err: err}
-	}
-	type result struct {
-		b   []byte
-		err error
-	}
-	done := make(chan result, 1)
-	go func() {
-		defer func() { _ = unix.Close(root) }()
-		b, err := readInRoot(root, path, maxResolverFile)
-		done <- result{b, err}
-	}()
+	r := h.read(path)
 	ctx, cancel := context.WithTimeout(ctx, fileTimeout)
 	defer cancel()
 	select {
-	case r := <-done:
+	case <-r.done:
 		if r.err != nil {
 			return nil, r.err
 		}
@@ -297,6 +298,33 @@ func (h *netnsHandle) open(ctx context.Context, path string) (io.ReadCloser, err
 	case <-ctx.Done():
 		return nil, fmt.Errorf("reading %s in the container took too long: %w", path, ctx.Err())
 	}
+}
+
+// read starts the batch's read of path, or returns the one already made or
+// under way.
+func (h *netnsHandle) read(path string) *fileRead {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if r, ok := h.files[path]; ok {
+		return r
+	}
+	if h.files == nil {
+		h.files = map[string]*fileRead{}
+	}
+	r := &fileRead{done: make(chan struct{})}
+	h.files[path] = r
+	root, err := unix.FcntlInt(uintptr(h.root), unix.F_DUPFD_CLOEXEC, 0)
+	if err != nil {
+		r.err = &fs.PathError{Op: "dup", Path: "/proc/<pid>/root", Err: err}
+		close(r.done)
+		return r
+	}
+	go func() {
+		defer close(r.done)
+		defer func() { _ = unix.Close(root) }()
+		r.b, r.err = readInRoot(root, path, maxResolverFile)
+	}()
+	return r
 }
 
 // readInRoot reads path inside the directory root as if root were "/":

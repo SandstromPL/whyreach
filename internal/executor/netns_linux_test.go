@@ -5,6 +5,7 @@ package executor
 import (
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -414,5 +415,56 @@ func TestNetnsEnterNeverMovesTheMainThread(t *testing.T) {
 	close(stop)
 	if moved := <-readerDone; moved != 0 || onMain.Load() != 0 {
 		t.Errorf("the main thread left whyreach's namespace: %d reads saw the container's, %d calls ran on it", moved, onMain.Load())
+	}
+}
+
+// TestNetnsHandleReadsEachFileOncePerBatch: every lookup of a batch shares
+// one read of each file, so a container that grows its /etc/hosts costs one
+// copy in memory, not one per lookup.
+func TestNetnsHandleReadsEachFileOncePerBatch(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "etc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	hosts := filepath.Join(root, "etc", "hosts")
+	if err := os.WriteFile(hosts, []byte("10.0.0.1 api\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fd, err := unix.Open(root, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &netnsHandle{ns: -1, root: fd, logger: slog.New(slog.DiscardHandler)}
+	defer h.close()
+	read := func() string {
+		f, err := h.open(context.Background(), "/etc/hosts")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = f.Close() }()
+		var b strings.Builder
+		if _, err := io.Copy(&b, f); err != nil {
+			t.Fatal(err)
+		}
+		return b.String()
+	}
+	var wg sync.WaitGroup
+	for range 16 {
+		wg.Go(func() {
+			if got := read(); got != "10.0.0.1 api\n" {
+				t.Errorf("read %q", got)
+			}
+		})
+	}
+	wg.Wait()
+	// The file changes; the batch keeps the one copy it read.
+	if err := os.WriteFile(hosts, []byte("10.0.0.2 api\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); got != "10.0.0.1 api\n" {
+		t.Errorf("a second read in the same batch got %q: the file was read twice", got)
+	}
+	if len(h.files) != 1 {
+		t.Errorf("%d reads, want 1", len(h.files))
 	}
 }
