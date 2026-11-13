@@ -21,6 +21,7 @@ import (
 	"github.com/SandstromPL/whyreach/internal/config"
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
+	"github.com/SandstromPL/whyreach/internal/platform"
 	"github.com/SandstromPL/whyreach/internal/policy"
 	"github.com/SandstromPL/whyreach/internal/probe"
 	"github.com/SandstromPL/whyreach/internal/report"
@@ -366,6 +367,11 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 					return nil, fmt.Errorf("find whyreach's own binary for the probe image: %w", err)
 				}
 				return executor.NewProbeContainer(pc, exe, o.Version, logger), nil
+			}
+			// As root on the host itself, container checks enter the
+			// containers' network namespaces: no Docker write (tier 3).
+			if ok, _ := platform.Detect().NetnsExecutor(); ok {
+				deps.Netns = executor.NewNetns(deps.Docker, logger)
 			}
 		}
 	}

@@ -75,6 +75,10 @@ type Deps struct {
 	// NewProbe builds the probe-container executor the first time tier 2b
 	// is used; nil when it can't exist (no Docker API).
 	NewProbe func() (executor.Executor, error)
+	// Netns runs container checks by entering the containers' network
+	// namespaces (tier 3). The caller sets it only when whyreach has the
+	// privilege (root) and runs on the host itself; nil means it doesn't.
+	Netns    executor.Executor
 	Audit    *Audit // nil: no audit log
 	Client   string // ClientCLI or ClientMCP
 	Deadline time.Duration
@@ -113,6 +117,9 @@ func New(d Deps) (*Policy, error) {
 	if !d.Settings.Docker {
 		d.Docker, d.DockerErr = nil, nil
 	}
+	if d.Docker == nil {
+		d.Netns = nil // it finds containers through the Docker API
+	}
 	p := &Policy{d: d, limiter: newLimiter(d.Settings.RatePerMinute, d.Now)}
 	for _, entry := range d.Settings.Allow {
 		prefixes, err := config.AllowPrefixes(entry)
@@ -128,11 +135,19 @@ func New(d Deps) (*Policy, error) {
 	if host == nil {
 		host = executor.NewHost()
 	}
+	// The netns executor obeys the same allowlist, block list and rate
+	// limit as the others; it needs no tier 2b, since it writes nothing to
+	// Docker.
+	var netns executor.Executor
+	if d.Netns != nil {
+		netns = &guard{p: p, name: evidence.ExecutorNetns, inner: func() (executor.Executor, error) { return d.Netns, nil }}
+	}
 	p.engine = engine.New(engine.Deps{
 		Docker:     d.Docker,
 		DockerErr:  d.DockerErr,
 		Host:       &guard{p: p, name: evidence.ExecutorHost, inner: func() (executor.Executor, error) { return host, nil }},
 		Probe:      &guard{p: p, name: evidence.ExecutorProbeContainer, tier2b: true, inner: p.probeExecutor},
+		Netns:      netns,
 		Listeners:  d.Listeners,
 		Interfaces: d.Interfaces,
 		ConfigPath: d.Settings.ConfigPath,
@@ -240,7 +255,10 @@ func (p *Policy) inspect(ctx context.Context, scope string) (*engine.Inspection,
 func (p *Policy) permissionFacts() *engine.PermissionFacts {
 	f := &engine.PermissionFacts{
 		Docker: p.d.Docker != nil, Root: os.Geteuid() == 0, Allow: p.d.Settings.Allow,
-		RatePerMinute: p.d.Settings.RatePerMinute, ProbeContainers: "off",
+		RatePerMinute: p.d.Settings.RatePerMinute, ProbeContainers: "off", Netns: "off",
+	}
+	if p.d.Netns != nil {
+		f.Netns = "on (root)"
 	}
 	switch {
 	case p.ProbeContainersConfigured():

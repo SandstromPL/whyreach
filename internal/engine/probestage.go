@@ -51,7 +51,7 @@ func (r *run) probe(ctx context.Context) error {
 			})...)
 			return nil
 		}
-		ex = r.e.d.Probe
+		ex = r.containerExecutor()
 	}
 
 	// The gate comes before the tier-2b check: probes that would be skipped

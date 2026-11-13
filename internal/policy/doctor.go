@@ -30,11 +30,7 @@ func (p *Policy) Doctor(ctx context.Context) []engine.Check {
 		Detail: fmt.Sprintf("TCP probes may go to %s; at most %d probes a minute; link-local and cloud-metadata addresses are always blocked", allow, p.d.Settings.RatePerMinute)})
 
 	pl := platform.Detect()
-	root := engine.Check{Name: "root", Status: engine.CheckInfo, Detail: "no: whyreach needs no root; the netns executor (root only) arrives in M3"}
-	if pl.Root {
-		root.Detail = "yes: the netns executor (M3) will use it; avoid running the MCP server as root"
-	}
-	out = append(out, root)
+	out = append(out, p.netnsCheck(pl))
 	if pl.InContainer {
 		out = append(out, engine.Check{Name: "environment", Status: engine.CheckWarn,
 			Detail: "whyreach runs inside a container: host interfaces and listeners describe that container's network namespace, not the host's"})
@@ -46,8 +42,29 @@ func (p *Policy) Doctor(ctx context.Context) []engine.Check {
 	return append(out, p.auditCheck())
 }
 
+// netnsCheck says whether container checks enter the containers' network
+// namespaces themselves (tier 3, the netns executor).
+func (p *Policy) netnsCheck(pl platform.Info) engine.Check {
+	c := engine.Check{Name: "netns executor", Status: engine.CheckInfo}
+	_, why := pl.NetnsExecutor()
+	switch {
+	case p.d.Netns != nil:
+		c.Detail = "on (root): on Linux Docker Engine, DNS and TCP checks from containers enter their network namespaces directly, with no Docker write. Run whyreach as root for the CLI only; as an MCP server, prefer a regular user (INITIAL.md §3.5)"
+	case why == "":
+		c.Detail = "off: it needs the Docker API"
+	default:
+		c.Detail = "off: " + why + ". whyreach needs no root: without it, container checks use probe containers (tier 2b)"
+	}
+	return c
+}
+
 func (p *Policy) probeContainerCheck(ctx context.Context) engine.Check {
 	c := engine.Check{Name: "probe containers"}
+	if p.d.Netns != nil && !p.ProbeContainers() {
+		c.Status = engine.CheckInfo
+		c.Detail = "off (tier 2b), and not needed on Linux Docker Engine while whyreach runs as root: the netns executor runs container checks"
+		return c
+	}
 	if !p.ProbeContainers() {
 		c.Status = engine.CheckWarn
 		c.Detail = "off (tier 2b): DNS and TCP checks from inside containers are skipped; metadata and listeners still settle most causes"

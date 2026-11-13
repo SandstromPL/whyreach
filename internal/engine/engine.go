@@ -58,13 +58,17 @@ type Listeners interface {
 // unavailable or turned off (DockerErr says why). Probe runs checks inside
 // containers; the policy package hands the engine a guarded one that
 // answers with permission-denied records while tier 2b is off, and nil
-// means the same. Interfaces reads the host's addresses; nil means
-// unsupported.
+// means the same. Netns runs them by entering the container's network
+// namespace (tier 3, root); when set, the engine prefers it on a Linux
+// Docker Engine on this host, the only place where Docker's PIDs are this
+// machine's, and nil means whyreach lacks the privilege. Interfaces reads
+// the host's addresses; nil means unsupported.
 type Deps struct {
 	Docker     Docker
 	DockerErr  error
 	Host       executor.Executor
 	Probe      executor.Executor
+	Netns      executor.Executor
 	Listeners  Listeners
 	Interfaces func() (evidence.HostAddrs, error)
 	ConfigPath string // named in the advice for enabling tier 2b
@@ -184,6 +188,16 @@ func (e *Engine) Diagnose(ctx context.Context, from target.From, to evidence.Tar
 		d.Timing.DeadlineHit = true
 	}
 	return d, nil
+}
+
+// containerExecutor runs checks inside containers: the netns executor where
+// it can work (root, and a Linux Docker Engine on this host), otherwise
+// probe containers. It is nil when neither is available.
+func (r *run) containerExecutor() executor.Executor {
+	if r.e.d.Netns != nil && r.linux {
+		return r.e.d.Netns
+	}
+	return r.e.d.Probe
 }
 
 func newID(t time.Time) string {

@@ -113,7 +113,7 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 			Code: evidence.CodeNotFound, Message: fmt.Sprintf("%s is %s, so nothing can be tested from its network namespace; start it first", owner.DisplayName(), owner.State),
 		}), nil
 	}
-	ex := e.d.Probe
+	ex := r.containerExecutor()
 	if owner.HostNetwork() {
 		ex = e.d.Host // its network namespace is the host's
 	}

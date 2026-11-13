@@ -23,8 +23,8 @@ func RenderInspection(w io.Writer, in *engine.Inspection) {
 			line("docker", []string{fmt.Sprintf("%s %s, API %s, %s", d.Platform, d.Version, d.API, d.Endpoint)})
 		}
 		if p := h.Permissions; p != nil {
-			line("permissions", []string{fmt.Sprintf("docker %v, probe containers %s, root %v, %d probes/min, allow %s",
-				p.Docker, p.ProbeContainers, p.Root, p.RatePerMinute, orAny(p.Allow))})
+			line("permissions", []string{fmt.Sprintf("docker %v, probe containers %s, netns %s, root %v, %d probes/min, allow %s",
+				p.Docker, p.ProbeContainers, p.Netns, p.Root, p.RatePerMinute, orAny(p.Allow))})
 		}
 		var ifs []string
 		for _, i := range h.Interfaces {

@@ -58,6 +58,7 @@ type DockerFacts struct {
 type PermissionFacts struct {
 	Docker          bool     `json:"docker"`
 	ProbeContainers string   `json:"probe_containers"` // "on (config)", "on (approved for this session)" or "off"
+	Netns           string   `json:"netns"`            // "on (root)": container checks enter the containers' network namespaces, with no Docker write; or "off"
 	Root            bool     `json:"root"`
 	Allow           []string `json:"probe_allow,omitempty"`
 	RatePerMinute   int      `json:"probes_per_minute"`

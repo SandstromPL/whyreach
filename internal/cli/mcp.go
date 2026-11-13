@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/SandstromPL/whyreach/internal/config"
+	"github.com/SandstromPL/whyreach/internal/platform"
 	"github.com/SandstromPL/whyreach/internal/policy"
 )
 
@@ -43,6 +44,9 @@ Add it to Claude Code with:
 				return internalErr(errors.New("this build has no MCP server"))
 			}
 			logger := newLogger(o)
+			if platform.Detect().Root {
+				logger.Warn("the MCP server runs as root: prefer a regular user, and keep root for the CLI (an agent's tool calls then run with root's privileges, within the probe policy)")
+			}
 			p, err := o.NewPolicy(o, logger, policy.ClientMCP)
 			if err != nil {
 				return usageErr(err)
