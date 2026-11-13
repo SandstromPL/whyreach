@@ -1,10 +1,12 @@
-# The release (INITIAL.md §7, M4): on a v* tag, test, then goreleaser builds
-# the archives, checksums.txt and the container image, drafts a GitHub
-# release and pushes the image to ghcr.io; then the archives and the image
-# get build-provenance attestations (Sigstore, stored by GitHub).
+# The release (INITIAL.md §7, M4): on a v* tag, the tests run in a job of
+# their own with read-only permissions; then goreleaser builds the archives,
+# checksums.txt and the container image, drafts a GitHub release and pushes
+# the image to ghcr.io under the version's tag; then the archives and the
+# image get build-provenance attestations (Sigstore, stored by GitHub).
 #
-# Nothing here publishes to the MCP Registry: that is a separate, manual
-# step for the owner, once the image is public (server.json).
+# Nothing here publishes to the MCP Registry, makes the image public, or
+# tags it latest: those are manual steps for the owner, after reviewing the
+# draft release.
 name: release
 
 on:
@@ -19,7 +21,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: make test
+
   release:
+    needs: test
     runs-on: ubuntu-24.04
     permissions:
       contents: write     # the draft release and its assets
@@ -30,10 +44,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # goreleaser's changelog reads the history
+          persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - run: make test
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:

@@ -43,9 +43,10 @@ dockers_v2:
     dockerfile: Dockerfile
     images:
       - ghcr.io/sandstrompl/whyreach
+    # The version only: the release is a draft until the owner publishes it,
+    # so latest is theirs to move afterwards.
     tags:
       - "{{ .Version }}"
-      - "{{ if not .Prerelease }}latest{{ end }}"
     platforms:
       - linux/amd64
       - linux/arm64
