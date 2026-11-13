@@ -32,9 +32,12 @@ func (r wr008) Evaluate(v evidence.View) []Finding {
 	}
 	// A match outside the source's networks may not be what the source
 	// means: when the name resolves or connects from the source, it means
-	// something else, and otherwise the finding is less certain.
-	onSourceNets := len(d.OnSourceNets) > 0
-	if !onSourceNets && (connectedByName(v) || resolvedFromSource(v)) {
+	// something else, and otherwise the finding is less certain. A container
+	// that publishes the port where the target arrives on the host is the
+	// destination for certain, even when the connect succeeds (docker-proxy,
+	// or a paused container's kernel, completes the handshake).
+	definite := len(d.OnSourceNets) > 0 || d.Host != nil
+	if !definite && (connectedByName(v) || resolvedFromSource(v)) {
 		return nil
 	}
 	var down []evidence.Match
@@ -89,7 +92,7 @@ func (r wr008) Evaluate(v evidence.View) []Finding {
 			f.Supporting = ids(append(f.Supporting, m.ID)...)
 		}
 	}
-	if !onSourceNets {
+	if !definite {
 		f.Confidence = f.Confidence.Lower()
 		f.Explanation += fmt.Sprintf(" It is also on no network %s is on, so it may not be the %s that %s means.", sourceName(v), v.Question().To.Host, sourceName(v))
 	}
