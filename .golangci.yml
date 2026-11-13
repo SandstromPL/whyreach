@@ -2,8 +2,8 @@ version: "2"
 
 run:
   timeout: 5m
-  # Lint the lab harness (test/e2e) too; it only builds with this tag.
-  build-tags: [lab]
+  # Lint the lab harness (test/e2e) too, the root-only variant included; it only builds with these tags.
+  build-tags: [lab, privileged]
 
 linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused

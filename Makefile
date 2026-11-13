@@ -35,10 +35,20 @@ lab:
 lab-agent:
 	go test -tags lab,agent -count=1 -run TestAgent -timeout 60m -v ./test/e2e/...
 
-## lab-root: lab scenarios that need root (netns executor, from M3)
+## lab-root: the lab as root, where whyreach enters the containers' network
+## namespaces itself (the netns executor): every scenario, and no Docker
+## writes; plus the executor's root-only test. Everything is built as you
+## first; only the test binaries run as root (sudo asks for your password).
+LAB_ROOT := $(CURDIR)/bin/lab-root
 lab-root:
-	@if grep -rlqs 'go:build.*privileged' test/e2e; then sudo -E env "PATH=$$PATH" go test -tags lab,privileged -count=1 ./test/e2e/...; \
-	else echo "lab-root: no privileged scenarios yet (the netns executor arrives in M3)"; fi
+	@mkdir -p $(LAB_ROOT)
+	CGO_ENABLED=0 go build -trimpath -ldflags '-X main.version=lab' -o $(LAB_ROOT)/whyreach ./cmd/whyreach
+	CGO_ENABLED=0 go build -trimpath -o $(LAB_ROOT)/labserver ./test/labserver
+	go test -c -o $(LAB_ROOT)/executor.test ./internal/executor
+	go test -c -tags lab,privileged -o $(LAB_ROOT)/e2e.test ./test/e2e
+	cd internal/executor && sudo $(LAB_ROOT)/executor.test -test.run 'Netns|ReadInRoot' -test.count=1 -test.v
+	cd test/e2e && sudo $(LAB_ROOT)/e2e.test -test.run 'TestLabNetns' -test.count=1 -test.v -test.timeout 30m \
+		-lab.bin $(LAB_ROOT)/whyreach -lab.server $(LAB_ROOT)/labserver
 
 ## golden: regenerate golden files: the text renderer, the compact MCP structured form, the Diagnosis JSON
 golden:

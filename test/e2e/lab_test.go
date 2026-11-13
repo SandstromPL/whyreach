@@ -9,6 +9,11 @@
 //
 // Run it with `make lab`. It needs Docker, and touches only resources named
 // whyreach-lab-* or labeled io.whyreach.lab=1 / io.whyreach.probe=1.
+//
+// As root, whyreach enters the containers' network namespaces itself (the
+// netns executor), so TestLab gives way to TestLabNetns (build tag
+// privileged; `make lab-root`). Root runs take prebuilt binaries
+// (-lab.bin, -lab.server), so nothing is compiled as root.
 package e2e
 
 import (
@@ -20,6 +25,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -81,11 +87,21 @@ type lab struct {
 	probeImage string // the probe image the binary imports
 	withProbe  string // XDG_CONFIG_HOME with probe_containers = true
 	noProbe    string // XDG_CONFIG_HOME with no config file
+	home       string // XDG_STATE_HOME and XDG_DATA_HOME of every run: the audit log stays in the lab
 }
 
 var l lab
 
+// Prebuilt binaries, for runs as root (make lab-root builds them as the
+// user first): building as root would leave root-owned files in the
+// user's Go caches.
+var (
+	prebuiltBin    = flag.String("lab.bin", "", "whyreach binary to test, built with -ldflags '-X main.version="+labVersion+"' (default: build it)")
+	prebuiltServer = flag.String("lab.server", "", "test/labserver binary (default: build it)")
+)
+
 func TestMain(m *testing.M) {
+	flag.Parse()
 	os.Exit(run(m))
 }
 
@@ -115,13 +131,23 @@ func run(m *testing.M) int {
 }
 
 func setup(dir string) error {
-	root, err := repoRoot()
-	if err != nil {
-		return err
-	}
-	l.bin = filepath.Join(dir, "whyreach")
-	if err := goBuild(root, l.bin, "./cmd/whyreach", "-X main.version="+labVersion); err != nil {
-		return err
+	l.bin = *prebuiltBin
+	server := *prebuiltServer
+	if l.bin == "" || server == "" {
+		if os.Geteuid() == 0 {
+			return errors.New("as root, pass prebuilt binaries with -lab.bin and -lab.server (make lab-root does)")
+		}
+		root, err := repoRoot()
+		if err != nil {
+			return err
+		}
+		l.bin, server = filepath.Join(dir, "whyreach"), filepath.Join(dir, "labserver")
+		if err := goBuild(root, l.bin, "./cmd/whyreach", "-X main.version="+labVersion); err != nil {
+			return err
+		}
+		if err := goBuild(root, server, "./test/labserver", ""); err != nil {
+			return err
+		}
 	}
 	digest, err := sha256File(l.bin)
 	if err != nil {
@@ -129,10 +155,6 @@ func setup(dir string) error {
 	}
 	l.probeImage = "whyreach-probe:" + executor.ImageTag(labVersion, digest)
 
-	server := filepath.Join(dir, "labserver")
-	if err := goBuild(root, server, "./test/labserver", ""); err != nil {
-		return err
-	}
 	sd, err := sha256File(server)
 	if err != nil {
 		return err
@@ -144,6 +166,7 @@ func setup(dir string) error {
 
 	l.noProbe = filepath.Join(dir, "config-default")
 	l.withProbe = filepath.Join(dir, "config-probe")
+	l.home = filepath.Join(dir, "home")
 	if err := os.MkdirAll(filepath.Join(l.withProbe, "whyreach"), 0o700); err != nil {
 		return err
 	}
@@ -219,17 +242,29 @@ func leftoverProbes() string {
 }
 
 func TestLab(t *testing.T) {
-	dirs, err := filepath.Glob(filepath.Join("..", "lab", "*", "scenario.yaml"))
-	if err != nil || len(dirs) == 0 {
-		t.Fatalf("no scenarios: %v", err)
+	if os.Geteuid() == 0 {
+		t.Skip("as root whyreach enters network namespaces itself, so the default-config expectations don't apply: TestLabNetns covers root (make lab-root)")
 	}
-	slices.Sort(dirs)
 	// Scenarios run one after another: they deliberately reuse service names
 	// (api, worker), and a diagnosis looks at every container on the host.
-	for _, path := range dirs {
-		dir := filepath.Dir(path)
+	for _, dir := range scenarioDirs(t) {
 		t.Run(filepath.Base(dir), func(t *testing.T) { runScenario(t, dir) })
 	}
+}
+
+// scenarioDirs lists test/lab/<scenario>, sorted.
+func scenarioDirs(t *testing.T) []string {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join("..", "lab", "*", "scenario.yaml"))
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("no scenarios: %v", err)
+	}
+	slices.Sort(paths)
+	dirs := make([]string, 0, len(paths))
+	for _, p := range paths {
+		dirs = append(dirs, filepath.Dir(p))
+	}
+	return dirs
 }
 
 func runScenario(t *testing.T, dir string) {
@@ -427,7 +462,8 @@ func diagnose(t *testing.T, configHome, from, to string) *engine.Diagnosis {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, l.bin, "--from", from, to, "--json")
-	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+configHome)
+	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+configHome,
+		"XDG_STATE_HOME="+filepath.Join(l.home, "state"), "XDG_DATA_HOME="+filepath.Join(l.home, "data"))
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	start := time.Now()
