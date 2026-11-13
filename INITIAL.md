@@ -5,7 +5,7 @@
 > **Name:** the project was renamed from NetDoctor to **whyreach** on 2026-11-13 because of a trademark conflict (§10 Q5). The original proposal keeps the old name.
 >
 > **Status:** M0 done (scaffold, spikes, ADR 0001); next is M1 · **Updated:** 2026-11-13
-> **Dev box:** Ubuntu 24.04.5, kernel 7.0, Go 1.27.0, Docker Engine 29.9.3 (API 1.56), Compose v5.7.0
+> **Dev box:** Ubuntu 24.04.5, kernel 7.0, Go 1.27.0 (builds use the `toolchain go1.27.4` pinned in `go.mod`), Docker Engine 29.9.3 (API 1.56), Compose v5.7.0
 
 ---
 
@@ -646,7 +646,7 @@ redact_private = false
 
 - Files that use netlink, `/proc` or `setns` carry `//go:build linux`. Each such package has an `_other.go` stub that returns `Status: unsupported` with a gap explaining why.
 - `probe/tcp` and `probe/dns` are portable; the host executor uses them on every OS. `probe/listeners` is Linux-only. The probe entrypoint (`__probe`) always runs inside a Linux container, and stays cgo-free so it builds statically for amd64 and arm64.
-- `make cross` compiles the whole module for darwin and windows (amd64 and arm64). It runs in CI from M0, so portability can't break silently.
+- `make cross` compiles the whole module for darwin and windows (amd64 and arm64). It runs in CI from M0, so portability can't break silently. CI also runs `make vuln` (govulncheck), so a standard-library or dependency advisory in code we call can't go unnoticed either.
 - Config, report and audit paths come from one helper: the XDG directories from §4.9 (audit), §4.12 (reports) and §4.13 (config) on Linux, and the platform's standard user directories on macOS and Windows.
 
 ---

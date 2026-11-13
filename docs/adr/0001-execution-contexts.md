@@ -3,6 +3,7 @@
 - **Status:** accepted (M0, 2026-11-13)
 - **Answers:** `INITIAL.md` §3.3 and §10 Q1, Q2, Q4
 - **Evidence from:** the spikes in `spikes/`, run on Ubuntu 24.04.5 with kernel 7.0, Docker Engine 29.9.3 (API 1.56) and Go 1.27.0, as a non-root user in the `docker` group. The MCP check used Claude Code 2.1.323.
+- **Re-run:** 2026-11-13, before M1, with the toolchain pinned to go1.27.4. Every DNS, TCP and listener outcome matched the first run, the privilege matrix was unchanged, and the timings were within noise (imports 45 and 72 ms; probe run 630 ms cold, then 129–142 ms).
 
 ## Context
 

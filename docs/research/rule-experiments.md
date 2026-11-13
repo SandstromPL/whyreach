@@ -1,7 +1,7 @@
 # Rule experiments: what whyreach can observe for each failure
 
 > **How to reproduce:** run `spikes/experiments.sh`. The scenarios are `spikes/experiments/*.yaml`.
-> **When and where:** run on 2026-11-13 on Ubuntu 24.04.5 (kernel 7.0) with Docker Engine 29.9.3, as a non-root user in the `docker` group.
+> **When and where:** run on 2026-11-13 on Ubuntu 24.04.5 (kernel 7.0) with Docker Engine 29.9.3, as a non-root user in the `docker` group. Re-run the same day before M1, with the toolchain pinned to go1.27.4: every outcome matched.
 > **Feeds:** the rule order in `INITIAL.md` §4.5–4.6 and ADR 0002.
 
 ## Method
