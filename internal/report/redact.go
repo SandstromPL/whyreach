@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"net/netip"
 	"regexp"
 	"slices"
@@ -57,8 +58,10 @@ func NewRedactor(redactPrivate bool, home string) *Redactor {
 }
 
 // Learn collects the identifying values in a diagnosis from its structured
-// fields; Apply then replaces them wherever they appear, free text included.
+// fields, and every address in any of its strings (error messages and
+// explanations included); Apply then replaces them wherever they appear.
 func (r *Redactor) Learn(d *engine.Diagnosis) {
+	r.scanAddresses(d)
 	q := d.Question
 	if q.To.Class == evidence.TargetName {
 		r.host(q.To.Host)
@@ -76,12 +79,21 @@ func (r *Redactor) Learn(d *engine.Diagnosis) {
 			r.container(v.ID)
 			if host, _, ok := strings.Cut(v.Image, "/"); ok && strings.ContainsAny(host, ".:") {
 				r.host(strings.Split(host, ":")[0]) // a registry host
+				r.ipText(host)
 			}
 			for _, a := range v.Networks {
 				r.container(a.NetworkID)
 				r.ip(a.IPv4)
 				r.ip(a.IPv6)
 				r.ip(a.Gateway)
+				for _, n := range a.Names {
+					r.host(n) // aliases can be DNS names
+				}
+			}
+			for _, l := range v.Links {
+				for _, part := range strings.FieldsFunc(l, func(c rune) bool { return c == ':' || c == '/' }) {
+					r.host(part)
+				}
 			}
 			for _, h := range v.ExtraHosts {
 				name, value, ok := strings.Cut(h, "=")
@@ -127,6 +139,24 @@ func (r *Redactor) Learn(d *engine.Diagnosis) {
 			}
 		}
 	}
+}
+
+// scanAddresses learns every address that appears in any string of the
+// diagnosis, so one that only an error message or an explanation mentions
+// is redacted too.
+func (r *Redactor) scanAddresses(d *engine.Diagnosis) {
+	b, err := json.Marshal(d)
+	if err != nil {
+		return
+	}
+	var tree any
+	if json.Unmarshal(b, &tree) != nil {
+		return
+	}
+	walk(tree, func(s string) string {
+		r.ipText(s)
+		return s
+	})
 }
 
 // host learns a DNS name. Names without a dot (container, service and
@@ -227,9 +257,11 @@ func (r *Redactor) Counts() map[string]int {
 }
 
 // replaceWhole replaces occurrences of tok that are not part of a longer
-// name, address or ID, matching case-insensitively.
+// name, address or ID, matching ASCII letters case-insensitively. Learned
+// tokens are lowercase ASCII; folding only ASCII keeps every byte offset of
+// s, which a full Unicode lowercase would not (İ grows by a byte).
 func replaceWhole(s, tok, repl string, count func(int)) string {
-	lower := strings.ToLower(s)
+	lower := asciiLower(s)
 	colon := strings.Contains(tok, ":") // an IPv6 address: a colon continues it
 	var b strings.Builder
 	n, i := 0, 0
@@ -276,6 +308,16 @@ func continues(s string, at, dir int, colon bool) bool {
 	default:
 		return false
 	}
+}
+
+func asciiLower(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if 'A' <= c && c <= 'Z' {
+			b[i] = c + ('a' - 'A')
+		}
+	}
+	return string(b)
 }
 
 func alnum(c byte) bool {

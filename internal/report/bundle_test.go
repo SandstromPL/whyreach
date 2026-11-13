@@ -86,7 +86,10 @@ func TestSaveRedacts(t *testing.T) {
 			t.Errorf("the bundle leaks %q", leak)
 		}
 	}
-	for _, kept := range []string{"172.22.0.2", "shop-worker-1", "10.0.0.5", "WR020", "203.0.113.70", "~/.config/whyreach"} {
+	if strings.Contains(text, "203.0.113.70") {
+		t.Error("an address only a fact mentions must be redacted too")
+	}
+	for _, kept := range []string{"172.22.0.2", "shop-worker-1", "10.0.0.5", "WR020", "~/.config/whyreach"} {
 		if !strings.Contains(text, kept) {
 			t.Errorf("the bundle lost %q", kept)
 		}
@@ -136,6 +139,35 @@ func TestRedactPrivate(t *testing.T) {
 	r.Learn(identifying())
 	if got := r.Apply("172.22.0.2 and 127.0.0.1"); strings.Contains(got, "172.22.0.2") || !strings.Contains(got, "127.0.0.1") {
 		t.Errorf("with RedactPrivate: %q", got)
+	}
+}
+
+func TestRedactorLearnsEverywhere(t *testing.T) {
+	d := identifying()
+	c := d.Evidence[0].Data.(evidence.Container)
+	c.Image = "10.9.8.7:5000/team/worker:1"
+	c.Networks[0].Names = []string{"worker", "worker.svc.corp.example"}
+	c.Links = []string{"/db.legacy.example:/shop-worker-1/db"}
+	d.Evidence[0].Data = c
+	d.Evidence = append(d.Evidence, evidence.Evidence{ID: "ev-04", Kind: evidence.KindTCP, Status: evidence.StatusError,
+		Err: &evidence.Error{Message: "dial tcp 198.18.7.7:443: i/o timeout"}})
+	d.Gaps = append(d.Gaps, engine.Gap{What: "x", Why: "failed", Detail: "upstream 2001:db8:1::53 refused"})
+	r := NewRedactor(false, "")
+	r.Learn(d)
+	text := r.Apply("10.9.8.7 worker.svc.corp.example db.legacy.example 198.18.7.7 2001:db8:1::53 worker shop-worker-1")
+	for _, leak := range []string{"corp.example", "legacy.example", "198.18.7.7", "2001:db8:1::53"} {
+		if strings.Contains(text, leak) {
+			t.Errorf("not redacted: %q in %q", leak, text)
+		}
+	}
+	if !strings.Contains(text, "10.9.8.7 ") || !strings.Contains(text, "worker shop-worker-1") {
+		t.Errorf("private addresses and names without a dot stay: %q", text)
+	}
+	// Non-ASCII text that changes length when lowercased must neither
+	// panic nor shift a replacement.
+	tricky := "İİİ Ⱥ 198.18.7.7 İ"
+	if got := r.Apply(tricky); !strings.HasPrefix(got, "İİİ Ⱥ ip-") || strings.Contains(got, "198.18.7.7") {
+		t.Errorf("Apply(%q) = %q", tricky, got)
 	}
 }
 
