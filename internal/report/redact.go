@@ -162,7 +162,7 @@ func (r *Redactor) scanAddresses(d *engine.Diagnosis) {
 // host learns a DNS name. Names without a dot (container, service and
 // network names) are kept: the report can't be read without them.
 func (r *Redactor) host(name string) {
-	name = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), ".")
+	name = strings.TrimSuffix(asciiLower(strings.TrimSpace(name)), ".") // fold as Apply does
 	if !strings.Contains(name, ".") || strings.Contains(name, "<") {
 		return
 	}
@@ -204,10 +204,10 @@ func (r *Redactor) ipText(s string) {
 // container learns a container or network ID, and its 12-character short
 // form, which maps to the same pseudonym.
 func (r *Redactor) container(id string) {
-	if len(id) < 12 || strings.Trim(strings.ToLower(id), "0123456789abcdef") != "" {
+	full := asciiLower(id)
+	if len(full) < 12 || strings.Trim(full, "0123456789abcdef") != "" {
 		return // a name, not an ID
 	}
-	full := strings.ToLower(id)
 	repl := "ctr-" + r.mac(full[:12])
 	r.addRepl(full, ClassContainer, repl)
 	r.addRepl(full[:12], ClassContainer, repl)

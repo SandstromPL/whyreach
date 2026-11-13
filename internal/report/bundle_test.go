@@ -146,7 +146,7 @@ func TestRedactorLearnsEverywhere(t *testing.T) {
 	d := identifying()
 	c := d.Evidence[0].Data.(evidence.Container)
 	c.Image = "10.9.8.7:5000/team/worker:1"
-	c.Networks[0].Names = []string{"worker", "worker.svc.corp.example"}
+	c.Networks[0].Names = []string{"worker", "worker.svc.corp.example", "Bücher.Shop.example"}
 	c.Links = []string{"/db.legacy.example:/shop-worker-1/db"}
 	d.Evidence[0].Data = c
 	d.Evidence = append(d.Evidence, evidence.Evidence{ID: "ev-04", Kind: evidence.KindTCP, Status: evidence.StatusError,
@@ -154,8 +154,8 @@ func TestRedactorLearnsEverywhere(t *testing.T) {
 	d.Gaps = append(d.Gaps, engine.Gap{What: "x", Why: "failed", Detail: "upstream 2001:db8:1::53 refused"})
 	r := NewRedactor(false, "")
 	r.Learn(d)
-	text := r.Apply("10.9.8.7 worker.svc.corp.example db.legacy.example 198.18.7.7 2001:db8:1::53 worker shop-worker-1")
-	for _, leak := range []string{"corp.example", "legacy.example", "198.18.7.7", "2001:db8:1::53"} {
+	text := r.Apply("10.9.8.7 worker.svc.corp.example db.legacy.example 198.18.7.7 2001:db8:1::53 Bücher.Shop.example worker shop-worker-1")
+	for _, leak := range []string{"corp.example", "legacy.example", "198.18.7.7", "2001:db8:1::53", "Shop.example"} {
 		if strings.Contains(text, leak) {
 			t.Errorf("not redacted: %q in %q", leak, text)
 		}
