@@ -152,6 +152,12 @@ func (r wr005) aliasElsewhere(v evidence.View, src, owner evidence.ContainerEv, 
 	if resolved {
 		return nil
 	}
+	if v.Incomplete() {
+		// A container whose metadata is missing might carry the alias on
+		// the shared network after all.
+		f.Confidence = f.Confidence.Lower()
+		looked += " Some containers' metadata could not be read or was skipped, so one of them might answer to it there."
+	}
 	f.Supporting = ids(f.Supporting...)
 	name := m.C.DisplayName()
 	here := m.C.Name

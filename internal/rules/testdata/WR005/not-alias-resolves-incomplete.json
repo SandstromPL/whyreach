@@ -1,0 +1,196 @@
+{
+  "description": "an alias on another network, an incomplete view, but the lookup of db from worker resolves: something on shop_front answers to it",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-worker-1",
+      "container_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "to": {
+      "host": "db",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "worker"
+      },
+      "subject": "container:shop-worker-1",
+      "status": "ok",
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "shop-worker-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_front",
+        "pid": 10,
+        "compose": {
+          "project": "shop",
+          "service": "worker"
+        },
+        "networks": [
+          {
+            "network": "shop_front",
+            "network_id": "shop_front-id",
+            "ipv4": "172.23.0.2",
+            "names": [
+              "shop-worker-1",
+              "worker"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "postgres"
+      },
+      "subject": "container:shop-postgres-1",
+      "status": "ok",
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "shop-postgres-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_back",
+        "pid": 20,
+        "compose": {
+          "project": "shop",
+          "service": "postgres"
+        },
+        "networks": [
+          {
+            "network": "shop_back",
+            "network_id": "shop_back-id",
+            "ipv4": "172.24.0.3",
+            "names": [
+              "db",
+              "postgres",
+              "shop-postgres-1"
+            ]
+          },
+          {
+            "network": "shop_front",
+            "network_id": "shop_front-id",
+            "ipv4": "172.23.0.3",
+            "names": [
+              "postgres",
+              "shop-postgres-1"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "postgres"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:5432"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "worker",
+        "executor": "probe-container"
+      },
+      "subject": "db",
+      "status": "ok",
+      "data": {
+        "name": "db",
+        "server": "127.0.0.11:53",
+        "rcode": "NOERROR",
+        "answers": [
+          "172.23.0.9"
+        ],
+        "answered": "db",
+        "via": "dns"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "worker",
+        "executor": "probe-container"
+      },
+      "subject": "shop-worker-1",
+      "status": "ok",
+      "data": {
+        "name": "shop-worker-1",
+        "server": "127.0.0.11:53",
+        "rcode": "NOERROR",
+        "answers": [
+          "172.23.0.2"
+        ],
+        "via": "dns",
+        "answered": "shop-worker-1"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "cccccccccccc",
+        "name": "cache"
+      },
+      "subject": "container:shop-cache-1",
+      "status": "failed",
+      "source": "docker GET /containers/{id}/json",
+      "error": {
+        "code": "docker_unavailable",
+        "message": "inspect failed"
+      },
+      "id": "ev-06",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    }
+  ],
+  "want": []
+}

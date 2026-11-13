@@ -41,6 +41,12 @@ func (r wr009) Evaluate(v evidence.View) []Finding {
 		if len(intersect(c.Networks, c.Shared)) > 0 {
 			return nil // the name resolves on a network they share
 		}
+		if slices.ContainsFunc(c.Shared, evidence.UserDefined) {
+			// They share a user-defined network too, where Docker's DNS
+			// works but doesn't know the name: an alias on another
+			// network, WR005's case, not the default bridge's.
+			return nil
+		}
 		if slices.Contains(c.Shared, evidence.NetworkBridge) && m == nil {
 			m = &d.OnSourceNets[i]
 		}
