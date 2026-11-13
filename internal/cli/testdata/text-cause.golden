@@ -1,0 +1,17 @@
+✗ worker → api:8080 — cause identified (high)
+
+WR002  api listens only on 127.0.0.1:8080 inside its container
+       api's only listener for port 8080 is 127.0.0.1:8080 (in api). A socket
+       bound to loopback accepts connections only from inside api's own
+       network namespace, so worker can't reach it.
+  facts  • worker and api share network shop_default                 [ev-02 ev-03]
+         • "api" → 172.22.0.3 via 127.0.0.11:53, in worker           [ev-05]
+         • connect 172.22.0.3:8080 from worker: refused, ECONNREFUSED (0.1 ms)  [ev-06]
+         • listening on port 8080 in api: 127.0.0.1:8080/tcp         [ev-04]
+  fix    Make the server in api listen on 0.0.0.0:8080 (or [::]:8080), for
+         example with --host 0.0.0.0 or a HOST=0.0.0.0 setting, then restart
+         api.
+  docs   docs/rules/WR002.md
+
+side effects: ephemeral probe container wr-probe-3f2a9c1d (removed)
+changes made: none

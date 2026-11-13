@@ -1,0 +1,11 @@
+? worker → api:8080 — inconclusive
+  No cause found for worker → api:8080, but 1 thing could not be checked (see
+  gaps).
+
+could not check
+  • name lookup and TCP connect from worker (permission): probe containers are
+    off (tier 2b)
+    → Enable probe containers: set probe_containers = true under [permissions]
+      in ~/.config/whyreach/config.toml.
+
+side effects: none · changes made: none

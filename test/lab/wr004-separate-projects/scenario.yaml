@@ -1,0 +1,18 @@
+description: api and worker are in different Compose projects, so they share no network
+# compose.yaml runs as project ${PROJECT}, compose.api.yaml as ${PROJECT}-api.
+projects: [compose.yaml, compose.api.yaml]
+from: service:worker@${PROJECT}
+to: api:8080
+expect:
+  verdict: cause_identified
+  top_rule: WR004
+  confidence: high
+  # The connect to api's address times out (traffic between networks is
+  # dropped); that timeout is a consequence of WR004, never WR016 (§2.3).
+  must_not_fire: [WR016, WR005, WR002, WR008]
+  tcp_outcomes: ["metadata:timeout"]
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR004
+  confidence: high
+  must_not_fire: [WR016, WR005]

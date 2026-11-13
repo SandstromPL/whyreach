@@ -1,0 +1,15 @@
+description: worker uses localhost:8080 inside its container; the service is api:8080
+from: service:worker@${PROJECT}
+to: localhost:8080
+expect:
+  verdict: cause_identified
+  top_rule: WR007
+  confidence: high
+  fix_contains: api:8080
+  must_not_fire: [WR002, WR004, WR008]
+# Source listeners settle WR007 without a probe (rule experiments, E1).
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR007
+  confidence: high
+  fix_contains: api:8080

@@ -1,0 +1,103 @@
+{
+  "verdict": "cause_identified",
+  "summary": "worker can't reach api:8080: api listens only on 127.0.0.1:8080 inside its container.",
+  "id": "dg-test",
+  "schema_version": 1,
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-worker-1",
+      "container_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "to": {
+      "host": "api",
+      "port": 8080,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "findings": [
+    {
+      "rule_id": "WR002",
+      "title": "api listens only on 127.0.0.1:8080 inside its container",
+      "layer": 5,
+      "confidence": "high",
+      "explanation": "api's only listener for port 8080 is 127.0.0.1:8080 (in api). A socket bound to loopback accepts connections only from inside api's own network namespace, so worker can't reach it.",
+      "supporting": [
+        "ev-03",
+        "ev-04",
+        "ev-06"
+      ],
+      "fix": "Make the server in api listen on 0.0.0.0:8080 (or [::]:8080), for example with --host 0.0.0.0 or a HOST=0.0.0.0 setting, then restart api.",
+      "doc_url": "docs/rules/WR002.md"
+    }
+  ],
+  "facts": [
+    {
+      "text": "worker and api share network shop_default",
+      "evidence": [
+        "ev-02",
+        "ev-03"
+      ]
+    },
+    {
+      "text": "\"api\" → 172.22.0.3 via 127.0.0.11:53, in worker",
+      "evidence": [
+        "ev-05"
+      ]
+    },
+    {
+      "text": "connect 172.22.0.3:8080 from worker: refused, ECONNREFUSED (0.1 ms)",
+      "evidence": [
+        "ev-06"
+      ]
+    },
+    {
+      "text": "listening on port 8080 in api: 127.0.0.1:8080/tcp",
+      "evidence": [
+        "ev-04"
+      ]
+    }
+  ],
+  "gaps": [],
+  "next_checks": null,
+  "side_effects": [
+    "ephemeral probe container wr-probe-3f2a9c1d (removed)"
+  ],
+  "changes_made": false,
+  "timing": {
+    "started_at": "2026-11-13T10:00:00Z",
+    "total_ms": 180,
+    "stages_ms": null
+  },
+  "evidence": [
+    {
+      "id": "ev-02",
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "worker"
+      },
+      "subject": "",
+      "status": "ok",
+      "observed_at": "0001-01-01T00:00:00Z",
+      "duration_ms": 0,
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "shop-worker-1",
+        "image": "",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "compose": {
+          "project": "shop",
+          "service": "worker"
+        },
+        "network_mode": ""
+      }
+    }
+  ]
+}

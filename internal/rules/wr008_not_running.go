@@ -68,11 +68,11 @@ func (r wr008) Evaluate(v evidence.View) []Finding {
 	default: // exited, created, dead, removing
 		f.Confidence = High
 		f.Title = fmt.Sprintf("%s is not running", c.DisplayName())
-		state := c.State
+		state := "is " + c.State
 		if c.State == evidence.StateExited {
-			state = fmt.Sprintf("exited with code %d", c.ExitCode)
+			state = fmt.Sprintf("has exited with code %d", c.ExitCode)
 		}
-		f.Explanation = fmt.Sprintf("%s is %s and has no network address, so nothing can connect to it.", name, state)
+		f.Explanation = fmt.Sprintf("%s %s and has no network address, so nothing can connect to it.", name, state)
 		f.Fix = fmt.Sprintf("Start it (with Compose: docker compose up -d %s) and check why it stopped: docker logs %s.", c.DisplayName(), c.Name)
 	}
 	if len(down) > 1 {

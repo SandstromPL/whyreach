@@ -1,0 +1,18 @@
+# WR004 (promoted from spikes/experiments/e2b.yaml): worker lives in its own
+# Compose project. api runs in another project (compose.api.yaml), so the two
+# share no network.
+services:
+  worker:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    labels: { io.whyreach.lab: "1" }
+    command: ["serve", "0.0.0.0:7000"]
+    healthcheck:
+      test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+      interval: 30s
+      start_period: 10s
+      start_interval: 200ms
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

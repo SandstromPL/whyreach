@@ -2,35 +2,19 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
+
+	"github.com/SandstromPL/whyreach/internal/cli"
 )
 
-func TestRun(t *testing.T) {
-	tests := []struct {
-		name       string
-		args       []string
-		wantCode   int
-		wantStdout string
-		wantStderr string
-	}{
-		{name: "version", args: []string{"version"}, wantCode: exitOK, wantStdout: "whyreach dev"},
-		{name: "--version", args: []string{"--version"}, wantCode: exitOK, wantStdout: "whyreach dev"},
-		{name: "no args", args: nil, wantCode: exitUsage, wantStderr: "nothing here yet"},
-		{name: "unknown command", args: []string{"diagnose"}, wantCode: exitUsage, wantStderr: "nothing here yet"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var stdout, stderr bytes.Buffer
-			if got := run(tt.args, &stdout, &stderr); got != tt.wantCode {
-				t.Errorf("exit code = %d, want %d", got, tt.wantCode)
-			}
-			if !strings.Contains(stdout.String(), tt.wantStdout) {
-				t.Errorf("stdout = %q, want it to contain %q", stdout.String(), tt.wantStdout)
-			}
-			if !strings.Contains(stderr.String(), tt.wantStderr) {
-				t.Errorf("stderr = %q, want it to contain %q", stderr.String(), tt.wantStderr)
-			}
-		})
+// TestWiring checks that main's options reach the CLI; internal/cli tests
+// the commands themselves.
+func TestWiring(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := cli.Execute(context.Background(), []string{"version"}, cli.Options{Version: version, Stdout: &stdout, Stderr: &stderr})
+	if code != cli.ExitNoProblem || !strings.Contains(stdout.String(), "whyreach dev") {
+		t.Errorf("exit %d, stdout %q, stderr %q", code, stdout.String(), stderr.String())
 	}
 }

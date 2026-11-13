@@ -1,0 +1,15 @@
+✗ worker → api:8080 — cause identified (high)
+
+WR004  worker and api share no network
+       api is on network a_default (Compose project a), and worker only on
+       network b_default (Compose project b).
+  fix    Put worker on api's network.
+  docs   docs/rules/WR004.md
+
+also found
+WR002  api listens only on 127.0.0.1:8080 inside its container (high)
+  fix    Make the server in api listen on 0.0.0.0:8080 (or [::]:8080), for
+         example with --host 0.0.0.0 or a HOST=0.0.0.0 setting, then restart
+         api.
+
+side effects: none · changes made: none

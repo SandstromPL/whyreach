@@ -1,0 +1,18 @@
+# WR008 (promoted from spikes/experiments/e4.yaml, with a stopped container
+# instead of a crash loop so the state is stable): api exits at once.
+services:
+  api:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    labels: { io.whyreach.lab: "1" }
+    command: ["crash"]   # an unknown mode: the lab server exits with status 1
+    restart: "no"
+  worker:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    labels: { io.whyreach.lab: "1" }
+    command: ["serve", "0.0.0.0:7000"]
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

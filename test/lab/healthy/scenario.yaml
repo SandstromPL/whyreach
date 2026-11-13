@@ -1,0 +1,10 @@
+description: worker reaches api:8080 over the shared default network (the healthy control)
+from: service:worker@${PROJECT}
+to: api:8080
+expect:
+  verdict: no_problem_reproduced
+  must_not_fire: [WR002, WR004, WR007, WR008]
+# Without probe containers nothing can confirm reachability, and nothing is wrong.
+expect_without_probe:
+  verdict: inconclusive
+  must_not_fire: [WR002, WR004, WR007, WR008]

@@ -1,0 +1,15 @@
+description: api listens only on 127.0.0.1:8080 inside its container
+from: service:worker@${PROJECT}
+to: api:8080
+expect:
+  verdict: cause_identified
+  top_rule: WR002
+  confidence: high
+  must_not_fire: [WR004, WR005, WR007, WR008]
+  tcp_outcomes: ["dns:refused"]
+# Listeners read from the host settle WR002 without a probe (ADR 0001).
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR002
+  confidence: high
+  must_not_fire: [WR004, WR005]

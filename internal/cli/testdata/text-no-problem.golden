@@ -1,0 +1,6 @@
+✓ worker → api:8080 — no problem reproduced
+  worker connected to api:8080 (172.22.0.3:8080): no problem reproduced.
+
+  facts  • connect 172.22.0.3:8080 from worker: connected (0.2 ms)  [ev-06]
+
+side effects: none · changes made: none

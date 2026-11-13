@@ -1,9 +1,11 @@
 package engine
 
 import (
+	"cmp"
 	"fmt"
 	"net/netip"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
@@ -140,7 +142,7 @@ func facts(v evidence.View) []Fact {
 	var out []Fact
 	add := func(text string, ids ...string) {
 		if len(out) < maxFacts {
-			out = append(out, Fact{Text: text, Evidence: ids})
+			out = append(out, Fact{Text: text, Evidence: sortIDs(ids)})
 		}
 	}
 	q := v.Question()
@@ -167,7 +169,7 @@ func facts(v evidence.View) []Fact {
 	}
 	for _, m := range dests.All() {
 		if !m.C.Running() {
-			add(fmt.Sprintf("%s is %s", m.C.DisplayName(), stateText(m.C)), m.ID)
+			add(fmt.Sprintf("%s %s", m.C.DisplayName(), stateText(m.C)), m.ID)
 		} else if m.C.Health != "" && m.C.Health != "healthy" {
 			add(fmt.Sprintf("%s is %s", m.C.DisplayName(), m.C.Health), m.ID)
 		}
@@ -247,15 +249,27 @@ func relevantListenerContext(v evidence.View, c evidence.ContextRef) bool {
 	return false
 }
 
+// stateText completes "api …" for a container that isn't running.
 func stateText(c evidence.Container) string {
 	switch c.State {
 	case evidence.StateExited:
-		return fmt.Sprintf("exited (code %d)", c.ExitCode)
+		return fmt.Sprintf("has exited (code %d)", c.ExitCode)
 	case evidence.StateRestarting:
-		return fmt.Sprintf("restarting (%d restarts)", c.RestartCount)
+		return fmt.Sprintf("is restarting (%d restarts)", c.RestartCount)
 	default:
-		return c.State
+		return "is " + c.State
 	}
+}
+
+// sortIDs orders evidence IDs numerically: ev-2 before ev-10.
+func sortIDs(ids []string) []string {
+	out := slices.Clone(ids)
+	slices.SortFunc(out, func(a, b string) int {
+		na, _ := strconv.Atoi(strings.TrimPrefix(a, "ev-"))
+		nb, _ := strconv.Atoi(strings.TrimPrefix(b, "ev-"))
+		return cmp.Or(cmp.Compare(na, nb), strings.Compare(a, b))
+	})
+	return slices.Compact(out)
 }
 
 func orNone(nets []string) string {

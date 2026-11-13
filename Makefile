@@ -26,20 +26,19 @@ lint:
 vuln:
 	go run $(GOVULNCHECK) ./...
 
-## lab: failure-lab scenarios against Docker (arrive in M1)
+## lab: failure-lab scenarios in test/lab against Docker (never cached)
 lab:
-	@if [ -d test/e2e ]; then go test -tags lab ./test/e2e/...; \
-	else echo "lab: no scenarios yet (they arrive in M1)"; fi
+	go test -tags lab -count=1 ./test/e2e/...
 
-## lab-root: lab scenarios that need root (netns executor)
+## lab-root: lab scenarios that need root (netns executor, from M3)
 lab-root:
-	@if [ -d test/e2e ]; then sudo -E env "PATH=$$PATH" go test -tags lab,privileged ./test/e2e/...; \
-	else echo "lab-root: no scenarios yet (they arrive in M1)"; fi
+	@if grep -rlqs 'go:build.*privileged' test/e2e; then sudo -E env "PATH=$$PATH" go test -tags lab,privileged -count=1 ./test/e2e/...; \
+	else echo "lab-root: no privileged scenarios yet (the netns executor arrives in M3)"; fi
 
-## golden: regenerate golden files for the renderers
+## golden: regenerate golden files for the renderers (internal/report joins in M4)
 golden:
-	@if [ -d internal/report ]; then go test ./internal/report/... -update; \
-	else echo "golden: no renderers yet (they arrive in M1)"; fi
+	go test ./internal/cli/... -update
+	@if [ -d internal/report ]; then go test ./internal/report/... -update; fi
 
 ## cross: compile check for macOS and Windows (INITIAL.md §4.15)
 cross:

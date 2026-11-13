@@ -1,0 +1,17 @@
+description: api has exited, so worker has nothing to connect to
+# `up --wait` fails on a container that exits; wait for that state instead.
+up_wait: false
+settle: { service: api, state: exited }
+from: service:worker@${PROJECT}
+to: api:8080
+expect:
+  verdict: cause_identified
+  top_rule: WR008
+  confidence: high
+  must_not_fire: [WR004, WR002]
+  # WR008 is checked before any probe: no probe container may run.
+  side_effects_max: 0
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR008
+  confidence: high
