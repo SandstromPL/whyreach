@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,6 +24,7 @@ import (
 // same evidence, while writing nothing to Docker: no probe image import, no
 // probe container, empty side_effects. Each diagnosis runs with probe
 // containers off (the default) and on: the netns executor wins either way.
+// From a container, `whyreach probe tcp` (run_probe) must go the same way.
 //
 // make lab-root runs it, with binaries built as the user.
 func TestLabNetns(t *testing.T) {
@@ -42,6 +44,7 @@ func TestLabNetns(t *testing.T) {
 	for _, dir := range scenarioDirs(t) {
 		t.Run(filepath.Base(dir), func(t *testing.T) {
 			r := bringUp(t, dir)
+			source := ""
 			for _, cfg := range []struct{ name, home string }{
 				{"default-config", l.noProbe},
 				{"probe-containers-on", l.withProbe},
@@ -52,9 +55,24 @@ func TestLabNetns(t *testing.T) {
 					if len(d.SideEffects) != 0 {
 						t.Errorf("as root whyreach must not write to Docker: %v", d.SideEffects)
 					}
-					inNetns += checkNetns(t, d)
+					source = d.Question.From.ContainerID
+					inNetns += checkNetns(t, d.Evidence, source)
 				})
 			}
+			if source == "" {
+				return // from the host: no namespace to enter
+			}
+			t.Run("run-probe", func(t *testing.T) {
+				res := runProbe(t, l.noProbe, "tcp", r.to, r.from)
+				if len(res.SideEffects) != 0 {
+					t.Errorf("as root whyreach must not write to Docker: %v", res.SideEffects)
+				}
+				if n := checkNetns(t, res.Evidence, source); n == 0 {
+					t.Errorf("run_probe sent nothing through the netns executor: %+v", res.Evidence)
+				} else {
+					inNetns += n
+				}
+			})
 		})
 	}
 	if inNetns == 0 {
@@ -71,15 +89,16 @@ func TestLabNetns(t *testing.T) {
 
 // checkNetns checks the DNS and TCP records of checks that ran inside a
 // container: each ran through the netns executor, in the network namespace
-// the source container is in. It returns how many did.
-func checkNetns(t *testing.T, d *engine.Diagnosis) int {
+// the source container (an ID, or "" for the host) is in. It returns how
+// many did.
+func checkNetns(t *testing.T, evs []evidence.Evidence, source string) int {
 	t.Helper()
 	var want uint64
-	if id := d.Question.From.ContainerID; id != "" {
-		want = netnsOf(t, id)
+	if source != "" {
+		want = netnsOf(t, source)
 	}
 	n := 0
-	for _, ev := range d.Evidence {
+	for _, ev := range evs {
 		if ev.Kind != evidence.KindDNS && ev.Kind != evidence.KindTCP {
 			continue
 		}
@@ -106,6 +125,26 @@ func checkNetns(t *testing.T, d *engine.Diagnosis) int {
 		}
 	}
 	return n
+}
+
+// runProbe runs `whyreach probe KIND TARGET --from FROM --json` and decodes
+// its result.
+func runProbe(t *testing.T, configHome, kind, target, from string) *engine.ProbeResult {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, l.bin, "probe", kind, target, "--from", from, "--json")
+	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+configHome,
+		"XDG_STATE_HOME="+filepath.Join(l.home, "state"), "XDG_DATA_HOME="+filepath.Join(l.home, "data"))
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("whyreach probe %s %s --from %s: %v", kind, target, from, err)
+	}
+	var res engine.ProbeResult
+	if err := json.Unmarshal(out, &res); err != nil {
+		t.Fatalf("decode the probe result: %v\n%s", err, out)
+	}
+	return &res
 }
 
 // netnsOf is the inode of a container's network namespace, read through
