@@ -1,0 +1,114 @@
+{
+  "description": "the host connects to api's address; api listens only on 127.0.0.1:8080",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "172.22.0.3",
+      "port": 8080,
+      "proto": "tcp",
+      "class": "ip",
+      "addr": "172.22.0.3"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "api"
+      },
+      "subject": "container:shop-api-1",
+      "status": "ok",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 1.2,
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "shop-api-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 4242,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "names": [
+              "api",
+              "shop-api-1"
+            ],
+            "ipv4": "172.22.0.3"
+          }
+        ],
+        "compose": {
+          "project": "shop",
+          "service": "api"
+        }
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-01"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "api"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.3,
+      "source": "/proc/<pid>/net/tcp{,6} read from the host",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "127.0.0.1:8080"
+          }
+        ]
+      },
+      "id": "ev-02"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "172.22.0.3:8080",
+      "status": "ok",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.3,
+      "data": {
+        "target": "172.22.0.3:8080",
+        "addr": "172.22.0.3:8080",
+        "via": "literal",
+        "outcome": "refused",
+        "rtt_ns": 300000,
+        "errno": "ECONNREFUSED"
+      },
+      "source": "TCP connect",
+      "id": "ev-03"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR002",
+      "confidence": "high",
+      "supporting": [
+        "ev-01",
+        "ev-02",
+        "ev-03"
+      ]
+    }
+  ]
+}

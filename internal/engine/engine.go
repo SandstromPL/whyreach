@@ -31,8 +31,8 @@ const (
 
 // Bounds on what one diagnosis reads.
 const (
-	maxPeers        = 32 // containers on the source's networks inspected for names and listeners
-	maxElsewhere    = 8  // containers elsewhere that match the target by name or address
+	maxPeers        = 64 // other containers on the source's networks inspected for aliases and listeners
+	maxMatches      = 16 // containers that match the target by name or address
 	maxDestinations = 4  // destination containers whose listeners are read
 	maxMetadataIPs  = 2  // destination addresses from metadata that are also probed
 )
@@ -117,6 +117,9 @@ type run struct {
 	linux   bool // the daemon is Linux Docker Engine on this host: /proc/<pid> works
 	gaps    []Gap
 	timing  map[string]time.Duration
+	// metadataIncomplete is set when some containers' metadata could not be
+	// read or was skipped: "no container has that name" can't be claimed then.
+	metadataIncomplete bool
 }
 
 // Diagnose answers "why can't from reach to?". It returns an error only for

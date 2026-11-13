@@ -44,7 +44,7 @@ func (r *run) compose(v evidence.View, ranked rules.Ranked) *Diagnosis {
 	default:
 		d.Verdict = VerdictInconclusive
 	}
-	d.Facts = facts(v)
+	d.Facts = facts(v, !r.metadataIncomplete)
 	d.Gaps = append(slices.Clone(r.gaps), r.gapsFrom(v)...)
 	if d.Gaps == nil {
 		d.Gaps = []Gap{}
@@ -139,9 +139,11 @@ func plural(n int, one, many string) string {
 	return many
 }
 
-// facts summarises the evidence in a few short lines, each naming the
-// context of every address it mentions.
-func facts(v evidence.View) []Fact {
+// Facts are a few short lines, each naming the context of every address it
+// mentions.
+// facts summarises the evidence. complete says whether every container
+// that could match the target was inspected.
+func facts(v evidence.View, complete bool) []Fact {
 	var out []Fact
 	add := func(text string, ids ...string) {
 		if len(out) < maxFacts {
@@ -159,14 +161,17 @@ func facts(v evidence.View) []Fact {
 		if !owner.C.Running() {
 			add(fmt.Sprintf("%s is %s", owner.C.DisplayName(), owner.C.State), owner.ID)
 		}
+		if dests.HostsEntry != "" {
+			add(fmt.Sprintf("%s's extra_hosts map %q to %s, ahead of any DNS", owner.C.DisplayName(), q.To.Host, dests.HostsEntry), owner.ID)
+		}
 		switch {
 		case len(dests.OnSourceNets) > 0:
 			m := dests.OnSourceNets[0]
 			add(fmt.Sprintf("%s and %s share network %s", owner.C.DisplayName(), m.C.DisplayName(), strings.Join(m.Shared, ", ")), owner.ID, m.ID)
 		case len(dests.Elsewhere) > 0:
 			m := dests.Elsewhere[0]
-			add(fmt.Sprintf("%s is on %s; %s is on %s", owner.C.DisplayName(), orNone(owner.C.NetworkNames()), m.C.DisplayName(), strings.Join(m.Networks, ", ")), owner.ID, m.ID)
-		case q.To.Class == evidence.TargetName:
+			add(fmt.Sprintf("%s is on %s; %s is on %s", owner.C.DisplayName(), orNone(owner.C.NetworkNames()), m.C.DisplayName(), describeNetworks(m.C)), owner.ID, m.ID)
+		case q.To.Class == evidence.TargetName && dests.HostsEntry == "" && complete:
 			add(fmt.Sprintf("no container answers to %q in Docker's metadata", q.To.Host), owner.ID)
 		}
 	}
@@ -273,6 +278,19 @@ func sortIDs(ids []string) []string {
 		return cmp.Or(cmp.Compare(na, nb), strings.Compare(a, b))
 	})
 	return slices.Compact(out)
+}
+
+// describeNetworks names a container's networks, or its network mode when
+// it has none of its own.
+func describeNetworks(c evidence.Container) string {
+	switch {
+	case c.HostNetwork():
+		return "the host's network (network_mode: host)"
+	case c.NetnsOwner() != "":
+		return "another container's network namespace (network_mode: container)"
+	default:
+		return orNone(c.NetworkNames())
+	}
 }
 
 func orNone(nets []string) string {

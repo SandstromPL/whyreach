@@ -35,11 +35,16 @@ func (r *run) probe(ctx context.Context) error {
 		if !ok {
 			return nil // resolve already recorded why
 		}
+		stamp = evidence.InContainer(src.C)
 		owner, ok := view.NetnsOwner()
 		if !ok {
+			r.store.Add(executor.Failed(stamp, "", specs, evidence.StatusFailed, &evidence.Error{
+				Code: evidence.CodeNotFound,
+				Message: fmt.Sprintf("%s uses the network namespace of %s, whose metadata could not be read",
+					src.C.DisplayName(), strings.TrimPrefix(src.C.NetworkMode, "container:")),
+			})...)
 			return nil
 		}
-		stamp = evidence.InContainer(src.C)
 		// The probe joins the netns owner directly; the evidence is reported
 		// in the source's context, which shares that netns.
 		where = evidence.InContainer(owner.C)
@@ -50,18 +55,20 @@ func (r *run) probe(ctx context.Context) error {
 			})...)
 			return nil
 		}
-		if r.e.d.Probe == nil {
-			r.store.Add(executor.Failed(stamp, evidence.ExecutorProbeContainer, specs, evidence.StatusPermissionDenied, &evidence.Error{
-				Code: evidence.CodePermissionDenied, Message: tier2bOff,
-			})...)
-			return nil
-		}
 		ex = r.e.d.Probe
 	}
 
+	// The gate comes before the tier-2b check: probes that would be skipped
+	// anyway must not ask for probe containers.
 	if down := r.destinationDown(view); down != "" {
 		r.store.Add(executor.Failed(stamp, "", specs, evidence.StatusSkipped, &evidence.Error{
 			Code: evidence.CodeNotFound, Message: down,
+		})...)
+		return nil
+	}
+	if ex == nil {
+		r.store.Add(executor.Failed(stamp, evidence.ExecutorProbeContainer, specs, evidence.StatusPermissionDenied, &evidence.Error{
+			Code: evidence.CodePermissionDenied, Message: tier2bOff,
 		})...)
 		return nil
 	}
@@ -112,10 +119,12 @@ func (r *run) specs(view evidence.View) []probe.Spec {
 	return specs
 }
 
-// destinationDown says why probing is pointless: every container the target
-// refers to is stopped (WR008's case). It returns "" when probing makes sense.
+// destinationDown says why probing is pointless: every container the name
+// refers to on the source's networks is stopped (WR008's case). A stopped
+// match elsewhere doesn't stop the probes: the name may well mean something
+// else, and the probes show what. It returns "" when probing makes sense.
 func (r *run) destinationDown(view evidence.View) string {
-	dests := view.Destinations().All()
+	dests := view.Destinations().OnSourceNets
 	if len(dests) == 0 {
 		return ""
 	}

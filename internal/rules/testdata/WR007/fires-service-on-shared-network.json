@@ -273,7 +273,8 @@
         "ev-05",
         "ev-07",
         "ev-08"
-      ]
+      ],
+      "fix_contains": "Connect to api:8080 instead of localhost:8080"
     }
   ]
 }

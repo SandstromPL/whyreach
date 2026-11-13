@@ -159,7 +159,8 @@
         "ev-02",
         "ev-03",
         "ev-04"
-      ]
+      ],
+      "fix_contains": "docker network connect a_default b-worker-1"
     }
   ]
 }

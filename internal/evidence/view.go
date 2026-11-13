@@ -2,6 +2,7 @@ package evidence
 
 import (
 	"cmp"
+	"net/netip"
 	"slices"
 	"strings"
 )
@@ -72,13 +73,15 @@ func (v View) Containers() []ContainerEv {
 	return out
 }
 
-// Container returns the observed container with a full or short ID.
-func (v View) Container(id string) (ContainerEv, bool) {
-	if id == "" {
+// Container returns the observed container with a reference: its full ID, an
+// ID prefix of at least 12 characters, or its name.
+func (v View) Container(ref string) (ContainerEv, bool) {
+	ref = strings.TrimPrefix(ref, "/")
+	if ref == "" {
 		return ContainerEv{}, false
 	}
 	for _, c := range v.Containers() {
-		if c.C.ID == id || ShortID(c.C.ID) == id {
+		if c.C.ID == ref || c.C.Name == ref || (len(ref) >= 12 && strings.HasPrefix(c.C.ID, ref)) {
 			return c, true
 		}
 	}
@@ -176,15 +179,26 @@ func (v View) DNS() []DNSEv {
 // Match is a container that the target refers to in Docker metadata.
 type Match struct {
 	ContainerEv
-	Networks []string // networks where it answers to the target name or holds the target address
-	Shared   []string // the subset the source is attached to
+	// Networks are where the target applies to it: the user-defined networks
+	// where Docker's DNS answers the target name, or the networks where it
+	// holds the target address. Empty for a container on the default bridge
+	// only, whose name resolves nowhere.
+	Networks []string
+	// Shared are the networks of any kind, the default bridge included, that
+	// it and the source's netns are both attached to. For a container in
+	// network_mode container:X, X's networks count.
+	Shared []string
 }
 
 // Destinations is what the target refers to in Docker metadata, as seen
 // from the source.
 type Destinations struct {
-	OnSourceNets []Match // reachable by name or address on a network the source is on
-	Elsewhere    []Match // match the target, but only on networks the source is not on
+	OnSourceNets []Match // share a network with the source
+	Elsewhere    []Match // match the target, but share no network with the source
+	// HostsEntry is set when the source's own extra_hosts map the target name
+	// ("192.168.1.50", "host-gateway"). /etc/hosts answers before any DNS, so
+	// only a container holding that address is a destination.
+	HostsEntry string
 }
 
 // All returns the matches on the source's networks, or else the others.
@@ -195,44 +209,58 @@ func (d Destinations) All() []Match {
 	return d.Elsewhere
 }
 
-// Destinations resolves the target against the observed containers: by name
-// (container name, Compose service, alias, DNSNames) for a name target, by
-// address for an IP target. A loopback target refers to the source itself, so
-// it has no destinations. Matches are ordered with the source's Compose
-// project first, then by container name.
+// Destinations resolves the target against the observed containers: a name
+// target matches container names, Compose services, aliases and DNSNames
+// (unless the source's extra_hosts map the name), and an IP target matches
+// the container that holds the address. A loopback target refers to the
+// source itself, so it has no destinations. Matches are ordered with the
+// source's Compose project first, then by container name.
 func (v View) Destinations() Destinations {
 	t := v.q.To
+	var d Destinations
 	if t.Class == TargetLoopback {
-		return Destinations{}
+		return d
 	}
+	owner, haveOwner := v.NetnsOwner()
 	srcNets := map[string]bool{}
-	srcProject := ""
-	if owner, ok := v.NetnsOwner(); ok && !owner.C.HostNetwork() {
+	if haveOwner && !owner.C.HostNetwork() {
 		for _, n := range owner.C.NetworkNames() {
-			srcNets[n] = true
+			if n != NetworkNone {
+				srcNets[n] = true
+			}
 		}
 	}
+	addr := t.Addr
+	if t.Class == TargetName && haveOwner {
+		if entry, ok := owner.C.HostsEntry(t.Host); ok {
+			d.HostsEntry = entry
+			a, err := netip.ParseAddr(entry)
+			if err != nil {
+				return d // host-gateway: the name means the host, not a container
+			}
+			addr = a.Unmap()
+		}
+	}
+	srcProject := ""
 	if src, ok := v.Source(); ok && src.C.Compose != nil {
 		srcProject = src.C.Compose.Project
 	}
-	var d Destinations
 	for _, c := range v.Containers() {
-		var nets []string
-		switch t.Class {
-		case TargetName:
-			nets = c.C.AnswersTo(t.Host)
-		case TargetIP:
-			nets = holdsAddr(c.C, t)
-		}
-		if len(nets) == 0 {
+		var m Match
+		switch {
+		case addr.IsValid():
+			m.Networks = holdsAddr(c.C, addr)
+			if len(m.Networks) == 0 {
+				continue
+			}
+			m.Shared = intersect(m.Networks, srcNets)
+		case c.C.Matches(t.Host):
+			m.Networks = c.C.AnswersTo(t.Host)
+			m.Shared = intersect(v.networksOf(c.C), srcNets)
+		default:
 			continue
 		}
-		m := Match{ContainerEv: c, Networks: nets}
-		for _, n := range nets {
-			if srcNets[n] {
-				m.Shared = append(m.Shared, n)
-			}
-		}
+		m.ContainerEv = c
 		if len(m.Shared) > 0 {
 			d.OnSourceNets = append(d.OnSourceNets, m)
 		} else {
@@ -251,10 +279,32 @@ func (v View) Destinations() Destinations {
 	return d
 }
 
-func holdsAddr(c Container, t Target) []string {
+// networksOf lists the networks a container is reachable on: its own, or,
+// in network_mode container:X, X's (when X was observed).
+func (v View) networksOf(c Container) []string {
+	if owner := c.NetnsOwner(); owner != "" {
+		if o, ok := v.Container(owner); ok {
+			return o.C.NetworkNames()
+		}
+		return nil
+	}
+	return c.NetworkNames()
+}
+
+func intersect(nets []string, set map[string]bool) []string {
+	var out []string
+	for _, n := range nets {
+		if set[n] {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+func holdsAddr(c Container, addr netip.Addr) []string {
 	var out []string
 	for _, a := range c.Networks {
-		if a.IPv4 == t.Addr || a.IPv6 == t.Addr {
+		if a.IPv4 == addr || a.IPv6 == addr {
 			out = append(out, a.Network)
 		}
 	}

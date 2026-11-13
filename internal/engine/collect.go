@@ -2,7 +2,9 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/netip"
 	"slices"
 	"strings"
 	"time"
@@ -34,7 +36,8 @@ func (r *run) collect(ctx context.Context) error {
 	var srcNets []string
 	ownerID := ""
 	view := evidence.NewView(r.q, known)
-	if owner, ok := view.NetnsOwner(); ok && !owner.C.HostNetwork() {
+	owner, haveOwner := view.NetnsOwner()
+	if haveOwner && !owner.C.HostNetwork() {
 		srcNets = owner.C.NetworkNames()
 		ownerID = owner.C.ID
 	}
@@ -44,39 +47,87 @@ func (r *run) collect(ctx context.Context) error {
 		}
 	}
 
-	// Containers on the source's networks are inspected for their aliases
-	// (the list has none); elsewhere, only those that match by name or
-	// address are.
+	// What the target means in the container list: a name, or an address
+	// (given literally, or from the source's own extra_hosts).
 	to := r.q.To
-	var peers, elsewhere []string
+	byName, byAddr := to.Class == evidence.TargetName, to.Addr
+	if byName && haveOwner {
+		if entry, ok := owner.C.HostsEntry(to.Host); ok {
+			byName, byAddr = false, netip.Addr{}
+			if a, err := netip.ParseAddr(entry); err == nil {
+				byAddr = a.Unmap()
+			}
+		}
+	}
+
+	// Containers that match by name or address are always inspected (up to
+	// maxMatches). The other containers on the source's networks are
+	// inspected too, because only an inspect shows their aliases.
+	var matches, peers []docker.Summary
+	var droppedMatches, droppedPeers int
 	for _, s := range list {
 		if have[s.ID] {
 			continue
 		}
-		if shares(s.Networks(), srcNets) {
-			if len(peers) < maxPeers {
-				peers = append(peers, s.ID)
+		switch {
+		case (byName && nameMatches(s, to.Host)) || (byAddr.IsValid() && s.HasAddr(byAddr)):
+			if len(matches) == maxMatches {
+				droppedMatches++
+				continue
 			}
-			continue
-		}
-		if matchesTarget(s, to) && len(elsewhere) < maxElsewhere {
-			elsewhere = append(elsewhere, s.ID)
+			matches = append(matches, s)
+		case shares(s.Networks(), srcNets):
+			if len(peers) == maxPeers {
+				droppedPeers++
+				continue
+			}
+			peers = append(peers, s)
 		}
 	}
-	inspected := r.inspectAll(ctx, append(peers, elsewhere...))
+	if droppedMatches > 0 {
+		r.metadataIncomplete = true
+		r.gaps = append(r.gaps, Gap{
+			What:   fmt.Sprintf("%d more containers named %q", droppedMatches, to.Host),
+			Why:    "skipped",
+			Detail: fmt.Sprintf("whyreach inspects at most %d containers that match the target", maxMatches),
+		})
+	}
+	if droppedPeers > 0 {
+		r.metadataIncomplete = true
+		r.gaps = append(r.gaps, Gap{
+			What:   fmt.Sprintf("aliases of %d more containers on %s's networks", droppedPeers, r.q.From.Ref),
+			Why:    "skipped",
+			Detail: fmt.Sprintf("whyreach inspects at most %d containers on the source's networks; one of the others may answer to %q through an alias", maxPeers, to.Host),
+		})
+	}
+	inspected, failed := r.inspectAll(ctx, append(matches, peers...))
+	if len(failed) > 0 {
+		r.metadataIncomplete = true
+		r.store.Add(failed...)
+	}
 
 	// Decide what to record: for a loopback target every peer (WR007 looks
-	// for the service among them), otherwise the destinations.
+	// for the service among them); otherwise the destinations and the
+	// containers whose network namespace they use.
 	view = evidence.NewView(r.q, append(slices.Clone(known), inspected...))
 	dests := view.Destinations().All()
-	isDest := map[string]bool{}
+	record := map[string]bool{}
 	for _, m := range dests {
-		isDest[m.C.ID] = true
+		record[m.C.ID] = true
+		if ref := m.C.NetnsOwner(); ref != "" {
+			if o, ok := view.Container(ref); ok {
+				record[o.C.ID] = true
+			} else if !have[ref] {
+				if _, err := r.inspect(ctx, ref); err != nil {
+					r.store.Add(r.inspectFailure(ref, ref, err))
+				}
+			}
+		}
 	}
 	var listenFor []evidence.Container
 	for _, ev := range inspected {
 		c := ev.Data.(evidence.Container)
-		if to.Class == evidence.TargetLoopback || isDest[c.ID] {
+		if to.Class == evidence.TargetLoopback || record[c.ID] {
 			r.store.Add(ev)
 		}
 		if to.Class == evidence.TargetLoopback && c.NetnsOwner() != ownerID {
@@ -91,12 +142,10 @@ func (r *run) collect(ctx context.Context) error {
 			listenFor = append(listenFor, m.C)
 		}
 	}
-	if to.Class == evidence.TargetLoopback {
-		if owner, ok := view.NetnsOwner(); ok && !owner.C.HostNetwork() {
-			listenFor = append(listenFor, owner.C)
-			// WR007 chooses host.docker.internal when the host serves the port.
-			r.store.Add(r.hostListeners())
-		}
+	if to.Class == evidence.TargetLoopback && haveOwner && !owner.C.HostNetwork() {
+		listenFor = append(listenFor, owner.C)
+		// WR007 chooses host.docker.internal when the host serves the port.
+		r.store.Add(r.hostListeners())
 	}
 	r.readListeners(ctx, listenFor)
 	return nil
@@ -111,46 +160,65 @@ func shares(a, b []string) bool {
 	return false
 }
 
-// matchesTarget is a cheap pre-filter on the container list: the container
-// name or Compose service equals the target name, or it holds the target
-// address. Aliases need an inspect, which is done for the source's networks.
-func matchesTarget(s docker.Summary, to evidence.Target) bool {
-	switch to.Class {
-	case evidence.TargetName:
-		h := strings.TrimSuffix(strings.ToLower(to.Host), ".")
-		return strings.EqualFold(s.Name(), h) || strings.EqualFold(s.Labels[docker.LabelComposeService], h)
-	case evidence.TargetIP:
-		return s.HasAddr(to.Addr)
-	default:
-		return false
-	}
+// nameMatches is a cheap pre-filter on the container list: the container
+// name or Compose service equals the target name. Aliases need an inspect,
+// which is done for the containers on the source's networks.
+func nameMatches(s docker.Summary, name string) bool {
+	h := strings.TrimSuffix(strings.ToLower(name), ".")
+	return strings.EqualFold(s.Name(), h) || strings.EqualFold(s.Labels[docker.LabelComposeService], h)
 }
 
-// inspectAll inspects containers in parallel and returns their records in
-// the order given. A container that vanished in between is skipped.
-func (r *run) inspectAll(ctx context.Context, ids []string) []evidence.Evidence {
-	out := make([]evidence.Evidence, len(ids))
+// inspectAll inspects containers in parallel. It returns the records in the
+// order given, and a failure record for each container whose metadata could
+// not be read. A container that vanished in between (404) is neither.
+func (r *run) inspectAll(ctx context.Context, list []docker.Summary) (ok, failed []evidence.Evidence) {
+	out := make([]evidence.Evidence, len(list))
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(collectParallel)
-	for i, id := range ids {
+	for i, s := range list {
 		g.Go(func() error {
-			_, ev, err := r.inspectEv(gctx, id)
-			if err != nil {
-				r.e.d.Logger.Debug("inspect failed", "container", evidence.ShortID(id), "err", err)
-				return nil
+			_, ev, err := r.inspectEv(gctx, s.ID)
+			switch {
+			case err == nil:
+				out[i] = ev
+			case errors.Is(err, docker.ErrNotFound):
+				r.e.d.Logger.Debug("container vanished", "container", s.Name())
+			default:
+				out[i] = r.inspectFailure(s.ID, s.Name(), err)
 			}
-			out[i] = ev
 			return nil
 		})
 	}
 	_ = g.Wait() // the goroutines never return errors
-	var kept []evidence.Evidence
 	for _, ev := range out {
-		if ev.Kind != "" {
-			kept = append(kept, ev)
+		switch {
+		case ev.Kind == "":
+		case ev.OK():
+			ok = append(ok, ev)
+		default:
+			failed = append(failed, ev)
 		}
 	}
-	return kept
+	return ok, failed
+}
+
+// inspectFailure records metadata that could not be read, so the diagnosis
+// says so instead of treating the container as absent.
+func (r *run) inspectFailure(id, name string, err error) evidence.Evidence {
+	ev := evidence.Evidence{
+		Kind:       evidence.KindContainer,
+		Context:    evidence.ContextRef{Kind: evidence.ContextContainer, Container: evidence.ShortID(id), Name: name},
+		Subject:    "container:" + name,
+		Status:     evidence.StatusFailed,
+		ObservedAt: time.Now(),
+		Err:        &evidence.Error{Code: evidence.CodeDockerUnavailable, Message: err.Error()},
+		Source:     "docker GET /containers/{id}/json",
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		ev.Status = evidence.StatusTimeout
+		ev.Err.Code = evidence.CodeTimeout
+	}
+	return ev
 }
 
 // readListeners reads each container's listening sockets, once per netns.

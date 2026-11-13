@@ -24,14 +24,14 @@ func (r wr002) Evaluate(v evidence.View) []Finding {
 		return nil // reaching loopback from inside the same netns works; WR007 covers the rest
 	}
 	port := q.To.Port
-	ownerID := ""
-	if owner, ok := v.NetnsOwner(); ok {
-		ownerID = owner.C.ID
-	}
 	probes := fromSource(v)
+	// The target is a name or a non-loopback address, so the connection goes
+	// to the destination's network address. A loopback-bound socket refuses
+	// that even from inside its own network namespace, so the source's
+	// netns doesn't matter.
 	for _, m := range v.Destinations().All() {
-		if m.C.ID == ownerID || m.C.NetnsOwner() == ownerID || m.C.HostNetwork() {
-			continue // the source shares this netns, or it is the host's
+		if m.C.HostNetwork() {
+			continue // its listeners are the host's: WR012's case (M2)
 		}
 		l, ok := v.ListenersIn(m.C.ID)
 		if !ok {

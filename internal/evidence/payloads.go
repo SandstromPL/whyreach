@@ -138,17 +138,63 @@ func (c Container) Addrs() []netip.Addr {
 	return slices.Compact(out)
 }
 
+// Docker's predefined networks. The default bridge has no embedded DNS, and
+// "host" and "none" are network modes rather than networks to share.
+const (
+	NetworkBridge = "bridge"
+	NetworkHost   = "host"
+	NetworkNone   = "none"
+)
+
+// UserDefined reports a network with Docker's embedded DNS: any network but
+// the predefined bridge, host and none.
+func UserDefined(network string) bool {
+	return network != NetworkBridge && network != NetworkHost && network != NetworkNone
+}
+
+// UserDefinedNetworks lists the container's user-defined networks, sorted.
+func (c Container) UserDefinedNetworks() []string {
+	var out []string
+	for _, n := range c.NetworkNames() {
+		if UserDefined(n) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// Matches reports whether name refers to this container: its container
+// name, Compose service, or one of its aliases or DNSNames on any network.
+// Matching ignores case and a trailing dot, as DNS does. Whether Docker's DNS
+// actually answers the name is AnswersTo's question.
+func (c Container) Matches(name string) bool {
+	name = normalizeName(name)
+	if name == "" {
+		return false
+	}
+	if strings.EqualFold(c.Name, name) || (c.Compose != nil && strings.EqualFold(c.Compose.Service, name)) {
+		return true
+	}
+	for _, a := range c.Networks {
+		if slices.ContainsFunc(a.Names, func(n string) bool { return strings.EqualFold(n, name) }) {
+			return true
+		}
+	}
+	return false
+}
+
 // AnswersTo returns the networks on which Docker's embedded DNS answers name
-// with this container: its container name, Compose service name, network
-// aliases and DNSNames. Matching ignores case, as DNS does.
+// with this container: user-defined networks where name is its container
+// name, Compose service, an alias or a DNSName. The default bridge network
+// answers nothing.
 func (c Container) AnswersTo(name string) []string {
-	name = strings.TrimSuffix(strings.ToLower(name), ".")
+	name = normalizeName(name)
 	if name == "" {
 		return nil
 	}
 	var out []string
 	for _, a := range c.Networks {
-		if c.answersOn(a, name) {
+		if UserDefined(a.Network) && c.answersOn(a, name) {
 			out = append(out, a.Network)
 		}
 	}
@@ -163,13 +209,28 @@ func (c Container) answersOn(a NetAttachment, name string) bool {
 	if c.Compose != nil && strings.EqualFold(c.Compose.Service, name) {
 		return true
 	}
-	for _, n := range a.Names {
-		if strings.EqualFold(n, name) {
-			return true
+	return slices.ContainsFunc(a.Names, func(n string) bool { return strings.EqualFold(n, name) })
+}
+
+// HostsEntry returns what the container's extra_hosts map name to, such as
+// "192.168.1.50" or "host-gateway". The container's /etc/hosts answers such
+// a name before any DNS, so it overrides every container with that name.
+func (c Container) HostsEntry(name string) (string, bool) {
+	name = normalizeName(name)
+	for _, e := range c.ExtraHosts {
+		// "host:ip" (an IPv6 ip contains colons too) or, from Docker 25, "host=ip"
+		host, value, ok := strings.Cut(e, "=")
+		if !ok {
+			host, value, ok = strings.Cut(e, ":")
+		}
+		if ok && strings.EqualFold(strings.TrimSpace(host), name) {
+			return strings.Trim(strings.TrimSpace(value), "[]"), true
 		}
 	}
-	return false
+	return "", false
 }
+
+func normalizeName(name string) string { return strings.TrimSuffix(strings.ToLower(name), ".") }
 
 // Listeners is the set of listening TCP sockets in one network namespace.
 type Listeners struct {

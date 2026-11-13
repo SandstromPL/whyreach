@@ -1,0 +1,103 @@
+{
+  "description": "worker's extra_hosts map db to 192.168.1.50; an unrelated stopped db container elsewhere doesn't matter",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:b-worker-1",
+      "container_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "to": {
+      "host": "db",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "worker"
+      },
+      "subject": "container:b-worker-1",
+      "status": "ok",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 1.2,
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "b-worker-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 4242,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "b_default",
+        "networks": [
+          {
+            "network": "b_default",
+            "network_id": "b_default-id",
+            "names": [
+              "b-worker-1",
+              "worker"
+            ],
+            "ipv4": "172.31.0.2"
+          }
+        ],
+        "compose": {
+          "project": "b",
+          "service": "worker"
+        },
+        "extra_hosts": [
+          "db:192.168.1.50"
+        ]
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-01"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "db"
+      },
+      "subject": "container:other-db-1",
+      "status": "ok",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 1.2,
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "other-db-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "exited",
+        "exit_code": 0,
+        "pid": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "other_default",
+        "networks": [
+          {
+            "network": "other_default",
+            "network_id": "other_default-id",
+            "names": [
+              "db",
+              "other-db-1"
+            ]
+          }
+        ],
+        "compose": {
+          "project": "other",
+          "service": "db"
+        }
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-02"
+    }
+  ],
+  "want": []
+}

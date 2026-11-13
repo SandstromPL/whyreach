@@ -22,12 +22,13 @@ import (
 // world is a fake Docker host: containers, their sockets, and what probes
 // from inside them observe.
 type world struct {
-	containers []evidence.Container
-	sockets    map[int][]string // pid → listening addresses
-	host       []string         // the host's listening addresses
-	dns        map[string][]string
-	tcp        map[string]string // "addr:port" → outcome; missing means timeout
-	desktop    bool
+	containers  []evidence.Container
+	sockets     map[int][]string // pid → listening addresses
+	host        []string         // the host's listening addresses
+	dns         map[string][]string
+	tcp         map[string]string // "addr:port" → outcome; missing means timeout
+	desktop     bool
+	failInspect map[string]error // container name → inspect error
 }
 
 func (w *world) Negotiate(context.Context) (docker.Version, error) {
@@ -82,6 +83,9 @@ func (w *world) ListContainers(_ context.Context, _ bool, labels ...string) ([]d
 func (w *world) InspectContainer(_ context.Context, ref string) (evidence.Container, error) {
 	for _, c := range w.containers {
 		if c.ID == ref || c.Name == ref || evidence.ShortID(c.ID) == ref {
+			if err := w.failInspect[c.Name]; err != nil {
+				return evidence.Container{}, err
+			}
 			return c, nil
 		}
 	}
@@ -543,4 +547,116 @@ func TestDockerFailureDoesNotStick(t *testing.T) {
 	if len(d2.Evidence) == 0 || d2.Gaps[0].What == "Docker metadata (containers, networks, listeners)" {
 		t.Errorf("the second diagnosis still has no Docker: %+v", d2.Gaps)
 	}
+}
+
+func factTexts(d *Diagnosis) string {
+	var out []string
+	for _, f := range d.Facts {
+		out = append(out, f.Text)
+	}
+	return strings.Join(out, "\n")
+}
+
+// The review of M1 found these; each test reproduces one.
+func TestReviewFindings(t *testing.T) {
+	t.Run("a crowded network doesn't hide the destination", func(t *testing.T) {
+		w := shopWorld()
+		w.containers[1].Name = "shop-zz-api-1"
+		w.sockets[200] = []string{"127.0.0.1:8080"}
+		for i := range 70 {
+			w.containers = append(w.containers, ctr(fmt.Sprintf("%02d", i), fmt.Sprintf("shop-aa-%02d-1", i), "shop", fmt.Sprintf("svc%02d", i), "shop_default", fmt.Sprintf("172.22.1.%d", i), 1000+i))
+		}
+		d, _ := runScenario(t, scenario{w: w, from: "container:shop-worker-1", to: "api:8080"})
+		if p := d.Primary(); p == nil || p.RuleID != "WR002" {
+			t.Errorf("primary = %+v, want WR002\nfacts:\n%s", p, factTexts(d))
+		}
+		skipped := false
+		for _, g := range d.Gaps {
+			skipped = skipped || strings.Contains(g.What, "aliases of")
+		}
+		if !skipped {
+			t.Errorf("want a gap for the containers that were not inspected: %+v", d.Gaps)
+		}
+	})
+
+	t.Run("a failed inspect is a gap, not a missing container", func(t *testing.T) {
+		w := shopWorld()
+		w.failInspect = map[string]error{"shop-api-1": context.DeadlineExceeded}
+		d, _ := runScenario(t, scenario{w: w, from: "container:shop-worker-1", to: "api:8080"})
+		if strings.Contains(factTexts(d), "no container answers") {
+			t.Errorf("claims api doesn't exist:\n%s", factTexts(d))
+		}
+		found := false
+		for _, g := range d.Gaps {
+			found = found || (strings.Contains(g.What, "container metadata") && g.Why == "timeout")
+		}
+		if !found {
+			t.Errorf("want a timeout gap for api's metadata: %+v", d.Gaps)
+		}
+	})
+
+	t.Run("the source's extra_hosts beat a stopped container elsewhere", func(t *testing.T) {
+		w := shopWorld()
+		w.containers[0].ExtraHosts = []string{"db:192.168.1.50"}
+		db := ctr("d", "other-db-1", "other", "db", "other_default", "172.30.0.9", 0)
+		db.State = evidence.StateExited
+		w.containers = append(w.containers, db)
+		w.tcp["192.168.1.50:5432"] = evidence.OutcomeConnected
+		w.dns["db"] = []string{"192.168.1.50"}
+		d, ex := runScenario(t, scenario{w: w, from: "container:shop-worker-1", to: "db:5432", probes: true})
+		if d.Verdict != VerdictNoProblem || len(ex.ran) != 1 {
+			t.Errorf("verdict %s, probe batches %d; want the probes to run and connect\n%+v", d.Verdict, len(ex.ran), d.Findings)
+		}
+		if !strings.Contains(factTexts(d), "extra_hosts map") {
+			t.Errorf("want a fact about the extra_hosts mapping:\n%s", factTexts(d))
+		}
+	})
+
+	t.Run("a stopped container elsewhere doesn't stop the probes", func(t *testing.T) {
+		w := shopWorld()
+		db := ctr("d", "other-db-1", "other", "db", "other_default", "172.30.0.9", 0)
+		db.State = evidence.StateExited
+		w.containers = append(w.containers, db)
+		_, ex := runScenario(t, scenario{w: w, from: "container:shop-worker-1", to: "db:5432", probes: true})
+		if len(ex.ran) != 1 {
+			t.Errorf("probe batches = %d, want 1", len(ex.ran))
+		}
+	})
+
+	t.Run("no tier-2b gap when the destination is down", func(t *testing.T) {
+		w := shopWorld()
+		w.containers[1].State, w.containers[1].Pid = evidence.StateExited, 0
+		d, _ := runScenario(t, scenario{w: w, from: "container:shop-worker-1", to: "api:8080"})
+		for _, g := range d.Gaps {
+			if strings.Contains(g.HowToEnable, "probe_containers") {
+				t.Errorf("asks for probe containers although no probe would run: %+v", g)
+			}
+		}
+		if p := d.Primary(); p == nil || p.RuleID != "WR008" {
+			t.Errorf("primary = %+v, want WR008", p)
+		}
+	})
+
+	t.Run("WR004 on a default-bridge destination advises a user-defined network", func(t *testing.T) {
+		w := shopWorld()
+		redis := ctr("r", "redis", "", "", "bridge", "172.17.0.5", 300)
+		redis.Compose = nil
+		redis.Networks[0].Names = nil
+		w.containers = append(w.containers, redis)
+		d, _ := runScenario(t, scenario{w: w, from: "container:shop-worker-1", to: "redis:6379"})
+		p := d.Primary()
+		if p == nil || p.RuleID != "WR004" || !strings.Contains(p.Fix, "docker network connect shop_default redis") {
+			t.Errorf("primary = %+v", p)
+		}
+	})
+
+	t.Run("WR002 from the host", func(t *testing.T) {
+		w := shopWorld()
+		w.sockets[200] = []string{"127.0.0.1:8080"}
+		w.tcp["172.22.0.3:8080"] = evidence.OutcomeRefused
+		d, _ := runScenario(t, scenario{w: w, from: "host", to: "172.22.0.3:8080"})
+		if p := d.Primary(); p == nil || p.RuleID != "WR002" || d.Verdict != VerdictCause {
+			t.Errorf("verdict %s, primary %+v; want WR002\n%s", d.Verdict, p, factTexts(d))
+		}
+	})
 }

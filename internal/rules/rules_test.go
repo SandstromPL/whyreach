@@ -28,6 +28,7 @@ type wantFinding struct {
 	Confidence    Confidence `json:"confidence"`
 	Supporting    []string   `json:"supporting"`
 	Contradicting []string   `json:"contradicting,omitempty"`
+	FixContains   string     `json:"fix_contains,omitempty"` // checked separately
 }
 
 func loadFixture(t *testing.T, path string) fixture {
@@ -64,11 +65,14 @@ func TestFixtures(t *testing.T) {
 					v := evidence.NewView(f.Question, f.Evidence)
 					got := r.Evaluate(v)
 					var gotW []wantFinding
-					for _, g := range got {
+					for i, g := range got {
 						gotW = append(gotW, wantFinding{RuleID: g.RuleID, Confidence: g.Confidence, Supporting: g.Supporting, Contradicting: g.Contradicting})
 						checkFinding(t, r, g, v)
+						if i < len(f.Want) && !strings.Contains(g.Fix, f.Want[i].FixContains) {
+							t.Errorf("fix %q lacks %q", g.Fix, f.Want[i].FixContains)
+						}
 					}
-					if diff := cmp.Diff(f.Want, gotW, cmpopts.EquateEmpty()); diff != "" {
+					if diff := cmp.Diff(f.Want, gotW, cmpopts.EquateEmpty(), cmpopts.IgnoreFields(wantFinding{}, "FixContains")); diff != "" {
 						t.Errorf("%s\n(-want +got):\n%s", f.Description, diff)
 					}
 				})

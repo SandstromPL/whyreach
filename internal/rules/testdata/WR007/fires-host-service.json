@@ -175,7 +175,8 @@
         "ev-01",
         "ev-03",
         "ev-05"
-      ]
+      ],
+      "fix_contains": "host.docker.internal:5432"
     }
   ]
 }

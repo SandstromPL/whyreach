@@ -1,0 +1,87 @@
+{
+  "description": "both run on the default bridge: they share it, and the unresolvable name is WR009's case",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:worker",
+      "container_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "to": {
+      "host": "redis",
+      "port": 6379,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "worker"
+      },
+      "subject": "container:worker",
+      "status": "ok",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 1.2,
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "worker",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 4242,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "bridge",
+        "networks": [
+          {
+            "network": "bridge",
+            "network_id": "bridge-id",
+            "names": [],
+            "ipv4": "172.17.0.4"
+          }
+        ]
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-01"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "999999999999",
+        "name": "redis"
+      },
+      "subject": "container:redis",
+      "status": "ok",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 1.2,
+      "data": {
+        "id": "9999999999999999999999999999999999999999999999999999999999999999",
+        "name": "redis",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 4242,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "bridge",
+        "networks": [
+          {
+            "network": "bridge",
+            "network_id": "bridge-id",
+            "names": [],
+            "ipv4": "172.17.0.5"
+          }
+        ]
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-02"
+    }
+  ],
+  "want": []
+}

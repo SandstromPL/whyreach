@@ -25,8 +25,16 @@ const (
 )
 
 func (r wr008) Evaluate(v evidence.View) []Finding {
-	matches := v.Destinations().All()
+	d := v.Destinations()
+	matches := d.All()
 	if len(matches) == 0 {
+		return nil
+	}
+	// A match outside the source's networks may not be what the source
+	// means: when the name resolves or connects from the source, it means
+	// something else, and otherwise the finding is less certain.
+	onSourceNets := len(d.OnSourceNets) > 0
+	if !onSourceNets && (connectedByName(v) || resolvedFromSource(v)) {
 		return nil
 	}
 	var down []evidence.Match
@@ -77,9 +85,13 @@ func (r wr008) Evaluate(v evidence.View) []Finding {
 	}
 	if len(down) > 1 {
 		f.Explanation += fmt.Sprintf(" None of the %d containers that answer to %s is up.", len(down), v.Question().To.Host)
-		for _, d := range down[1:] {
-			f.Supporting = ids(append(f.Supporting, d.ID)...)
+		for _, m := range down[1:] {
+			f.Supporting = ids(append(f.Supporting, m.ID)...)
 		}
+	}
+	if !onSourceNets {
+		f.Confidence = f.Confidence.Lower()
+		f.Explanation += fmt.Sprintf(" It is also on no network %s is on, so it may not be the %s that %s means.", sourceName(v), v.Question().To.Host, sourceName(v))
 	}
 	return []Finding{f}
 }

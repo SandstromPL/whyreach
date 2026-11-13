@@ -3,6 +3,7 @@ package evidence
 import (
 	"encoding/json"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -273,5 +274,84 @@ func TestDestinationsPrefersSourceProject(t *testing.T) {
 	got := v.Destinations().Elsewhere
 	if len(got) != 2 || got[0].C.Name != "shop-api-1" {
 		t.Fatalf("want the source's own project first, got %+v", got)
+	}
+}
+
+func TestDestinationsEdgeCases(t *testing.T) {
+	worker := container("wwwwwwwwwwwwwwww", "shop-worker-1", "shop", "worker", att("shop_default", "172.22.0.2", "worker"))
+	q := func(src Container, host string) Question {
+		class, addr := ClassifyHost(host)
+		return Question{From: Source{Kind: SourceContainer, ContainerID: src.ID}, To: Target{Host: host, Port: 6379, Class: class, Addr: addr}}
+	}
+
+	// A container started with docker run on the default bridge: its name
+	// identifies it, but resolves on no network, and it shares none with worker.
+	redis := container("rrrrrrrrrrrrrrrr", "redis", "", "", att(NetworkBridge, "172.17.0.5"))
+	d := viewWith(q(worker, "redis"), worker, redis).Destinations()
+	if len(d.Elsewhere) != 1 || len(d.Elsewhere[0].Networks) != 0 || len(d.Elsewhere[0].Shared) != 0 {
+		t.Errorf("bridge-only redis: %+v", d)
+	}
+
+	// Two containers on the default bridge share it: not WR004's case.
+	other := container("oooooooooooooooo", "other", "", "", att(NetworkBridge, "172.17.0.6"))
+	d = viewWith(q(other, "redis"), other, redis).Destinations()
+	if len(d.OnSourceNets) != 1 || d.OnSourceNets[0].Shared[0] != NetworkBridge {
+		t.Errorf("both on the default bridge: %+v", d)
+	}
+
+	// worker's own extra_hosts win over a same-named container elsewhere.
+	db := container("dddddddddddddddd", "other-db-1", "other", "db", att("other_default", "172.30.0.9", "db"))
+	mapped := worker
+	mapped.ExtraHosts = []string{"db:192.168.1.50"}
+	d = viewWith(q(mapped, "db"), mapped, db).Destinations()
+	if d.HostsEntry != "192.168.1.50" || len(d.All()) != 0 {
+		t.Errorf("extra_hosts mapping: %+v", d)
+	}
+	mapped.ExtraHosts = []string{"db=172.30.0.9"}
+	d = viewWith(q(mapped, "db"), mapped, db).Destinations()
+	if len(d.Elsewhere) != 1 || d.Elsewhere[0].C.Name != "other-db-1" {
+		t.Errorf("extra_hosts pointing at a container's address: %+v", d)
+	}
+	mapped.ExtraHosts = []string{"db:host-gateway"}
+	d = viewWith(q(mapped, "db"), mapped, db).Destinations()
+	if d.HostsEntry != "host-gateway" || len(d.All()) != 0 {
+		t.Errorf("host-gateway: %+v", d)
+	}
+
+	// A destination in network_mode container:X is reachable on X's networks.
+	proxy := container("pppppppppppppppp", "shop-proxy-1", "shop", "proxy", att("shop_default", "172.22.0.7", "proxy"))
+	sidecar := container("ssssssssssssssss", "shop-sidecar-1", "shop", "sidecar")
+	sidecar.NetworkMode = "container:" + proxy.ID
+	d = viewWith(q(worker, "sidecar"), worker, proxy, sidecar).Destinations()
+	if len(d.OnSourceNets) != 1 || d.OnSourceNets[0].C.Name != "shop-sidecar-1" {
+		t.Errorf("container: destination: %+v", d)
+	}
+}
+
+func TestViewContainerByReference(t *testing.T) {
+	c := container(strings.Repeat("ab", 32), "shop-api-1", "shop", "api", att("shop_default", "172.22.0.3"))
+	v := viewWith(Question{}, c)
+	for _, ref := range []string{c.ID, c.ID[:12], c.ID[:20], "shop-api-1", "/shop-api-1"} {
+		if _, ok := v.Container(ref); !ok {
+			t.Errorf("Container(%q) not found", ref)
+		}
+	}
+	for _, ref := range []string{"", c.ID[:6], "api", "shop-api"} {
+		if _, ok := v.Container(ref); ok {
+			t.Errorf("Container(%q) found, want no match", ref)
+		}
+	}
+}
+
+func TestHostsEntry(t *testing.T) {
+	c := Container{ExtraHosts: []string{"db:192.168.1.50", "cache=10.0.0.7", "v6:::1", "host.docker.internal:host-gateway", "[bracket]:[fd00::1]"}}
+	tests := map[string]string{"db": "192.168.1.50", "DB.": "192.168.1.50", "cache": "10.0.0.7", "v6": "::1", "host.docker.internal": "host-gateway"}
+	for name, want := range tests {
+		if got, ok := c.HostsEntry(name); !ok || got != want {
+			t.Errorf("HostsEntry(%q) = %q, %v; want %q", name, got, ok, want)
+		}
+	}
+	if _, ok := c.HostsEntry("api"); ok {
+		t.Error("HostsEntry(api) matched")
 	}
 }

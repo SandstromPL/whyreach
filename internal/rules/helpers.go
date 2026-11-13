@@ -68,6 +68,16 @@ func dnsFromSource(v evidence.View, name string) (evidence.DNSEv, bool) {
 	return evidence.DNSEv{}, false
 }
 
+// resolvedFromSource reports that the target name resolved from the source.
+func resolvedFromSource(v evidence.View) bool {
+	q := v.Question()
+	if q.To.Class != evidence.TargetName {
+		return false
+	}
+	d, ok := dnsFromSource(v, q.To.Host)
+	return ok && len(d.P.Answers) > 0
+}
+
 // connectedByName reports a connect from the source that reached the target
 // through the name the app uses (not through a metadata address).
 func connectedByName(v evidence.View) bool {
