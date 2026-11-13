@@ -9,7 +9,7 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 - M1, the vertical slice (`INITIAL.md` §2.3): the CLI `whyreach [--from SOURCE] HOST:PORT` diagnoses with WR008, WR007, WR004 and WR002.
 - M2: all 14 v0.1 rules; host↔container flows; `policy` (tiers, probe allowlist, rate limit, audit log); the MCP server (`whyreach mcp serve`, four tools, consent for probe containers: `docs/adr/0003-mcp-server.md`); `inspect`, `probe` and `doctor`. `make lab` passes 20 scenarios with probe containers on and off, and `make lab-agent` has a headless agent diagnose each one through the MCP tools alone.
 - M3: the netns executor. As root on Linux Docker Engine, container checks enter the containers' network namespaces with `setns`, with no Docker write; a probe container stands in only when entering fails and tier 2b is on (ADR 0001, M3 amendment). `make lab-root` passes all 20 scenarios through it.
-- Next is M4: reports and redaction, docs, release builds, `INITIAL.md` §7.
+- Next is M4: the decisions on `INITIAL.md` §10 Q11 (outside names need approval through MCP) and Q12 (`save_report` always redacts), reports and redaction, docs, release builds, `INITIAL.md` §7.
 
 **Source of truth:** `INITIAL.md` holds the current design: decisions, HLD, LLD, the rule catalog and the milestones. The original project proposal (not published) is background only.
 - If the two disagree, `INITIAL.md` wins.

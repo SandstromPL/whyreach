@@ -53,3 +53,16 @@ Because a 2026-07-28 client sends no `initialize`, the server logs who calls on 
 - A user who never wants probe containers can decline once per session, or leave the client without elicitation; the config file stays the durable switch.
 - Headless runs (`claude -p`, CI) can't answer a dialog: they need `probe_containers = true` in the config if they want container-side DNS and TCP checks. The agent check (`make lab-agent`) does this.
 - `readOnlyHint` can change during a session; a client that caches annotations from the first `tools/list` sees the change only if it honours `notifications/tools/list_changed`.
+
+## Amendment (2026-11-13, before M4): outside names need approval; `save_report` always redacts
+
+The owner settled `INITIAL.md` §10 Q11 and Q12. M4 builds both.
+
+- **Outside names (Q11).** A DNS query delivers its name to whoever serves the domain. An agent whose own network is blocked could therefore leak data through this server, by asking it to look up names like `<data>.attacker.example`.
+  - Through MCP, a name with a dot that Docker doesn't resolve itself is now looked up only in two cases: the user approves that exact name through the same elicitation paths as Decision 1, or the name falls under a domain listed in `[probe] names`.
+  - Unlike probe containers, approval is per name, not per session. One yes must not open the channel for the rest of the session.
+  - Without an answer, nothing is sent, and the gap names the setting.
+  - Refusing such names outright was rejected, because WR020 diagnoses exactly those lookups.
+  - Names without a dot stay free: their queries reach only the resolver and the user's own search domains.
+- **`save_report` (Q12).** The `redact` argument goes. Bundles saved through MCP are always redacted, and unredacted ones come only from the CLI, so no tool argument relaxes a privacy default.
+- **Headless runs.** As with probe containers, `claude -p` and CI can't answer a dialog. They need `[probe] names` for the outside names they diagnose, and the agent check needs it for WR020's scenario.
