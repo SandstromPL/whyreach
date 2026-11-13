@@ -53,7 +53,7 @@ func (p *Policy) netnsCheck(ctx context.Context, pl platform.Info) engine.Check 
 	_, why := pl.NetnsExecutor()
 	switch {
 	case p.d.Netns != nil:
-		c.Detail = "on (root): on Linux Docker Engine, DNS and TCP checks from containers enter their network namespaces directly, with no Docker write. Run whyreach as root for the CLI only; as an MCP server, prefer a regular user"
+		c.Detail = "on (root): on Linux Docker Engine, DNS and TCP checks from containers enter their network namespaces directly, with no Docker write (a probe container stands in only if entering fails and they are allowed). Run whyreach as root for the CLI only; as an MCP server, prefer a regular user"
 		p.tryNetns(ctx, &c)
 	case p.d.Settings.NetnsOff && why == "":
 		c.Detail = "off: netns = false under [permissions] in " + p.d.Settings.ConfigPath

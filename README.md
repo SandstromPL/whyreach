@@ -36,7 +36,7 @@ probe_containers = true
 
 Without them, whyreach still settles most causes from Docker metadata and the containers' listening sockets, and says what it could not check. Through MCP, when a probe container would change the answer, whyreach asks once per session (if the client supports elicitation); an approval lasts until the session ends.
 
-Run as root on the Docker host (`sudo whyreach --from container:worker api:8080`), whyreach doesn't need probe containers: it enters the containers' network namespaces itself, with no Docker write at all, under the same probe limits (`netns = false` under `[permissions]` turns that off). It then reads root's config and writes root's audit log, so use `sudo`, not `sudo -E`. Use root for the CLI only; run the MCP server as a regular user.
+Run as root on the Docker host (`sudo whyreach --from container:worker api:8080`), whyreach doesn't need probe containers: it enters the containers' network namespaces itself, with no Docker write, under the same probe limits (`netns = false` under `[permissions]` turns that off). Only if it can't enter one, and you allow probe containers, does a probe container stand in. It then reads root's config and writes root's audit log, so use `sudo`, not `sudo -E`. Use root for the CLI only; run the MCP server as a regular user.
 
 Probe targets are limited by `[probe] allow` (by default `loopback`, `rfc1918` and `docker`: the subnets of Docker's networks) and `rate_per_minute` (30). Link-local and cloud-metadata addresses are always refused.
 

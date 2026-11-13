@@ -287,7 +287,7 @@ func (h *netnsHandle) onThread(f func()) error {
 // is left to finish on its own copy of the root descriptor.
 func (h *netnsHandle) open(ctx context.Context, path string) (io.ReadCloser, error) {
 	r := h.read(path)
-	ctx, cancel := context.WithTimeout(ctx, fileTimeout)
+	wait, cancel := context.WithTimeout(ctx, fileTimeout)
 	defer cancel()
 	select {
 	case <-r.done:
@@ -295,8 +295,11 @@ func (h *netnsHandle) open(ctx context.Context, path string) (io.ReadCloser, err
 			return nil, r.err
 		}
 		return io.NopCloser(bytes.NewReader(r.b)), nil
-	case <-ctx.Done():
-		return nil, fmt.Errorf("reading %s in the container took too long: %w", path, ctx.Err())
+	case <-wait.Done():
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("reading %s in the container: %w", path, ctx.Err()) // the diagnosis's deadline
+		}
+		return nil, fmt.Errorf("reading %s in the container took longer than %s; the file system it is on doesn't answer: %w", path, fileTimeout, os.ErrDeadlineExceeded)
 	}
 }
 

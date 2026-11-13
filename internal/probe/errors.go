@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"os"
 	"syscall"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
@@ -38,6 +39,11 @@ func Classify(err error) (evidence.Status, *evidence.Error) {
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
 		e.Code = evidence.CodeTimeout
 		return evidence.StatusTimeout, e
+	case errors.Is(err, os.ErrDeadlineExceeded):
+		// An operation's own time limit, not the diagnosis's deadline: the
+		// environment kept the observation from being made.
+		e.Code = evidence.CodeTimeout
+		return evidence.StatusFailed, e
 	case errors.Is(err, ErrNoProcess), errors.Is(err, ErrNotContainer), errors.Is(err, fs.ErrNotExist):
 		e.Code = evidence.CodeNotFound
 		return evidence.StatusFailed, e

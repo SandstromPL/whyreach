@@ -128,7 +128,13 @@ func TestNetnsFallsBackToProbeContainersOnlyWhenAllowed(t *testing.T) {
 			if len(d.Gaps) == 0 || !strings.Contains(d.Gaps[0].HowToEnable, "probe_containers = true") {
 				t.Errorf("want a gap that says how to let a probe container run them: %+v", d.Gaps)
 			}
+			if !NeedsProbeContainers(d.Evidence) {
+				t.Error("a probe container would change the answer, so the MCP server must be able to ask for one")
+			}
 			continue
+		}
+		if NeedsProbeContainers(d.Evidence) {
+			t.Error("a probe container already ran: nothing to ask for")
 		}
 		if probes.count() != 1 || d.Verdict != "no_problem_reproduced" {
 			t.Fatalf("with tier 2b a probe container must run the checks: %d runs, verdict %s", probes.count(), d.Verdict)

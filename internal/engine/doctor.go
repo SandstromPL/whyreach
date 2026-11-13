@@ -65,7 +65,7 @@ func (e *Engine) SelfCheck(ctx context.Context) []Check {
 
 	if ev := r.hostListeners(); ev.OK() {
 		n := len(ev.Data.(evidence.Listeners).Sockets)
-		out = append(out, Check{Name: "host listeners", Status: CheckOK, Detail: fmt.Sprintf("%d TCP listeners readable from /proc/net/tcp{,6}", n)})
+		out = append(out, Check{Name: "host listeners", Status: CheckOK, Detail: fmt.Sprintf("%d TCP listeners readable from /proc/thread-self/net/tcp{,6}", n)})
 	} else {
 		out = append(out, Check{Name: "host listeners", Status: CheckFail, Detail: ev.Err.Message})
 	}

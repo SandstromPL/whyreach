@@ -329,11 +329,16 @@ func (p *Policy) probe(ctx context.Context, a ProbeArgs) (*engine.ProbeResult, e
 	return p.engine.Probe(ctx, from, spec)
 }
 
-// NeedsProbeContainers reports evidence that could not be collected because
-// tier 2b is off: a probe container would add something.
+// NeedsProbeContainers reports evidence that a probe container would add:
+// checks withheld because tier 2b is off, and checks the netns executor
+// couldn't make because it couldn't enter the namespace (with tier 2b on, a
+// probe container stands in).
 func NeedsProbeContainers(evs []evidence.Evidence) bool {
 	for _, e := range evs {
 		if e.Status == evidence.StatusPermissionDenied && e.Err != nil && e.Err.Message == executor.ProbeContainersOff {
+			return true
+		}
+		if executor.CannotEnter(e.Err) {
 			return true
 		}
 	}

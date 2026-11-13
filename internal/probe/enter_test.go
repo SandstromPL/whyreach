@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -203,5 +204,18 @@ func TestConnectAfterAFailedLookup(t *testing.T) {
 		tcp.Err.Code != evidence.CodePermissionDenied || strings.Contains(tcp.Err.Message, "did not resolve") ||
 		!strings.Contains(tcp.Err.Message, "could not be made") {
 		t.Errorf("tcp record %+v, want skipped: the lookup could not be made (permission_denied)", tcp)
+	}
+}
+
+// TestClassifyAStalledOperation: an operation's own time limit (a file
+// system that doesn't answer) is a failed observation, not the diagnosis's
+// deadline, whose advice is to run it again with more time.
+func TestClassifyAStalledOperation(t *testing.T) {
+	status, e := Classify(fmt.Errorf("reading /etc/hosts took longer than 2s: %w", os.ErrDeadlineExceeded))
+	if status != evidence.StatusFailed || e.Code != evidence.CodeTimeout {
+		t.Errorf("stalled read: %s %+v, want failed with code timeout", status, e)
+	}
+	if status, _ := Classify(fmt.Errorf("lookup: %w", context.DeadlineExceeded)); status != evidence.StatusTimeout {
+		t.Errorf("the diagnosis deadline: %s, want timeout", status)
 	}
 }

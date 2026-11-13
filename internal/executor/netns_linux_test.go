@@ -229,6 +229,13 @@ func TestNetnsEnterRunsInsideAndComesBack(t *testing.T) {
 			_ = c.Close()
 		}
 	}()
+	if c, err := (&net.Dialer{Timeout: time.Second}).DialContext(context.Background(), "tcp", ln.Addr().String()); err != nil {
+		// In a fresh network namespace (unshare -Urn) loopback starts down,
+		// so a connect fails in both namespaces and proves nothing.
+		t.Skipf("whyreach's own namespace can't reach its loopback (%v): bring lo up first, as in unshare -Urn sh -c 'ip link set lo up && …'", err)
+	} else {
+		_ = c.Close()
+	}
 
 	var wg sync.WaitGroup
 	for range 16 {
