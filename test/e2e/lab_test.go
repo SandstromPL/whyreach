@@ -54,10 +54,14 @@ const (
 
 // scenario is test/lab/<name>/scenario.yaml.
 type scenario struct {
-	Description string   `yaml:"description"`
-	Projects    []string `yaml:"projects"` // compose files; default [compose.yaml]
-	UpWait      *bool    `yaml:"up_wait"`  // default true: docker compose up --wait
-	Settle      *struct {
+	Description string `yaml:"description"`
+	// Image is a public image the scenario runs (the README demo): the
+	// scenario is skipped where it isn't present, since the lab pulls
+	// nothing.
+	Image    string   `yaml:"image"`
+	Projects []string `yaml:"projects"` // compose files; default [compose.yaml]
+	UpWait   *bool    `yaml:"up_wait"`  // default true: docker compose up --wait
+	Settle   *struct {
 		Service string `yaml:"service"`
 		State   string `yaml:"state"`
 	} `yaml:"settle"`
@@ -312,6 +316,11 @@ func bringUp(t *testing.T, dir string) running {
 	}
 	if s.Expect == nil {
 		t.Fatal("scenario.yaml has no expect")
+	}
+	if s.Image != "" {
+		if err := exec.CommandContext(context.Background(), "docker", "image", "inspect", s.Image).Run(); err != nil {
+			t.Skipf("%s isn't present and the lab pulls nothing: docker pull %s to run this scenario", s.Image, s.Image)
+		}
 	}
 	if len(s.Projects) == 0 {
 		s.Projects = []string{"compose.yaml"}

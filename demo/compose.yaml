@@ -1,0 +1,46 @@
+# The whyreach demo: the most common Docker networking mistake, WR007.
+#
+# The worker calls the API at http://localhost:8080/ and gets "Connection
+# refused". Inside the worker's container, localhost is the worker itself;
+# the API runs in its own container, as the Compose service "api". Nothing is
+# wrong with the API.
+#
+#   docker compose -f demo/compose.yaml up -d --wait
+#   docker compose -f demo/compose.yaml logs worker
+#   whyreach --from service:worker@whyreach-demo localhost:8080
+#   docker compose -f demo/compose.yaml down
+#
+# README.md walks through it with an AI agent.
+name: whyreach-demo
+
+services:
+  api:
+    image: python:3.13-slim
+    command: ["python", "-m", "http.server", "8080", "--bind", "0.0.0.0"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/', timeout=2)"]
+      interval: 30s
+      start_period: 30s
+      start_interval: 1s
+
+  worker:
+    image: python:3.13-slim
+    environment:
+      API_URL: http://localhost:8080/
+    command:
+      - python
+      - -u
+      - -c
+      - |
+        import os, time, urllib.request
+        url = os.environ["API_URL"]
+        while True:
+            try:
+                urllib.request.urlopen(url, timeout=2)
+                print("worker: reached", url)
+            except Exception as e:
+                print("worker: can't reach", url, "-", e)
+            time.sleep(5)
+    depends_on:
+      api:
+        condition: service_healthy

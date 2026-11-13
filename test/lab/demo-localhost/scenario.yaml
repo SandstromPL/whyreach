@@ -1,0 +1,19 @@
+# The demo in demo/compose.yaml (README.md), run as a lab scenario. It uses a
+# public image, so it runs only where that image is present: the lab pulls
+# nothing (docker pull python:3.13-slim to run it).
+description: the README demo; worker calls http://localhost:8080 inside its container, and the API is the service api
+image: python:3.13-slim
+from: service:worker@${PROJECT}
+to: localhost:8080
+expect:
+  verdict: cause_identified
+  top_rule: WR007
+  confidence: high
+  fix_contains: api:8080
+  must_not_fire: [WR002, WR004, WR008, WR010]
+# Source and peer listeners settle WR007 without a probe.
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR007
+  confidence: high
+  fix_contains: api:8080
