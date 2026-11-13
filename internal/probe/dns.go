@@ -115,9 +115,6 @@ func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evide
 		// from DNS would describe a lookup the app doesn't make.
 		return p, nil, fmt.Errorf("read the hosts file: %w", err)
 	}
-	if reason, ok := lim.CheckName(name); !ok {
-		return p, nil, &Refused{Reason: reason}
-	}
 	conf, err := r.readResolvConf(ctx)
 	if err != nil {
 		return p, nil, fmt.Errorf("read resolver config: %w", err)
@@ -127,10 +124,15 @@ func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evide
 		return p, nil, fmt.Errorf("%s lists no nameserver", r.ResolvPath)
 	}
 	// The container controls its resolv.conf: a nameserver on the block list
-	// (link-local, cloud metadata) gets no query (INITIAL.md §10 Q11).
+	// (link-local, cloud metadata) gets no query (INITIAL.md §10 Q11). The
+	// nameservers come before the name: a lookup that can't be made isn't
+	// worth asking the user about.
 	servers, notes, refusal := allowedServers(conf.servers, r.ResolvPath)
-	if len(servers) == 0 {
+	if refusal != "" {
 		return p, notes, &Refused{Reason: refusal}
+	}
+	if reason, ok := lim.CheckName(name); !ok {
+		return p, notes, &Refused{Reason: reason}
 	}
 	conf.servers = servers
 	p.Server = conf.servers[0]
@@ -172,26 +174,55 @@ func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evide
 	return p, notes, nil
 }
 
-// allowedServers drops the nameservers ("addr:53") that the block list
-// refuses. notes say which were skipped; refusal says why none is left.
+// FirstNameserverBlocked reads a resolv.conf and reports its first
+// nameserver when the probe block list keeps whyreach from querying it, so
+// that no lookup through that file can be made (for whyreach doctor).
+func FirstNameserverBlocked(path string) (string, bool, error) {
+	f, err := os.Open(path) //nolint:gosec // G304: the caller's fixed resolver file
+	if err != nil {
+		return "", false, err
+	}
+	defer func() { _ = f.Close() }() // read-only
+	conf, err := parseResolvConf(f)
+	if err != nil || len(conf.servers) == 0 {
+		return "", false, err
+	}
+	ap, err := netip.ParseAddrPort(conf.servers[0])
+	if err != nil {
+		return "", false, err
+	}
+	_, blocked := target.Blocked(ap.Addr())
+	return ap.Addr().String(), blocked, nil
+}
+
+// maxNameservers is how many nameservers the C libraries use: glibc's and
+// musl's MAXNS. The app never asks a fourth.
+const maxNameservers = 3
+
+// allowedServers returns the nameservers ("addr:53") a lookup may use, as
+// the app's resolver would: the first three, without those on the block
+// list. When the first is blocked, the app's own lookup would go there, so
+// a lookup through the others would describe one the app doesn't make:
+// refusal says so, and nothing is sent. notes name the later ones skipped.
 func allowedServers(servers []string, path string) (ok, notes []string, refusal string) {
-	var blocked []string
-	for _, s := range servers {
+	if len(servers) > maxNameservers {
+		servers = servers[:maxNameservers]
+	}
+	for i, s := range servers {
 		ap, err := netip.ParseAddrPort(s)
 		if err != nil {
 			continue
 		}
 		if reason, isBlocked := target.Blocked(ap.Addr()); isBlocked {
-			blocked = append(blocked, ap.Addr().String())
-			notes = append(notes, fmt.Sprintf("skipped nameserver %s from %s, which the app asks first: %s", ap.Addr(), path, reason))
+			if i == 0 {
+				return nil, nil, fmt.Sprintf("not looked up: the first nameserver in %s, %s, which the app asks first, is on the probe block list (link-local and cloud-metadata addresses)", path, ap.Addr())
+			}
+			notes = append(notes, fmt.Sprintf("skipped nameserver %d of %s, %s, which the app asks only when the ones before it fail: %s", i+1, path, ap.Addr(), reason))
 			continue
 		}
 		ok = append(ok, s)
 	}
-	if len(ok) == 0 {
-		refusal = fmt.Sprintf("not looked up: every nameserver in %s (%s) is on the probe block list (link-local and cloud-metadata addresses)", path, strings.Join(blocked, ", "))
-	}
-	return ok, notes, refusal
+	return ok, notes, ""
 }
 
 type candidate struct {

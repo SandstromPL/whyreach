@@ -52,6 +52,29 @@ func (h *Host) Run(ctx context.Context, where evidence.ContextRef, specs []probe
 	return evs, nil
 }
 
+// HostHidden is the message of host-side records whyreach can't make
+// because it runs in a container without the host's network namespace
+// (no --network host): its own namespace would pass for the host's.
+const HostHidden = "whyreach runs in a container without the host's network namespace (docker run --network host), so the host's interfaces, listening sockets and connections can't be seen from here"
+
+// HostHiddenAdvice says how to let whyreach's image see the host.
+const HostHiddenAdvice = "Run whyreach's image with --network host, and --pid host for containers' listening sockets: docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock IMAGE …"
+
+// Unsupported answers every check with an unsupported record that says
+// why: an executor for a place whyreach can't reach.
+type Unsupported struct {
+	Executor string // the name it stands in for
+	Reason   string
+}
+
+// Name is the executor it stands in for.
+func (u Unsupported) Name() string { return u.Executor }
+
+// Run returns one unsupported record per spec.
+func (u Unsupported) Run(_ context.Context, where evidence.ContextRef, specs []probe.Spec) ([]evidence.Evidence, error) {
+	return Failed(where, u.Executor, specs, evidence.StatusUnsupported, &evidence.Error{Code: evidence.CodeUnsupported, Message: u.Reason}), nil
+}
+
 // ProbeContainersOff is the message of probe records that could not run
 // because probe containers (tier 2b) are off; gaps recognise it and say how
 // to turn them on.

@@ -87,6 +87,7 @@ func TestLoadRejects(t *testing.T) {
 		"name with port": "[probe]\nnames = [\"example.com:53\"]\n",
 		"empty name":     "[probe]\nnames = [\"\"]\n",
 		"names a string": "[probe]\nnames = \"example.com\"\n",
+		"name a TLD":     "[probe]\nnames = [\"com\"]\n",
 	}
 	for name, content := range tests {
 		if _, err := Load(write(t, content)); err == nil {

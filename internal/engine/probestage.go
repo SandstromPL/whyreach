@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -128,14 +129,35 @@ func (r *run) specs(view evidence.View) []probe.Spec {
 }
 
 // dockerKnows reports whether one of cs answers to name in Docker's
-// metadata: its container name, Compose service, an alias or a DNS name.
+// metadata: its container name, Compose service, an alias or a DNS name,
+// or one of those qualified with a network it is on (api.shop_default),
+// which Docker's DNS answers too.
 func dockerKnows(cs []evidence.ContainerEv, name string) bool {
 	for _, c := range cs {
-		if c.C.Matches(name) {
+		if c.C.Matches(name) || answersQualified(c.C, name) {
 			return true
 		}
 	}
 	return false
+}
+
+// answersQualified reports a name of the form <name>.<network> that c
+// answers to on that network.
+func answersQualified(c evidence.Container, name string) bool {
+	for _, a := range c.Networks {
+		if prefix, ok := cutNetwork(name, a.Network); ok && slices.Contains(c.AnswersTo(prefix), a.Network) {
+			return true
+		}
+	}
+	return false
+}
+
+// cutNetwork splits <name>.<network> into name, ignoring case and a
+// trailing dot.
+func cutNetwork(qualified, network string) (string, bool) {
+	q := strings.TrimSuffix(strings.ToLower(qualified), ".")
+	prefix, ok := strings.CutSuffix(q, "."+strings.ToLower(network))
+	return prefix, ok && prefix != ""
 }
 
 // destinationDown says why probing is pointless: every container the name

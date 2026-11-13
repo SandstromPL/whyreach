@@ -556,12 +556,15 @@ func (h *holder) Run(ctx context.Context, where evidence.ContextRef, specs []pro
 	lim := probe.LimitsFrom(ctx)
 	var out []evidence.Evidence
 	for _, s := range specs {
-		if _, ok := lim.CheckName(s.Host); ok {
+		if _, ok := lim.CheckName(s.Host); ok && s.Host != "nsblocked" {
 			evs, _ := h.recorder.Run(ctx, where, []probe.Spec{s})
 			out = append(out, evs...)
 			continue
 		}
 		why := &evidence.Error{Code: evidence.CodePolicyDenied, Message: probe.NameNotApproved}
+		if s.Host == "nsblocked" { // its nameservers are on the block list
+			why.Message = "not looked up: the first nameserver in /etc/resolv.conf, 169.254.169.254, which the app asks first, is on the probe block list"
+		}
 		out = append(out, evidence.Evidence{Kind: evidence.KindDNS, Subject: s.Host, Status: evidence.StatusSkipped, Err: why})
 		if s.Kind == probe.SpecTCP {
 			out = append(out, evidence.Evidence{Kind: evidence.KindTCP, Subject: s.Host + ":443", Status: evidence.StatusSkipped, Err: why})
@@ -580,7 +583,7 @@ func TestHeldBackNamesCountAsDenied(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	for _, a := range []ProbeArgs{{Kind: "tcp", Target: "example.com:443"}, {Kind: "dns", Target: "example.com"}, {Kind: "dns", Target: "api"}} {
+	for _, a := range []ProbeArgs{{Kind: "tcp", Target: "example.com:443"}, {Kind: "dns", Target: "example.com"}, {Kind: "dns", Target: "api"}, {Kind: "tcp", Target: "nsblocked:5432"}} {
 		if _, err := p.Probe(ctx, a); err != nil {
 			t.Fatal(err)
 		}
@@ -590,7 +593,7 @@ func TestHeldBackNamesCountAsDenied(t *testing.T) {
 	for _, e := range entries(t, audit) {
 		got = append(got, count{e.ProbesSent, e.ProbesDenied})
 	}
-	if want := []count{{0, 1}, {0, 1}, {1, 0}}; !slices.Equal(got, want) {
+	if want := []count{{0, 1}, {0, 1}, {1, 0}, {0, 1}}; !slices.Equal(got, want) {
 		t.Errorf("sent/denied per call = %v, want %v", got, want)
 	}
 }

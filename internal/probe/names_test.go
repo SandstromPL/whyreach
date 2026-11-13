@@ -72,7 +72,8 @@ func TestLookupWithoutLimitsSendsAnyName(t *testing.T) {
 }
 
 // The container controls its resolv.conf: a blocked nameserver gets no
-// query, with any other limits or none (INITIAL.md §10 Q11).
+// query, with any other limits or none (INITIAL.md §10 Q11). When the first
+// is blocked, the app's own lookup would go there, so none is made.
 func TestLookupSkipsBlockedNameservers(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -92,11 +93,16 @@ func TestLookupSkipsBlockedNameservers(t *testing.T) {
 			wantStatus: evidence.StatusSkipped,
 		},
 		{
-			name:       "a blocked one first, then a usable one",
+			name:       "a blocked one first: the app asks it, so no lookup is made",
 			resolv:     "nameserver 169.254.169.253\nnameserver 10.0.0.2\n",
+			wantStatus: evidence.StatusSkipped,
+		},
+		{
+			name:       "a blocked one second",
+			resolv:     "nameserver 10.0.0.2\nnameserver 169.254.169.253\n",
 			wantStatus: evidence.StatusOK,
 			wantServer: "10.0.0.2:53",
-			wantNote:   "skipped nameserver 169.254.169.253",
+			wantNote:   "skipped nameserver 2 of",
 		},
 	}
 	for _, tt := range tests {
@@ -132,6 +138,31 @@ func TestLookupSkipsBlockedNameservers(t *testing.T) {
 	}
 }
 
+// Like the app's resolver, a lookup uses only the first three nameservers:
+// skipping blocked ones mustn't bring a fourth into play.
+func TestLookupUsesThreeNameservers(t *testing.T) {
+	rp, hp := writeFiles(t, "nameserver 10.0.0.1\nnameserver 169.254.169.253\nnameserver 169.254.169.252\nnameserver 10.0.0.4\noptions ndots:0\n", "")
+	f := &fakeDNS{refuse: "10.0.0.1:53"}
+	r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange}
+	r.Lookup(context.Background(), "api")
+	for _, q := range f.queries {
+		if strings.HasSuffix(q, "10.0.0.4:53") {
+			t.Errorf("asked a fourth nameserver: %v", f.queries)
+		}
+	}
+}
+
+// A lookup that couldn't be made because of its nameservers isn't one to
+// ask the user about: the refusal names the nameserver, not the name.
+func TestBlockedNameserverComesBeforeTheName(t *testing.T) {
+	rp, hp := writeFiles(t, "nameserver 169.254.169.254\n", "")
+	r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: (&fakeDNS{}).exchange}
+	ev := r.lookupWithin(context.Background(), "example.com", Limits{NamesRestricted: true})
+	if ev.Err == nil || ev.Err.Message == NameNotApproved || !strings.Contains(ev.Err.Message, "block list") {
+		t.Errorf("err = %+v, want the nameserver refusal", ev.Err)
+	}
+}
+
 func TestNamesFlagRoundTrip(t *testing.T) {
 	l := Limits{NamesRestricted: true, Names: []string{"example.com", "api.internal"}}
 	got, err := ParseNames(l.NamesFlag())
@@ -161,5 +192,18 @@ func TestCheckName(t *testing.T) {
 	}
 	if _, ok := (Limits{}).CheckName("anything.example"); !ok {
 		t.Error("unrestricted limits refused a name")
+	}
+}
+
+func TestFirstNameserverBlocked(t *testing.T) {
+	for resolv, want := range map[string]bool{
+		"nameserver 169.254.169.254\nnameserver 10.0.0.2\n": true,
+		"nameserver 10.0.0.2\nnameserver 169.254.169.254\n": false,
+		"nameserver 127.0.0.53\n":                           false,
+	} {
+		rp, _ := writeFiles(t, resolv, "")
+		if _, got, err := FirstNameserverBlocked(rp); err != nil || got != want {
+			t.Errorf("%q: %v, %v; want %v", resolv, got, err, want)
+		}
 	}
 }

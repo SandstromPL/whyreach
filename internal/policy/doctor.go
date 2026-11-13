@@ -15,6 +15,7 @@ import (
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/platform"
+	"github.com/SandstromPL/whyreach/internal/probe"
 )
 
 // Doctor checks what whyreach can do on this machine and with this config
@@ -36,6 +37,11 @@ func (p *Policy) Doctor(ctx context.Context) []engine.Check {
 		Detail: fmt.Sprintf("TCP probes may go to %s; at most %d probes a minute; link-local and cloud-metadata addresses are always blocked, as nameservers too. "+
 			"For MCP clients, a name with a dot that Docker doesn't know is looked up only after the user approves it; %s", allow, p.d.Settings.RatePerMinute, names)})
 
+	if ns, blocked, err := probe.FirstNameserverBlocked("/etc/resolv.conf"); err == nil && blocked {
+		out = append(out, engine.Check{Name: "dns", Status: engine.CheckWarn,
+			Detail: fmt.Sprintf("the first nameserver in /etc/resolv.conf, %s, is a link-local or cloud-metadata address, which whyreach never queries (INITIAL.md §10 Q11): "+
+				"no lookups from the host, from host-network containers, or from containers on the default bridge, which copy it. Containers on user-defined networks ask Docker's DNS instead", ns)})
+	}
 	pl := platform.Detect()
 	out = append(out, p.netnsCheck(ctx, pl))
 	if pl.InContainer {

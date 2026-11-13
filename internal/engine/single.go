@@ -159,15 +159,23 @@ func (e *Engine) knownName(ctx context.Context, owner *evidence.Container, name 
 		if nameMatches(s, name) {
 			return true
 		}
+		for _, n := range s.Networks() {
+			if prefix, ok := cutNetwork(name, n); ok && evidence.UserDefined(n) && nameMatches(s, prefix) {
+				return true // <container>.<network>, which Docker's DNS answers too
+			}
+		}
 		if shares(s.Networks(), srcNets) && len(peers) < maxPeers {
 			peers = append(peers, s)
 		}
 	}
 	for _, s := range peers {
+		if ctx.Err() != nil {
+			return false
+		}
 		ictx, cancel := context.WithTimeout(ctx, dockerTimeout)
 		c, err := e.d.Docker.InspectContainer(ictx, s.ID)
 		cancel()
-		if err == nil && c.Matches(name) {
+		if err == nil && (c.Matches(name) || answersQualified(c, name)) {
 			return true
 		}
 	}

@@ -169,6 +169,9 @@ func domain(s string) (string, error) {
 		return "", fmt.Errorf("%q: write the domain alone, such as %s; it covers its subdomains", s, strings.TrimLeft(d, "*."))
 	case d == "" || len(d) > 253 || !domainName.MatchString(d):
 		return "", fmt.Errorf("%q is not a domain name such as example.com", s)
+	case !strings.Contains(d, "."):
+		// A top-level domain would let every name under it out.
+		return "", fmt.Errorf("%q: list a domain with at least two labels, such as example.com", s)
 	}
 	if _, err := netip.ParseAddr(d); err == nil {
 		return "", fmt.Errorf("%q is an address: names lists domains whose names may be looked up", s)

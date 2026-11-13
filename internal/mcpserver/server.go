@@ -29,6 +29,7 @@ import (
 
 	"github.com/SandstromPL/whyreach/internal/engine"
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/policy"
 	"github.com/SandstromPL/whyreach/internal/report"
 	"github.com/SandstromPL/whyreach/internal/rules"
@@ -77,6 +78,11 @@ const (
 	consentKey = "probe_containers"
 	nameKey    = "name_lookup"
 )
+
+// maxNameQuestions bounds the questions about names in a session: an agent
+// can pick any name, and a stream of dialogs invites a careless yes. Past
+// it, a held-back name is a gap that names [probe] names.
+const maxNameQuestions = 3
 
 // New builds the server and registers its tools.
 func New(p *policy.Policy, o Options) *Server {
@@ -396,6 +402,8 @@ func (s *Server) probe(ctx context.Context, req *mcp.CallToolRequest, in ProbeIn
 // widen its own permissions).
 func (s *Server) advice(e evidence.Evidence) string {
 	switch {
+	case e.Err != nil && e.Err.Message == executor.HostHidden:
+		return executor.HostHiddenAdvice + "."
 	case e.Status == evidence.StatusPermissionDenied:
 		return "This check runs inside the container through a probe container, which is off. Turning them on is the user's decision: " +
 			"approve probe containers when whyreach asks, or set probe_containers = true under [permissions] in " + s.p.ConfigPath() + "."
@@ -548,11 +556,12 @@ func (s *Server) consent(answer *mcp.ElicitResult) bool {
 	return approved
 }
 
-// askForName asks the user, once per name per session, to allow a lookup
-// of one outside name that a check needed (INITIAL.md §10 Q11), through the
-// same two paths as askForProbeContainers. An approval covers that exact
-// name only, for the rest of the session: one yes must not let other names
-// out. A name the user declined is not asked about again.
+// askForName asks the user, once per name per session and at most
+// maxNameQuestions times, to allow a lookup of one outside name that a check
+// needed (INITIAL.md §10 Q11), through the same two paths as
+// askForProbeContainers. An approval covers that exact name only, for the
+// rest of the session: one yes must not let other names out. A name the
+// user declined is not asked about again.
 func (s *Server) askForName(ctx context.Context, req *mcp.CallToolRequest, names []string, source string) (res *mcp.CallToolResult, approved bool) {
 	caps := req.ClientCapabilities()
 	if caps == nil || caps.Elicitation == nil {
@@ -566,7 +575,7 @@ func (s *Server) askForName(ctx context.Context, req *mcp.CallToolRequest, names
 			break
 		}
 	}
-	if name == "" {
+	if name == "" || len(s.askedNames) >= maxNameQuestions {
 		s.mu.Unlock()
 		return nil, false
 	}
@@ -605,14 +614,14 @@ func nameParams(name, source, configPath string) *mcp.ElicitParams {
 	return &mcp.ElicitParams{
 		Message: fmt.Sprintf("whyreach was asked to look up the name %s from %s. A lookup sends the name to the DNS servers of its domain, "+
 			"outside this machine, so whyreach asks you first: otherwise an agent could pass data out through the names it asks for. "+
-			"If you allow it, whyreach may look up exactly %s, and no other name, for the rest of this session. "+
-			"(To allow a whole domain without being asked, list it under names in [probe] in %s.) Allow looking up %s?",
+			"Allow it only if you expect a lookup of this name. If you allow it, whyreach may look up exactly %s, and no other name, "+
+			"for the rest of this session. (To allow a whole domain without being asked, list it under names in [probe] in %s.) Allow looking up %s?",
 			name, source, name, configPath, name),
 		RequestedSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"allow": map[string]any{
-					"type": "boolean", "title": "Look up " + name + " for this session", "default": true,
+					"type": "boolean", "title": "Look up " + name + " for this session", "default": false,
 				},
 			},
 			"required": []string{"allow"},

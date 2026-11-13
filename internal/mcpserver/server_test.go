@@ -635,7 +635,9 @@ func TestOutsideNames(t *testing.T) {
 		call(t, cs, "diagnose_connection", map[string]any{"from": "container:shop-worker-1", "to": "api.internal:8080"})
 		call(t, cs, "run_probe", map[string]any{"kind": "dns", "target": "api.internal", "from": "container:shop-worker-1"})
 		call(t, cs, "run_probe", map[string]any{"kind": "dns", "target": "host.docker.internal", "from": "container:shop-worker-1"})
-		if asked != 0 || !r.sent("api.internal") || !r.sent("host.docker.internal") {
+		call(t, cs, "run_probe", map[string]any{"kind": "dns", "target": "API.shop_default", "from": "container:shop-worker-1"})
+		call(t, cs, "diagnose_connection", map[string]any{"from": "container:shop-worker-1", "to": "api.shop_default:8080"})
+		if asked != 0 || !r.sent("api.internal") || !r.sent("host.docker.internal") || !r.sent("api.shop_default") {
 			t.Errorf("an alias from Docker's metadata and Docker's fixed names need no question: asked %d, sent %v", asked, r.queries)
 		}
 	})
@@ -665,6 +667,31 @@ func TestOutsideNames(t *testing.T) {
 			t.Error("an unsolicited approval let a name out")
 		}
 	})
+}
+
+// A session asks about at most maxNameQuestions names; the question
+// doesn't pre-approve; past the cap, held-back names are gaps.
+func TestNameQuestionsAreBounded(t *testing.T) {
+	r := newResolving(t)
+	h := harness{}.build(t, policy.Settings{ProbeContainers: true}, fakeDocker{}, r)
+	var asked []string
+	cs := h.connect(t, func(req *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		schema, _ := json.Marshal(req.Params.RequestedSchema)
+		if !strings.Contains(string(schema), `"default":false`) {
+			t.Errorf("the name question must not pre-approve: %s", schema)
+		}
+		asked = append(asked, req.Params.Message)
+		return decline(req)
+	}, "")
+	for i := range maxNameQuestions + 2 {
+		p := structured[report.ProbeResult](t, call(t, cs, "run_probe", map[string]any{"kind": "dns", "target": fmt.Sprintf("n%d.example.com", i), "from": "container:shop-worker-1"}))
+		if !strings.Contains(p.HowToEnable, "names in [probe]") {
+			t.Errorf("probe %d: %+v", i, p)
+		}
+	}
+	if len(asked) != maxNameQuestions || len(r.queries) != 0 {
+		t.Errorf("asked %d times (want %d), sent %v", len(asked), maxNameQuestions, r.queries)
+	}
 }
 
 // TestNameAnswerAppliesToItsQuestion: on the 2026-07-28 path an answer
