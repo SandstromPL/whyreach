@@ -81,3 +81,43 @@ func TestNetnsExecutorReplacesProbeContainers(t *testing.T) {
 		})
 	}
 }
+
+// TestHostNetworkSourceUsesTheContainerExecutor: a host-network container
+// shares the host's namespace but has its own /etc/hosts and resolv.conf,
+// so run_probe checks from it the way a diagnosis does, never with
+// whyreach's own files through the host executor.
+func TestHostNetworkSourceUsesTheContainerExecutor(t *testing.T) {
+	from, err := target.ParseFrom("container:shop-hostnet-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	to, err := target.ParseTo("api:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, withNetns := range []bool{true, false} {
+		w := shopWorld()
+		hn := ctr("h", "shop-hostnet-1", "shop", "hostnet", "host", "172.22.0.9", 300)
+		hn.NetworkMode, hn.Networks = "host", nil
+		w.containers = append(w.containers, hn)
+		netns := &scripted{w: w, name: evidence.ExecutorNetns}
+		pc := &scripted{w: w, name: evidence.ExecutorProbeContainer}
+		host := &scripted{w: w, name: evidence.ExecutorHost}
+		deps := Deps{Docker: w, Listeners: w, Host: host, Probe: pc}
+		want := pc
+		if withNetns {
+			deps.Netns, want = netns, netns
+		}
+		e := New(deps)
+		if _, err := e.Probe(context.Background(), from, probe.Spec{Kind: probe.SpecDNS, Host: "api"}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.Diagnose(context.Background(), from, to); err != nil {
+			t.Fatal(err)
+		}
+		if len(want.ran) != 2 || len(host.ran) != 0 {
+			t.Errorf("netns %v: %s ran %d batches (want 2: run_probe and the diagnosis), the host executor %d (want 0)",
+				withNetns, want.name, len(want.ran), len(host.ran))
+		}
+	}
+}

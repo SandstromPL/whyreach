@@ -113,10 +113,11 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 			Code: evidence.CodeNotFound, Message: fmt.Sprintf("%s is %s, so nothing can be tested from its network namespace; start it first", owner.DisplayName(), owner.State),
 		}), nil
 	}
+	// The same executor as a diagnosis's probe stage. A host-network
+	// container shares the host's network namespace, but its /etc/hosts and
+	// /etc/resolv.conf are its own (extra_hosts, dns), so its lookups are
+	// made from inside it too, not with whyreach's files.
 	ex := r.containerExecutor()
-	if owner.HostNetwork() {
-		ex = e.d.Host // its network namespace is the host's
-	}
 	if ex == nil {
 		return executor.Failed(stamp, evidence.ExecutorProbeContainer, []probe.Spec{spec}, evidence.StatusPermissionDenied, &evidence.Error{
 			Code: evidence.CodePermissionDenied, Message: executor.ProbeContainersOff,
