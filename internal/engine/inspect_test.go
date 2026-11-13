@@ -175,7 +175,7 @@ func (asksKnown) Run(ctx context.Context, where evidence.ContextRef, specs []pro
 // find among the aliases it read may still be one: the held-back lookup
 // says so (M4 re-check).
 func TestBoundedNameSearchIsNoted(t *testing.T) {
-	if !strings.Contains(NameSearchBounded, fmt.Sprintf(" %d ", maxPeers)) {
+	if !strings.Contains(NameSearchBounded, fmt.Sprintf(" %d)", maxPeers)) {
 		t.Fatalf("NameSearchBounded doesn't name maxPeers (%d): %s", maxPeers, NameSearchBounded)
 	}
 	w := shopWorld()
@@ -202,5 +202,24 @@ func TestBoundedNameSearchIsNoted(t *testing.T) {
 		if held != bounded || noted != bounded {
 			t.Errorf("%s: held back %v, noted %v; want both %v", name, held, noted, bounded)
 		}
+	}
+
+	// A container whose inspect failed went unread too.
+	w = shopWorld()
+	api := w.containers[0]
+	for i := range w.containers {
+		if w.containers[i].Name == "shop-api-1" {
+			w.containers[i].Networks[0].Names = append(w.containers[i].Networks[0].Names, "db.internal")
+			api = w.containers[i]
+		}
+	}
+	w.failInspect = map[string]error{api.Name: errors.New("inspect failed")}
+	e = New(Deps{Docker: w, Listeners: w, Host: &scripted{w: w, name: evidence.ExecutorHost}, Probe: asksKnown{}})
+	res, err := e.Probe(context.Background(), worker, probe.Spec{Kind: probe.SpecDNS, Host: "db.internal"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev := res.Evidence[0]; ev.Status != evidence.StatusSkipped || !slices.Contains(ev.Limitations, NameSearchBounded) {
+		t.Errorf("an unread container's alias: %s, limitations %q", ev.Status, ev.Limitations)
 	}
 }

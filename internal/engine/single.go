@@ -152,10 +152,10 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 }
 
 // NameSearchBounded is the limitation of a lookup held back for approval
-// when whyreach couldn't inspect every container that shares a network
-// with the source: one of the others may have the name as an alias, and
-// then the lookup needs no approval. It names maxPeers.
-const NameSearchBounded = "whyreach looked for the name among the aliases of the first 64 containers on the source's networks only, so one of the others may answer to it"
+// when whyreach couldn't read every container that shares a network with
+// the source: one it didn't read may have the name as an alias, and then
+// the lookup needs no approval. It names maxPeers.
+const NameSearchBounded = "whyreach couldn't read the aliases of every container on the source's networks (it reads at most 64), so one it didn't read may answer to it"
 
 // knownName reports whether Docker's metadata knows name, for a check run
 // on its own (INITIAL.md §10 Q11): a container name or Compose service in
@@ -163,7 +163,8 @@ const NameSearchBounded = "whyreach looked for the name among the aliases of the
 // networks (only an inspect shows those; at most maxPeers are read). The
 // policy asks only about outside names it would otherwise hold back, so a
 // check that needs no answer reads nothing. complete is false when the
-// name wasn't found and there were containers past maxPeers to inspect.
+// name wasn't found and some container went unread: past maxPeers, or its
+// inspect failed.
 func (e *Engine) knownName(ctx context.Context, owner *evidence.Container, name string) (known, complete bool) {
 	if e.d.Docker == nil {
 		return false, true
@@ -205,7 +206,11 @@ func (e *Engine) knownName(ctx context.Context, owner *evidence.Container, name 
 		ictx, cancel := context.WithTimeout(ctx, dockerTimeout)
 		c, err := e.d.Docker.InspectContainer(ictx, s.ID)
 		cancel()
-		if err == nil && (c.Matches(name) || answersQualified(c, name)) {
+		if err != nil {
+			skipped = true // one it couldn't read may have the alias
+			continue
+		}
+		if c.Matches(name) || answersQualified(c, name) {
 			return true, true
 		}
 	}
