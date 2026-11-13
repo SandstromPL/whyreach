@@ -14,11 +14,15 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
+	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -28,6 +32,7 @@ import (
 	"github.com/SandstromPL/whyreach/internal/policy"
 	"github.com/SandstromPL/whyreach/internal/report"
 	"github.com/SandstromPL/whyreach/internal/rules"
+	"github.com/SandstromPL/whyreach/internal/target"
 )
 
 // Options configure the server.
@@ -75,8 +80,85 @@ func New(p *policy.Policy, o Options) *Server {
 		Instructions:       instructions,
 		InitializedHandler: s.initialized,
 	})
+	s.srv.AddReceivingMiddleware(s.auditRejected)
 	s.register()
 	return s
+}
+
+// tools are the four tool names.
+var tools = []string{policy.ToolDiagnose, policy.ToolInspect, policy.ToolProbe, policy.ToolSave}
+
+type reachedKey struct{}
+
+// reached marks that a tool handler ran: the call's audit is the handler's.
+func reached(ctx context.Context) {
+	if b, ok := ctx.Value(reachedKey{}).(*atomic.Bool); ok {
+		b.Store(true)
+	}
+}
+
+// auditRejected audits the tool calls the SDK refuses before any handler
+// runs (an unknown tool, arguments that fail the input schema), so the
+// audit log has every call, refused ones included (INITIAL.md §4.9).
+func (s *Server) auditRejected(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+		if method != "tools/call" {
+			return next(ctx, method, req)
+		}
+		ran := &atomic.Bool{}
+		start := time.Now()
+		res, err := next(context.WithValue(ctx, reachedKey{}, ran), method, req)
+		if ran.Load() {
+			return res, err
+		}
+		tool, args := "unknown_tool", map[string]string{}
+		if r, ok := req.(*mcp.CallToolRequest); ok && r.Params != nil {
+			if slices.Contains(tools, r.Params.Name) {
+				tool = r.Params.Name
+			} else {
+				args["name"] = r.Params.Name
+			}
+			rejectedArgs(r.Params.Arguments, args)
+		}
+		msg := "refused before the tool ran"
+		if err != nil {
+			msg = err.Error()
+		} else if r, ok := res.(*mcp.CallToolResult); ok && r.IsError {
+			for _, c := range r.Content {
+				if tc, ok := c.(*mcp.TextContent); ok {
+					msg = tc.Text
+					break
+				}
+			}
+		}
+		s.p.Audit(tool, args, start, &policy.Error{Code: evidence.CodeInvalidArgument, Message: msg})
+		return res, err
+	}
+}
+
+// rejectedArgs adds a refused call's arguments, by name (the audit masks
+// credentials per argument and cuts each one short).
+func rejectedArgs(raw json.RawMessage, args map[string]string) {
+	if len(raw) == 0 {
+		return
+	}
+	var m map[string]any
+	if json.Unmarshal(raw, &m) != nil {
+		args["arguments"] = target.MaskCredentials(string(raw))
+		return
+	}
+	keys := slices.Sorted(maps.Keys(m))
+	if len(keys) > 8 {
+		keys = keys[:8]
+	}
+	for _, k := range keys {
+		v, ok := m[k].(string)
+		if !ok {
+			b, _ := json.Marshal(m[k])
+			v = string(b)
+		}
+		args[k] = v
+	}
 }
 
 const instructions = `whyreach diagnoses network connections between Docker containers and between containers and the host, read-only. ` +
@@ -173,6 +255,7 @@ type DiagnoseIn struct {
 }
 
 func (s *Server) diagnose(ctx context.Context, req *mcp.CallToolRequest, in DiagnoseIn) (*mcp.CallToolResult, report.Diagnosis, error) {
+	reached(ctx)
 	s.logClient(req)
 	args := policy.DiagnoseArgs{From: in.From, To: in.To, Expect: in.Expect}
 	s.answered(req)
@@ -204,6 +287,7 @@ type InspectIn struct {
 }
 
 func (s *Server) inspect(ctx context.Context, req *mcp.CallToolRequest, in InspectIn) (*mcp.CallToolResult, *engine.Inspection, error) {
+	reached(ctx)
 	s.logClient(req)
 	got, err := s.p.Inspect(ctx, in.Scope)
 	if err != nil {
@@ -222,6 +306,7 @@ type ProbeIn struct {
 }
 
 func (s *Server) probe(ctx context.Context, req *mcp.CallToolRequest, in ProbeIn) (*mcp.CallToolResult, report.ProbeResult, error) {
+	reached(ctx)
 	s.logClient(req)
 	args := policy.ProbeArgs{Kind: in.Kind, Target: in.Target, From: in.From}
 	s.answered(req)
@@ -257,7 +342,8 @@ type SaveIn struct {
 	Redact      *bool  `json:"redact,omitempty" jsonschema:"replace public IPs, host names and container IDs with pseudonyms (default true)"`
 }
 
-func (s *Server) save(_ context.Context, req *mcp.CallToolRequest, in SaveIn) (*mcp.CallToolResult, report.Saved, error) {
+func (s *Server) save(ctx context.Context, req *mcp.CallToolRequest, in SaveIn) (*mcp.CallToolResult, report.Saved, error) {
+	reached(ctx)
 	s.logClient(req)
 	start := time.Now()
 	redact := in.Redact == nil || *in.Redact

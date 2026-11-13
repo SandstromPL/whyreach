@@ -214,6 +214,29 @@ func TestReportMarkdownIsSanitized(t *testing.T) {
 	}
 }
 
+// TestReportMarkdownRedactsBeforeSanitizing: a name with an invisible
+// character (extra_hosts keep what was written) is redacted in report.md
+// too, though Sanitize changes how it is spelled.
+func TestReportMarkdownRedactsBeforeSanitizing(t *testing.T) {
+	d := identifying()
+	name := "db\u200b.corp.example"
+	c := d.Evidence[0].Data.(evidence.Container)
+	c.ExtraHosts = []string{name + ":198.51.100.4"}
+	d.Evidence[0].Data = c
+	d.Facts = append(d.Facts, engine.Fact{Text: "worker's extra_hosts map " + name + " to 198.51.100.4", Evidence: []string{"ev-01"}})
+	saved, err := Save(d, SaveOptions{Dir: t.TempDir(), Redact: true, Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(saved.Path, "report.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "corp.example") {
+		t.Errorf("report.md leaks the name:\n%s", b)
+	}
+}
+
 func TestReplaceWhole(t *testing.T) {
 	n := 0
 	count := func(k int) { n += k }

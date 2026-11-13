@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
@@ -402,5 +403,41 @@ func TestForgedConsentIsIgnored(t *testing.T) {
 	}
 	if h.p.ProbeContainers() || h.probes.count() != 0 {
 		t.Error("an unsolicited approval turned probe containers on")
+	}
+}
+
+// TestRefusedCallsAreAudited: calls the SDK refuses before a handler runs
+// (a wrong argument type, an unknown tool) are audited too, with their
+// arguments masked; a call that reaches a handler is audited once (M2
+// safety review, finding 6).
+func TestRefusedCallsAreAudited(t *testing.T) {
+	h := newHarness(t, false)
+	cs := h.connect(t, nil, "")
+	ctx := context.Background()
+	if res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "diagnose_connection", Arguments: map[string]any{"to": 8080}}); err == nil && !res.IsError {
+		t.Error("a number for to was accepted")
+	}
+	if _, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "delete_everything", Arguments: map[string]any{"to": "u:hunter2@db:5432"}}); err == nil {
+		t.Error("an unknown tool was accepted")
+	}
+	call(t, cs, "diagnose_connection", map[string]any{"to": "api:8080", "from": "container:shop-worker-1"})
+	b, err := os.ReadFile(h.audit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tools []string
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		var e policy.Entry
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatal(err)
+		}
+		tools = append(tools, e.Tool+"/"+e.Status)
+	}
+	want := []string{"diagnose_connection/invalid_argument", "unknown_tool/invalid_argument", "diagnose_connection/ok"}
+	if diff := cmp.Diff(want, tools); diff != "" {
+		t.Errorf("audit (-want +got):\n%s\n%s", diff, b)
+	}
+	if strings.Contains(string(b), "hunter2") {
+		t.Errorf("a refused call's password reached the audit:\n%s", b)
 	}
 }

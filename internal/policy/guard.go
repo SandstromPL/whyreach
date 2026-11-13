@@ -26,6 +26,7 @@ func (g *guard) Name() string { return g.name }
 
 func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []probe.Spec) ([]evidence.Evidence, error) {
 	if g.tier2b && !g.p.ProbeContainers() {
+		countsFrom(ctx).add(0, len(specs)) // withheld: the audit counts them as denied
 		return executor.Failed(where, g.name, specs, evidence.StatusPermissionDenied, &evidence.Error{
 			Code: evidence.CodePermissionDenied, Message: executor.ProbeContainersOff,
 		}), nil
@@ -42,7 +43,9 @@ func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 				}
 			}
 		}
-		if s.Kind != probe.SpecListeners && !g.p.limiter.take() {
+		// Listener reads through /proc are free; in a probe container
+		// (Docker Desktop) every check is a container run, so it counts.
+		if (s.Kind != probe.SpecListeners || g.tier2b) && !g.p.limiter.take() {
 			refused = append(refused, deny(where, g.name, s, fmt.Sprintf(
 				"rate limit: whyreach sends at most %d probes a minute ([probe] rate_per_minute)", g.p.d.Settings.RatePerMinute)))
 			continue

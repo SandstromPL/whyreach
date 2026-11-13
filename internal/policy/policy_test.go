@@ -439,3 +439,38 @@ func TestAuditMasksCredentials(t *testing.T) {
 		t.Errorf("a Compose project's @ was masked:\n%s", b)
 	}
 }
+
+// TestProbeContainerListenerReadsAreRateLimited: on Docker Desktop listener
+// reads run in probe containers, so each one costs a token; with tier 2b
+// off, withheld probes count as denied in the audit (M2 safety review,
+// findings 4 and 6).
+func TestProbeContainerListenerReadsAreRateLimited(t *testing.T) {
+	now := time.Date(2026, 11, 13, 10, 0, 0, 0, time.UTC)
+	f := newFixture(t, Settings{Docker: true, ProbeContainers: true, RatePerMinute: 3}, func() time.Time { return now })
+	g := &guard{p: f.p, name: evidence.ExecutorProbeContainer, tier2b: true, inner: func() (executor.Executor, error) { return f.probe, nil }}
+	specs := make([]probe.Spec, 5)
+	for i := range specs {
+		specs[i] = probe.Spec{Kind: probe.SpecListeners}
+	}
+	ctx, c := withCounts(context.Background())
+	if _, err := g.Run(ctx, evidence.ContextRef{Kind: evidence.ContextContainer, Container: "aaaaaaaaaaaa"}, specs); err != nil {
+		t.Fatal(err)
+	}
+	var e Entry
+	c.fill(&e)
+	if e.ProbesSent != 3 || e.ProbesDenied != 2 {
+		t.Errorf("sent %d, denied %d of 5 listener reads in probe containers; want 3 and 2", e.ProbesSent, e.ProbesDenied)
+	}
+
+	off := newFixture(t, Settings{Docker: true}, nil)
+	g = &guard{p: off.p, name: evidence.ExecutorProbeContainer, tier2b: true, inner: func() (executor.Executor, error) { return off.probe, nil }}
+	ctx, c = withCounts(context.Background())
+	if _, err := g.Run(ctx, evidence.ContextRef{Kind: evidence.ContextContainer, Container: "aaaaaaaaaaaa"}, specs[:2]); err != nil {
+		t.Fatal(err)
+	}
+	e = Entry{}
+	c.fill(&e)
+	if e.ProbesDenied != 2 || off.probe.count() != 0 {
+		t.Errorf("tier 2b off: denied %d, runs %d; want 2 and 0", e.ProbesDenied, off.probe.count())
+	}
+}

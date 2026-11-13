@@ -100,7 +100,9 @@ func Save(d *engine.Diagnosis, o SaveOptions) (Saved, error) {
 	var md strings.Builder
 	fmt.Fprintf(&md, "# whyreach diagnosis %s\n\n", d.ID)
 	fmt.Fprintf(&md, "%s\n\n```\n", d.Summary)
-	RenderText(&md, d)
+	// Unsanitized here: redaction must see the values as learned, and
+	// Sanitize runs once on the redacted whole below.
+	renderText(&md, d)
 	md.WriteString("```\n\n## Evidence\n\n")
 	for _, e := range d.Evidence {
 		fmt.Fprintf(&md, "- `%s` %s\n", e.ID, EvidenceLine(e))

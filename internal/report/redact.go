@@ -177,6 +177,11 @@ func (r *Redactor) host(name string) {
 		return // Docker's own name for the host
 	}
 	r.add(name, ClassHost, "host-")
+	if clean := Sanitize(name); clean != name {
+		// Text that was sanitized before redaction (a terminal rendering)
+		// spells it so: replace that form too.
+		r.addRepl(clean, ClassHost, "host-"+r.mac(name))
+	}
 }
 
 // ip learns an address and returns its pseudonym, "" when it is kept.
