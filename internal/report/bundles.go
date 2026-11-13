@@ -99,7 +99,15 @@ func FindBundle(dir, ref string) (Bundle, error) {
 }
 
 // readBundle describes the bundle in dir from its manifest and diagnosis.
+// The ID comes from the directory's name, which the ID grammar validates;
+// a manifest that names another diagnosis, or says otherwise about
+// redaction, makes the bundle unreadable: its ID goes into file names and
+// archive entries.
 func readBundle(dir string) (Bundle, error) {
+	name := bundleName.FindStringSubmatch(filepath.Base(dir))
+	if name == nil {
+		return Bundle{}, fmt.Errorf("%s is not a report bundle's directory", dir)
+	}
 	mb, err := os.ReadFile(filepath.Join(dir, "manifest.json")) //nolint:gosec // G304: dir is whyreach's reports directory plus a validated bundle name
 	if err != nil {
 		return Bundle{}, err
@@ -107,6 +115,9 @@ func readBundle(dir string) (Bundle, error) {
 	var m manifest
 	if err := json.Unmarshal(mb, &m); err != nil {
 		return Bundle{}, fmt.Errorf("read %s: %w", dir, err)
+	}
+	if m.DiagnosisID != name[1] || m.Redaction.Enabled == (name[2] != "") {
+		return Bundle{}, fmt.Errorf("read %s: its manifest doesn't match the directory's name", dir)
 	}
 	db, err := os.ReadFile(filepath.Join(dir, "diagnosis.json")) //nolint:gosec // G304: as above
 	if err != nil {
@@ -132,7 +143,7 @@ func readBundle(dir string) (Bundle, error) {
 		return Bundle{}, fmt.Errorf("read %s: %w", dir, err)
 	}
 	b := Bundle{
-		ID: m.DiagnosisID, Path: dir, Redacted: m.Redaction.Enabled, CreatedAt: m.CreatedAt, Verdict: d.Verdict,
+		ID: name[1], Path: dir, Redacted: m.Redaction.Enabled, CreatedAt: m.CreatedAt, Verdict: d.Verdict,
 		From: d.Question.From.Ref, To: d.Question.To.Host + ":" + fmt.Sprint(d.Question.To.Port),
 	}
 	if strings.Contains(d.Question.To.Host, ":") {

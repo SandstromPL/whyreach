@@ -191,3 +191,36 @@ func mapValues(m map[string]string) []string {
 	}
 	return out
 }
+
+// A bundle's ID goes into file names and archive entries: one whose
+// manifest disagrees with its directory's name is refused, and left out of
+// the list (M4 safety review).
+func TestTamperedManifestIsRefused(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "reports")
+	d := identifying()
+	saved, err := Save(d, SaveOptions{Dir: dir, Redact: false, Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(saved.Path, "manifest.json")
+	orig, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tamper := range []func(string) string{
+		func(m string) string { return strings.Replace(m, d.ID, "..", 1) },
+		func(m string) string { return strings.Replace(m, d.ID, "", 1) },
+		func(m string) string { return strings.Replace(m, d.ID, "dg-20261113T100000Z-ffffff", 1) },
+		func(m string) string { return strings.Replace(m, `"enabled": false`, `"enabled": true`, 1) },
+	} {
+		if err := os.WriteFile(path, []byte(tamper(string(orig))), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if b, err := FindBundle(dir, d.ID); err == nil {
+			t.Errorf("a tampered manifest was accepted: %+v", b)
+		}
+		if list, _ := ListBundles(dir); len(list) != 0 {
+			t.Errorf("a tampered bundle is listed: %+v", list)
+		}
+	}
+}
