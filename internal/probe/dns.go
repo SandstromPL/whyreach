@@ -92,6 +92,11 @@ func (r *Resolver) lookup(ctx context.Context, name string) (evidence.DNSProbe, 
 	p.Server = conf.servers[0]
 	ctx, cancel := context.WithTimeout(ctx, r.budget())
 	defer cancel()
+	// Without an answer, Rcode describes the name as given (when it was
+	// tried), not a search-domain variant: "api" did not resolve, rather
+	// than "api.<search 1>".
+	asGiven := strings.TrimSuffix(strings.ToLower(name), ".")
+	givenRcode := ""
 	for i, cand := range conf.candidates(name) {
 		res := r.resolveOne(ctx, conf.servers, cand.fqdn)
 		for _, a := range res.attempts {
@@ -101,6 +106,9 @@ func (r *Resolver) lookup(ctx context.Context, name string) (evidence.DNSProbe, 
 		if i == 0 {
 			p.Rcode = res.rcode
 		}
+		if cand.label == asGiven {
+			givenRcode = res.rcode
+		}
 		if len(res.answers) > 0 {
 			p.Via, p.Answered, p.Answers, p.Rcode = evidence.ViaDNS, cand.label, res.answers, res.rcode
 			return p, nil
@@ -108,6 +116,9 @@ func (r *Resolver) lookup(ctx context.Context, name string) (evidence.DNSProbe, 
 		if ctx.Err() != nil {
 			break
 		}
+	}
+	if givenRcode != "" {
+		p.Rcode = givenRcode
 	}
 	return p, nil
 }
@@ -170,8 +181,9 @@ type queryResult struct {
 	rcode   string
 }
 
-// query sends one question, retrying once on timeout, and on the next
-// nameserver if there is one. A truncated UDP answer is retried over TCP.
+// query sends one question, retrying once on a timeout or an error (such as
+// an ICMP refusal), on the next nameserver if there is one. A truncated UDP
+// answer is retried over TCP.
 func (r *Resolver) query(ctx context.Context, servers []string, fqdn string, qtype uint16) queryResult {
 	m := new(dns.Msg)
 	m.SetQuestion(fqdn, qtype)
@@ -180,6 +192,7 @@ func (r *Resolver) query(ctx context.Context, servers []string, fqdn string, qty
 	if exchange == nil {
 		exchange = exchangeNet
 	}
+	failure := evidence.RcodeTimeout
 	for attempt := 0; attempt <= QueryRetries; attempt++ {
 		if ctx.Err() != nil {
 			break
@@ -192,14 +205,15 @@ func (r *Resolver) query(ctx context.Context, servers []string, fqdn string, qty
 		}
 		cancel()
 		if err != nil {
-			if isTimeout(err) {
-				continue
+			failure = evidence.RcodeTimeout
+			if !isTimeout(err) {
+				failure = "ERROR"
 			}
-			return queryResult{rcode: "ERROR"}
+			continue
 		}
 		return queryResult{answers: answers(resp), rcode: rcodeName(resp.Rcode)}
 	}
-	return queryResult{rcode: evidence.RcodeTimeout}
+	return queryResult{rcode: failure}
 }
 
 func exchangeNet(ctx context.Context, m *dns.Msg, server, network string) (*dns.Msg, error) {

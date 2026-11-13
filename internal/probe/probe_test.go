@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -261,6 +262,7 @@ type fakeDNS struct {
 	mu      sync.Mutex
 	answers map[string]string // "api. A" → "172.22.0.3", "SERVFAIL", "timeout", "truncated"
 	queries []string
+	refuse  string // a server that answers every query with an ICMP refusal
 }
 
 func (f *fakeDNS) exchange(ctx context.Context, m *dns.Msg, server, network string) (*dns.Msg, error) {
@@ -270,6 +272,9 @@ func (f *fakeDNS) exchange(ctx context.Context, m *dns.Msg, server, network stri
 	f.queries = append(f.queries, key+" "+network+" "+server)
 	v, ok := f.answers[key]
 	f.mu.Unlock()
+	if server == f.refuse {
+		return nil, &net.OpError{Op: "read", Net: network, Err: syscall.ECONNREFUSED}
+	}
 	resp := new(dns.Msg)
 	resp.SetReply(m)
 	switch {
@@ -513,5 +518,27 @@ func TestMainWritesJSONLines(t *testing.T) {
 	}
 	if code := Main(context.Background(), `nonsense`, time.Second, &stdout, &stderr); code != ExitInternal {
 		t.Errorf("bad spec: exit %d, want %d", code, ExitInternal)
+	}
+}
+
+func TestResolverFailsOverOnErrors(t *testing.T) {
+	rp, hp := writeFiles(t, "nameserver 10.0.0.53\nnameserver 10.0.0.54\noptions ndots:0\n", "")
+	f := &fakeDNS{refuse: "10.0.0.53:53", answers: map[string]string{"db. A": "10.1.2.3", "db. AAAA": "nodata"}}
+	r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange}
+	ev := r.Lookup(context.Background(), "db")
+	p := ev.Data.(evidence.DNSProbe)
+	if len(p.Answers) != 1 || p.Rcode != "NOERROR" {
+		t.Errorf("want the second nameserver's answer after the first refused: %+v\nqueries %v", p, f.queries)
+	}
+}
+
+func TestResolverRcodeDescribesTheNameAsGiven(t *testing.T) {
+	// With ndots:1 a single-label name tries the search domain first.
+	rp, hp := writeFiles(t, "nameserver 127.0.0.53\nsearch corp.example.com\n", "")
+	f := &fakeDNS{answers: map[string]string{"api. A": "SERVFAIL", "api. AAAA": "SERVFAIL"}}
+	r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange}
+	p := r.Lookup(context.Background(), "api").Data.(evidence.DNSProbe)
+	if p.Rcode != "SERVFAIL" || p.Attempts[0].Query != "api.<search 1>" {
+		t.Errorf("rcode %q (attempts %+v), want SERVFAIL for api itself", p.Rcode, p.Attempts)
 	}
 }
