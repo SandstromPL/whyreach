@@ -154,7 +154,7 @@ To answer "can worker reach api:8080?", the DNS lookup and TCP connect have to h
 | **netns** (fast path) | `setns()` into `/proc/<pid>/ns/net` on a locked OS thread | root or `CAP_SYS_ADMIN` | ✅ | ❌ (Linux Engine only) | none | ms |
 | `docker exec` | Run `ss` or `nslookup` inside the target | Docker API | ❌ (the tools are missing) | ✅ | an exec | ~0.3 s |
 
-**Decision:** implement `probe-container` first and `netns` second (selected automatically when running as root). Never use `docker exec`.
+**Decision:** implement `probe-container` first and `netns` second (selected automatically when running as root; built in M3, ADR 0001's M3 amendment). Never use `docker exec`.
 
 Why probe-container is the right default:
 - A container started with `--network container:X` shares X's network namespace. Docker also gives it **X's own `/etc/resolv.conf` and `/etc/hosts`**, so the probe's DNS view matches the app's exactly: the embedded DNS at 127.0.0.11, `extra_hosts`, and aliases. *(Verified in M0, ADR 0001.)*
@@ -186,7 +186,7 @@ Why probe-container is the right default:
 | Mode | How it runs | Sees the host's netns? | Container checks | Notes |
 |---|---|---|---|---|
 | Native (default) | `whyreach mcp serve` / `whyreach diagnose …` | ✅ | ✅ via probe-container | Linux only |
-| Native as root | `sudo whyreach diagnose …` | ✅ | ✅ via the netns fast path, no Docker writes | for CLI use; avoid as an MCP server |
+| Native as root | `sudo whyreach diagnose …` | ✅ | ✅ via the netns fast path, no Docker writes (M3) | for CLI use; avoid as an MCP server (`mcp serve` warns when it runs as root) |
 | As a container | `docker run --rm -i -v /var/run/docker.sock:/var/run/docker.sock <image> mcp serve` | ❌ (unless `--network host --pid host`) | ✅ | zero-install; the route to macOS and Windows (v0.3+) |
 | Inside WSL2 (Windows) | the MCP client on Windows launches it with `wsl.exe -d <distro> --exec /abs/path/whyreach mcp serve` (§3.7, item 6) | describes the WSL2 VM, not Windows | ✅ via probe-container, through the socket that Docker Desktop's WSL integration provides (WSL 2 backend and Linux-containers mode only) | v0.2; the Linux build runs unchanged |
 
@@ -555,6 +555,13 @@ type Executor interface {
 
 **As built in M2:** the engine gets its executors wrapped by `policy` (§4.9). The probe allowlist reaches the probe through the context: the host executor applies it in-process, and the probe container receives it as `__probe --allow <prefixes>`, so it holds at dial time for every address a name resolves to. `ProbeContainer.Readiness` checks the daemon's platform, the binary and whether the image is imported, without any write, for `doctor`.
 
+**As built in M3:** the `netns` executor (`internal/executor/netns_linux.go`; elsewhere a stub answers `unsupported`). ADR 0001's M3 amendment records the decisions.
+- **Selection:** as root (`CAP_SYS_ADMIN` and `CAP_SYS_PTRACE` in the initial user namespace) and not inside a container, the CLI gives the policy a netns executor; the engine uses it in place of probe containers whenever the daemon is a Linux Docker Engine on this host (`linux-engine`, `wsl2-engine`), whatever tier 2b says. There is no fallback to probe containers: a root run never writes to Docker.
+- **Entering:** it inspects the container again for its current PID, checks `/proc/<pid>/cgroup` for the full ID, opens `/proc/<pid>/ns/net` and `/proc/<pid>/root`, checks the cgroup again, and enters once with a no-op to prove the privilege. A stopped container, a PID that fails the check or a missing privilege gives one record per check with that status, which becomes a gap.
+- **Sockets:** the probes run concurrently, so the probe package takes an `Enter` hook: each DNS query, each TCP connect and the listener read run on a fresh goroutine locked to its thread, which enters the namespace for that one operation and goes back before it is unlocked (if it can't, it stays locked and Go ends the thread). Listeners come from `/proc/thread-self/net/tcp{,6}` inside the namespace.
+- **Resolver files:** the container's `/etc/hosts` and `/etc/resolv.conf` are read with `openat2(RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS)` relative to its root, so no symlink leads to the host's files; only regular files of at most 1 MiB are read.
+- **Evidence:** `executor: "netns"` and `netns_id` (the namespace's inode); the same limits as the other executors (§4.9); `side_effects` stays empty.
+
 ### 4.8 Collectors and probes
 
 - **`collect/host`** uses `vishvananda/netlink` for links, addresses, `RouteGet(dst)` and neighbours. It reads listeners from `/proc/net/{tcp,tcp6,udp,udp6}`, where addr:port is hex and state `0A` means LISTEN. It never shells out to `ip` or `ss`.
@@ -608,6 +615,8 @@ type Executor interface {
 - **Rate limit:** one token per DNS or TCP check (a TCP check to a name covers its up to 4 addresses); listener reads are free. The bucket holds `rate_per_minute` tokens and refills at that rate, per process.
 - **Audit:** every call, including refused ones and consent answers, with the client (`cli` or `mcp`), the verdict and primary rule, the diagnosis ID, whether tier 2b was in effect, and the probes sent and refused. Arguments are stripped of control characters and cut at 256 characters. The file is 0600 in a 0700 directory and rotates once at 10 MB. A failed write is logged, not fatal.
 
+**As built in M3 (tier 3):** whyreach's own privilege turns the netns executor on: root, or precisely `CAP_SYS_ADMIN` and `CAP_SYS_PTRACE` in the initial user namespace, outside a container (`platform.Info.NetnsExecutor`). No config key or tool argument does. The policy wraps it in the same guard as the others: the allowlist (literal addresses before sending, every resolved address at dial time), the block list, and the rate limit (one token per DNS or TCP check; listener reads are free, as from the host). It needs no tier 2b, since it writes nothing to Docker, so no consent is ever asked for it. `inspect host` shows `netns on (root)` or `off`, and the audit log records the calls as before.
+
 ### 4.10 MCP surface (4 tools)
 
 | Tool | Input | Output |
@@ -653,7 +662,7 @@ whyreach mcp serve       # stdio
 
 **As built in M1:** the short form, `diagnose` (without `--report`, which arrives with reports in M4) and `version`, plus the hidden `__probe`. Text output goes to stdout, sanitized of control and bidi characters; `--json` prints the full `Diagnosis`, evidence included; logs are JSON on stderr (`WHYREACH_LOG=debug|info|warn`).
 
-**As built in M2:** `inspect`, `probe`, `doctor` and `mcp serve`, all through `policy`; `report` and `rules` remain for M4. `--from host` now has its own rules (WR019, and WR001–WR003 through published ports). `doctor` exits 0 when no check failed and 1 otherwise; it checks the config, the Docker API, interfaces, host and container listeners, probe-container readiness (read-only), the probe policy, privileges, whether whyreach runs in a container or WSL2, and the audit log.
+**As built in M2:** `inspect`, `probe`, `doctor` and `mcp serve`, all through `policy`; `report` and `rules` remain for M4. **M3:** `doctor` has a `netns executor` line (on as root, or why not), and `mcp serve` logs a warning when it runs as root. `--from host` now has its own rules (WR019, and WR001–WR003 through published ports). `doctor` exits 0 when no check failed and 1 otherwise; it checks the config, the Docker API, interfaces, host and container listeners, probe-container readiness (read-only), the probe policy, privileges, whether whyreach runs in a container or WSL2, and the audit log.
 
 **Exit codes:**
 
@@ -812,7 +821,7 @@ They cover the text, Markdown and MCP-text renderers, and the MCP `structuredCon
   5. `down -v`, then check that no probe container was left behind and remove the run's images
 - Unique project names keep scenarios away from every other container. The scenarios still run one at a time: they reuse service names (`api`, `worker`), and a diagnosis looks at every container on the host, so parallel scenarios would see each other's `api`.
 - **Starting point:** the experiment scenarios: E1–E6 and E8 are Compose files in `spikes/experiments/`, and E7 and E9 run inline in `spikes/experiments.sh`. M1 promoted the slice scenarios first (ADR 0002), plus `wr008-not-running`. Note that `up --wait` would hang on the slow-start and crash-loop scenarios, so those need their own wait conditions (`up_wait: false` and `settle`).
-- **netns variants** need root: `sudo -E go test -tags lab,privileged …`.
+- **netns variants** need root: `make lab-root` (M3) builds whyreach, the lab server and the test binaries as the user, then runs only the test binaries with `sudo`: the executor's root-only test (a socket made through `Enter` lives in the other namespace, and every thread is back home afterwards), and `TestLabNetns` (build tags `lab,privileged`). That runs every scenario as root, with probe containers off and on: each must reach its `expect` (the with-probe expectations), with empty `side_effects`; every DNS and TCP check from a container must have run through the netns executor in the source's namespace (its inode, read through the source's PID); and over the whole run, `docker events` must show no probe container and the build's probe image must never appear. As root, `TestLab` skips itself, since its default-config expectations assume no probes.
 - **CI** runs on GitHub Actions Ubuntu runners, which have Docker and sudo.
 - **v0.1 scenario set:**
   - one scenario per MVP rule

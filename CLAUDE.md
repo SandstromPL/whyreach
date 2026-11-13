@@ -23,7 +23,7 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 
 ## Commands
 
-These are the Makefile targets; keep this list in sync with the Makefile. Until M3 adds privileged scenarios, `lab-root` only prints a notice.
+These are the Makefile targets; keep this list in sync with the Makefile.
 
 ```bash
 make build      # CGO_ENABLED=0 go build -o bin/whyreach ./cmd/whyreach
@@ -32,7 +32,7 @@ make lint       # golangci-lint run
 make vuln       # govulncheck ./...  (pinned version; known CVEs in code we call, stdlib included; needs network)
 make lab        # go test -tags lab -count=1 ./test/e2e/...  (needs Docker; scenarios in test/lab/)
 make lab-agent  # go test -tags lab,agent -count=1 -run TestAgent ./test/e2e/...  (Docker + claude CLI; a small model diagnoses each scenario over MCP)
-make lab-root   # sudo -E go test -tags lab,privileged -count=1 ./test/e2e/...  (netns executor, from M3)
+make lab-root   # builds as you, then sudo runs only the test binaries: the executor's root-only test and TestLabNetns (tags lab,privileged: every scenario through the netns executor, no Docker writes)
 make golden     # go test ./internal/report/... -update  (text, the compact MCP structured form, Diagnosis JSON)
 make cross      # compile check: GOOS=darwin and GOOS=windows (amd64, arm64) go build ./...
 make clean      # rm -rf bin dist spikes/out
