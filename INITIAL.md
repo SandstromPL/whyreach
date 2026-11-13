@@ -601,7 +601,7 @@ type Executor interface {
 
 **Probe target policy:**
 - One host:port per call. No CIDRs, ranges, lists or wildcards.
-- Blocked by default: `169.254.0.0/16`, `fe80::/10`, `fd00:ec2::254`, `100.100.100.200` (cloud metadata and link-local addresses), and any of them inside NAT64's well-known prefix `64:ff9b::/96` (M4).
+- Blocked by default: `169.254.0.0/16`, `fe80::/10`, `fd00:ec2::254` (AWS), `fd20:ce::254` (GCE, on IPv6-only VMs; added 2026-11-14), `100.100.100.200` (cloud metadata and link-local addresses), and any of them inside NAT64's well-known prefix `64:ff9b::/96` (M4).
 - An optional allowlist (`loopback`, `rfc1918`, `docker`, or explicit CIDRs) restricts targets further.
 - A token bucket allows 30 probes per minute, and a name resolves to at most 4 addresses.
 - **Names (decided 2026-11-13, built in M4; §10 Q11):** through MCP, a name with a dot that Docker doesn't resolve itself is looked up only after the user approves that name, or when it falls under a domain in `[probe] names`. The nameservers in a source's `resolv.conf` are checked against the block list.

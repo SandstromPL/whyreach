@@ -229,7 +229,10 @@ func onlyOf(s, set string) bool {
 }
 
 var (
-	awsMetadataV6     = netip.MustParseAddr("fd00:ec2::254")
+	awsMetadataV6 = netip.MustParseAddr("fd00:ec2::254")
+	// gceMetadataV6 is GCE's metadata server on IPv6-only VMs, which also
+	// serve DNS from it (docs/research/q13-q15-experiments.md).
+	gceMetadataV6     = netip.MustParseAddr("fd20:ce::254")
 	alibabaMetadataV4 = netip.MustParseAddr("100.100.100.200")
 	// nat64 is RFC 6052's well-known prefix: a NAT64 gateway connects to
 	// the IPv4 address in its last 32 bits. (Where a local-use prefix,
@@ -247,7 +250,7 @@ func Blocked(addr netip.Addr) (reason string, blocked bool) {
 	switch {
 	case a.IsLinkLocalUnicast():
 		return "link-local addresses (including cloud metadata at 169.254.169.254) are blocked by policy", true
-	case a == awsMetadataV6, a == alibabaMetadataV4:
+	case a == awsMetadataV6, a == gceMetadataV6, a == alibabaMetadataV4:
 		return "cloud-metadata addresses are blocked by policy", true
 	case a.IsMulticast(), a == netip.AddrFrom4([4]byte{255, 255, 255, 255}):
 		return "multicast and broadcast addresses are not connection targets", true
