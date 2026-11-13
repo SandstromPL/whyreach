@@ -18,19 +18,22 @@ import (
 // stays refused (INITIAL.md §10 Q13).
 func TestHostResolverOnTheBlockList(t *testing.T) {
 	tests := []struct {
-		name   string
-		resolv string
-		host   []string
-		refuse string
-		want   evidence.Status
-		server string
+		name     string
+		resolv   string
+		host     []string
+		refuse   string
+		want     evidence.Status
+		answered string // the blocked host resolver whose answer was used
 	}{
 		{"GCE's resolver, the host's own", "nameserver 169.254.169.254\n", []string{"169.254.169.254"}, "", evidence.StatusOK, "169.254.169.254:53"},
 		{"GCE's IPv6 one, the host's own", "nameserver fd20:ce::254\n", []string{"fd20:ce::254"}, "", evidence.StatusOK, "[fd20:ce::254]:53"},
 		{"in an inet_aton form", "nameserver 0xa9fea9fe\n", []string{"169.254.169.254"}, "", evidence.StatusOK, "169.254.169.254:53"},
 		{"only the container names it", "nameserver 169.254.169.254\n", []string{"10.0.0.2"}, "", evidence.StatusSkipped, ""},
 		{"the host's resolvers unknown", "nameserver 169.254.169.254\n", nil, "", evidence.StatusSkipped, ""},
-		{"the host's, after one that fails", "nameserver 10.0.0.2\nnameserver 169.254.169.254\n", []string{"169.254.169.254"}, "10.0.0.2:53", evidence.StatusOK, "10.0.0.2:53"},
+		{"the host's, after one that fails", "nameserver 10.0.0.2\nnameserver 169.254.169.254\n", []string{"169.254.169.254"}, "10.0.0.2:53", evidence.StatusOK, "169.254.169.254:53"},
+		{"the host's, listed second, unused", "nameserver 10.0.0.2\nnameserver 169.254.169.254\n", []string{"169.254.169.254"}, "", evidence.StatusOK, ""},
+		{"a link-local one on the container's own link", "nameserver fe80::1%eth0\n", []string{"fe80::1%wlan0"}, "", evidence.StatusSkipped, ""},
+		{"a link-local one, the host's own link", "nameserver fe80::1%eth0\n", []string{"fe80::1%eth0"}, "", evidence.StatusOK, "[fe80::1%eth0]:53"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -50,13 +53,13 @@ func TestHostResolverOnTheBlockList(t *testing.T) {
 				if ev.Err == nil || ev.Err.Code != evidence.CodePolicyDenied || !strings.Contains(ev.Err.Message, "block list") || len(f.queries) != 0 {
 					t.Errorf("err %+v, sent %v; want a refusal that sends nothing", ev.Err, f.queries)
 				}
-				if p.HostResolver {
+				if p.HostResolver != "" {
 					t.Error("a refused lookup says it used the host's resolver")
 				}
 				return
 			}
-			if p.Server != tt.server || !p.HostResolver || !strings.Contains(strings.Join(ev.Limitations, "\n"), "one of the host's own resolvers") {
-				t.Errorf("server %s, host_resolver %v, limitations %q", p.Server, p.HostResolver, ev.Limitations)
+			if p.HostResolver != tt.answered || !strings.Contains(strings.Join(ev.Limitations, "\n"), "one of the host's own resolvers") {
+				t.Errorf("host_resolver %q, want %q; limitations %q", p.HostResolver, tt.answered, ev.Limitations)
 			}
 		})
 	}

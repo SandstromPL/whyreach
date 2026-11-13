@@ -206,8 +206,8 @@ func facts(v evidence.View, complete bool) []Fact {
 			switch {
 			case d.P.Via == evidence.ViaHosts:
 				via = "via /etc/hosts"
-			case d.P.HostResolver:
-				via += ", the host's own resolver (on the probe block list, asked for DNS only)"
+			case d.P.HostResolver != "":
+				via = "via " + d.P.HostResolver + ", the host's own resolver (on the probe block list, asked for DNS only)"
 			}
 			add(fmt.Sprintf("%q → %s %s, in %s", d.P.Name, addrList(d.P.Answers), via, ctx), d.ID)
 		} else {

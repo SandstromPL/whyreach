@@ -69,11 +69,18 @@ func (l Limits) CheckConnect(addr netip.AddrPort) (reason string, ok bool) {
 	return AddrNotApproved, false
 }
 
-// HostResolver reports whether a is one of the host's own resolvers. Zones
-// don't count: the host's files name its own interfaces.
+// HostResolver reports whether a is one of the host's own resolvers. For an
+// IPv6 link-local address the zone counts too, since it names the link: a
+// container's own fe80::1%eth0 isn't the host's router at fe80::1%wlan0.
 func (l Limits) HostResolver(a netip.Addr) bool {
-	a = a.Unmap().WithZone("")
-	return slices.ContainsFunc(l.HostResolvers, func(h netip.Addr) bool { return h.Unmap().WithZone("") == a })
+	a = a.Unmap()
+	return slices.ContainsFunc(l.HostResolvers, func(h netip.Addr) bool {
+		h = h.Unmap()
+		if a.Is6() && a.IsLinkLocalUnicast() {
+			return h == a
+		}
+		return h.WithZone("") == a.WithZone("")
+	})
 }
 
 // needsApproval reports a private address that only an approval lets

@@ -340,14 +340,28 @@ func (p *Policy) leaseAddrs(specs []probe.Spec) []netip.AddrPort {
 }
 
 // settle returns what a batch set aside and provably didn't use, and fails
-// closed otherwise: a lookup of a leased name comes back only when its
-// record shows no query sent (the hosts file answered, or the nameservers
-// refused it), and connects to approved addresses only when every connect
-// record kept its data, so the ones made can be counted. A run that failed
-// once started (failed) keeps everything: it may have sent before it lost
-// its records. A return never takes an approval past ApprovalBudget.
-func (p *Policy) settle(names []string, addrs []netip.AddrPort, evs []evidence.Evidence, failed bool) {
-	if failed || (len(names) == 0 && len(addrs) == 0) {
+// closed otherwise. Before the executor ran (ran false), nothing was sent,
+// so everything returns. After a run that failed (runErr), nothing does: it
+// may have sent before it lost its records. Otherwise a lookup of a leased
+// name comes back only when its record shows no query sent (the hosts file
+// answered, or the nameservers refused it), and connects to approved
+// addresses when every connect record either kept its data, so the ones
+// made can be counted, or was skipped, which sends nothing (a name that
+// didn't resolve, a refusal). A return never takes an approval past
+// ApprovalBudget.
+func (p *Policy) settle(names []string, addrs []netip.AddrPort, evs []evidence.Evidence, ran bool, runErr error) {
+	if len(names) == 0 && len(addrs) == 0 || ran && runErr != nil {
+		return
+	}
+	if !ran {
+		p.namesMu.Lock()
+		defer p.namesMu.Unlock()
+		for _, n := range names {
+			p.approved[n] = min(p.approved[n]+1, ApprovalBudget)
+		}
+		for _, ap := range addrs {
+			p.addrs[ap] = min(p.addrs[ap]+1, ApprovalBudget)
+		}
 		return
 	}
 	sent, unsent := map[string]bool{}, map[string]bool{}
@@ -367,7 +381,7 @@ func (p *Policy) settle(names []string, addrs []netip.AddrPort, evs []evidence.E
 				used[unmapped(d.Addr)]++
 			}
 		default:
-			lost = lost || e.Kind == evidence.KindTCP
+			lost = lost || e.Kind == evidence.KindTCP && e.Status != evidence.StatusSkipped
 		}
 	}
 	p.namesMu.Lock()

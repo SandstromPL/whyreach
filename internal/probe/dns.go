@@ -130,8 +130,7 @@ func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evide
 	// host's own resolvers (INITIAL.md §10 Q11, Q13). The nameservers come
 	// before the name: a lookup that can't be made isn't worth asking the
 	// user about.
-	servers, next, notes, refusal, viaHost := allowedServers(conf.servers, r.ResolvPath, lim)
-	p.HostResolver = viaHost
+	servers, next, notes, refusal := allowedServers(conf.servers, r.ResolvPath, lim)
 	if refusal != "" {
 		return p, notes, &Refused{Reason: refusal}
 	}
@@ -147,6 +146,7 @@ func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evide
 	// than "api.<search 1>".
 	asGiven := strings.TrimSuffix(strings.ToLower(name), ".")
 	givenRcode := ""
+	var rcodeFrom, givenFrom string // the nameserver whose reply set the rcode
 	for i, cand := range conf.candidates(name) {
 		res := r.resolveOne(ctx, conf.servers, cand.fqdn)
 		if res.err != nil {
@@ -166,13 +166,14 @@ func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evide
 				cand.label, rc, next)}
 		}
 		if i == 0 {
-			p.Rcode = res.rcode
+			p.Rcode, rcodeFrom = res.rcode, res.server
 		}
 		if cand.label == asGiven {
-			givenRcode = res.rcode
+			givenRcode, givenFrom = res.rcode, res.server
 		}
 		if len(res.answers) > 0 {
 			p.Via, p.Answered, p.Answers, p.Rcode = evidence.ViaDNS, cand.label, res.answers, res.rcode
+			p.HostResolver = hostResolverOf(res.server, lim)
 			return p, notes, nil
 		}
 		if ctx.Err() != nil {
@@ -180,9 +181,23 @@ func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evide
 		}
 	}
 	if givenRcode != "" {
-		p.Rcode = givenRcode
+		p.Rcode, rcodeFrom = givenRcode, givenFrom
 	}
+	p.HostResolver = hostResolverOf(rcodeFrom, lim)
 	return p, notes, nil
+}
+
+// hostResolverOf returns server when it is on the block list and was asked
+// as one of the host's own resolvers, for the record (INITIAL.md §10 Q13).
+func hostResolverOf(server string, lim Limits) string {
+	ap, err := netip.ParseAddrPort(server)
+	if err != nil {
+		return ""
+	}
+	if _, blocked := target.Blocked(ap.Addr()); blocked && lim.HostResolver(ap.Addr()) {
+		return server
+	}
+	return ""
 }
 
 // DockerResolvConf returns the resolv.conf Docker copies into containers on
@@ -235,7 +250,7 @@ const maxNameservers = 3
 // blocked, the app's own lookup would go there, so a lookup through the
 // others would describe one the app doesn't make: refusal says so, and
 // nothing is sent. viaHost says a blocked one is used as the host's own.
-func allowedServers(servers []string, path string, lim Limits) (ok []string, next string, notes []string, refusal string, viaHost bool) {
+func allowedServers(servers []string, path string, lim Limits) (ok []string, next string, notes []string, refusal string) {
 	if len(servers) > maxNameservers {
 		servers = servers[:maxNameservers]
 	}
@@ -250,18 +265,18 @@ func allowedServers(servers []string, path string, lim Limits) (ok []string, nex
 				// default-bridge and host-network containers: DNS only, on
 				// port 53 (INITIAL.md §10 Q13).
 				notes = append(notes, fmt.Sprintf("nameserver %d of %s, %s, is on the probe block list (%s), but it is one of the host's own resolvers, so whyreach asks it for DNS only (INITIAL.md §10 Q13)", i+1, path, ap.Addr(), reason))
-				ok, viaHost = append(ok, s), true
+				ok = append(ok, s)
 				continue
 			}
 			if i == 0 {
-				return nil, "", notes, fmt.Sprintf("not looked up: the first nameserver in %s, %s, which the app asks first, is on the probe block list (link-local and cloud-metadata addresses), which whyreach asks only when it is one of the host's own resolvers", path, ap.Addr()), false
+				return nil, "", notes, fmt.Sprintf("not looked up: the first nameserver in %s, %s, which the app asks first, is on the probe block list (link-local and cloud-metadata addresses), which whyreach asks only when it is one of the host's own resolvers", path, ap.Addr())
 			}
 			notes = append(notes, fmt.Sprintf("nameserver %d of %s, %s, is on the probe block list (%s) and isn't one of the host's own resolvers: glibc asks it when the ones before it fail, and whyreach then makes no lookup; musl asks every nameserver at once, so a musl app may take its answer from there", i+1, path, ap.Addr(), reason))
-			return ok, ap.Addr().String(), notes, "", viaHost
+			return ok, ap.Addr().String(), notes, ""
 		}
 		ok = append(ok, s)
 	}
-	return ok, "", notes, "", viaHost
+	return ok, "", notes, ""
 }
 
 // maxResolverFile bounds a read of the host's resolver files.
@@ -338,6 +353,7 @@ func (c resolvConf) candidates(name string) []candidate {
 type resolveResult struct {
 	answers  []netip.Addr
 	rcode    string
+	server   string // the nameserver whose reply was used; empty when none came
 	attempts []evidence.DNSAttempt
 	err      error // the queries could not be sent at all (Resolver.Enter failed)
 }
@@ -362,13 +378,20 @@ func (r *Resolver) resolveOne(ctx context.Context, servers []string, fqdn string
 		})
 	}
 	res.rcode = combineRcodes(results[0], results[1])
+	// The server of a reply with answers, else of any reply.
+	for _, q := range results {
+		if q.server != "" && (len(q.answers) > 0 || res.server == "") {
+			res.server = q.server
+		}
+	}
 	return res
 }
 
 type queryResult struct {
 	answers []netip.Addr
 	rcode   string
-	err     error // Resolver.Enter failed: nothing was sent
+	server  string // the nameserver that replied; empty when none did
+	err     error  // Resolver.Enter failed: nothing was sent
 }
 
 // query sends one question, retrying once on a timeout or an error (such as
@@ -409,7 +432,7 @@ func (r *Resolver) query(ctx context.Context, servers []string, fqdn string, qty
 			}
 			continue
 		}
-		return queryResult{answers: answers(resp), rcode: rcodeName(resp.Rcode)}
+		return queryResult{answers: answers(resp), rcode: rcodeName(resp.Rcode), server: server}
 	}
 	return queryResult{rcode: failure}
 }

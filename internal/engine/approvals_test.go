@@ -39,17 +39,20 @@ func TestApprovalAdvice(t *testing.T) {
 // the facts.
 func TestHostResolverFact(t *testing.T) {
 	q := evidence.Question{From: evidence.Source{Kind: evidence.SourceHost, Ref: "host"}, To: evidence.Target{Host: "api.example", Port: 443, Proto: "tcp", Class: evidence.TargetName}}
-	lookup := func(host bool) evidence.Evidence {
+	lookup := func(host string) evidence.Evidence {
 		return evidence.Evidence{ID: "ev-01", Kind: evidence.KindDNS, Context: evidence.Host(), Subject: "api.example", Status: evidence.StatusOK,
-			Data: evidence.DNSProbe{Name: "api.example", Via: evidence.ViaDNS, Server: "169.254.169.254:53", Answers: []netip.Addr{netip.MustParseAddr("10.9.9.9")}, HostResolver: host}}
+			Data: evidence.DNSProbe{Name: "api.example", Via: evidence.ViaDNS, Server: "10.0.0.2:53", Answers: []netip.Addr{netip.MustParseAddr("10.9.9.9")}, HostResolver: host}}
 	}
-	for _, host := range []bool{true, false} {
+	for host, want := range map[string]string{
+		"169.254.169.254:53": "via 169.254.169.254:53, the host's own resolver",
+		"":                   "via 10.0.0.2:53, in host",
+	} {
 		var text []string
 		for _, f := range facts(evidence.NewView(q, []evidence.Evidence{lookup(host)}), true) {
 			text = append(text, f.Text)
 		}
-		if got := strings.Contains(strings.Join(text, "\n"), "the host's own resolver"); got != host {
-			t.Errorf("host_resolver %v: facts %q", host, text)
+		if got := strings.Join(text, "\n"); !strings.Contains(got, want) {
+			t.Errorf("host_resolver %q: facts %q lack %q", host, got, want)
 		}
 	}
 }

@@ -57,6 +57,10 @@ func (r *resolving) exchange(_ context.Context, m *dns.Msg, server, _ string) (*
 	r.mu.Unlock()
 	resp := new(dns.Msg)
 	resp.SetReply(m)
+	if strings.HasPrefix(q.Name, "nx") {
+		resp.Rcode = dns.RcodeNameError
+		return resp, nil
+	}
 	if q.Qtype == dns.TypeA {
 		resp.Answer = append(resp.Answer, &dns.A{Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypeA, Class: dns.ClassINET}, A: net.ParseIP("10.9.9.9")})
 	}
@@ -255,7 +259,7 @@ func TestAddressLeasesComeBack(t *testing.T) {
 		t.Fatalf("leased %v, left %d", leased, p.addrs[ap])
 	}
 	used := evidence.Evidence{Kind: evidence.KindTCP, Status: evidence.StatusOK, Data: evidence.TCPProbe{Addr: ap, Outcome: evidence.OutcomeRefused}}
-	p.settle(nil, leased, []evidence.Evidence{used}, false)
+	p.settle(nil, leased, []evidence.Evidence{used}, true, nil)
 	if p.addrs[ap] != 2 {
 		t.Errorf("after one of two used: %d left, want 2", p.addrs[ap])
 	}
@@ -280,7 +284,7 @@ func TestLeasesFailClosed(t *testing.T) {
 	} {
 		p.RecordAddrConsent(ap, true, "accept")
 		leased := p.leaseAddrs(tcp)
-		p.settle(nil, leased, tt.evs, tt.failed)
+		p.settle(nil, leased, tt.evs, true, failure(tt.failed))
 		if p.addrs[ap] != ApprovalBudget-1 {
 			t.Errorf("%s: %d connects left, want %d", name, p.addrs[ap], ApprovalBudget-1)
 		}
@@ -299,7 +303,7 @@ func TestLeasesFailClosed(t *testing.T) {
 		if !p.leaseName("data.example.net") {
 			t.Fatal("no lookup to lease")
 		}
-		p.settle([]string{"data.example.net"}, nil, tt.evs, tt.failed)
+		p.settle([]string{"data.example.net"}, nil, tt.evs, true, failure(tt.failed))
 		want := ApprovalBudget - 1
 		if tt.back {
 			want = ApprovalBudget
@@ -307,6 +311,60 @@ func TestLeasesFailClosed(t *testing.T) {
 		if p.approved["data.example.net"] != want {
 			t.Errorf("%s: %d lookups left, want %d", name, p.approved["data.example.net"], want)
 		}
+	}
+}
+
+// failure is a run's error: one that failed once started, or none.
+func failure(failed bool) error {
+	if failed {
+		return errors.New("the probe's output was lost")
+	}
+	return nil
+}
+
+// Checks that send nothing give back what they were set aside: a connect
+// skipped because its name didn't resolve, and every lease of a batch whose
+// executor never ran (correctness review of Q15).
+func TestUnsentChecksGiveBack(t *testing.T) {
+	p, err := New(Deps{Settings: Settings{Docker: true, Allow: []string{"rfc1918"}}, Client: ClientMCP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ap := netip.MustParseAddrPort("10.0.5.7:5432")
+	p.RecordAddrConsent(ap, true, "accept")
+	leased := p.leaseAddrs([]probe.Spec{{Kind: probe.SpecTCP, Host: "db", Port: 5432}})
+	skipped := evidence.Evidence{Kind: evidence.KindTCP, Subject: "db:5432", Status: evidence.StatusSkipped,
+		Err: &evidence.Error{Code: evidence.CodeNotFound, Message: "db did not resolve, so there was no address to connect to"}}
+	p.settle(nil, leased, []evidence.Evidence{skipped}, true, nil)
+	if p.addrs[ap] != ApprovalBudget {
+		t.Errorf("a skipped connect: %d left, want %d", p.addrs[ap], ApprovalBudget)
+	}
+	p.RecordNameConsent("data.example.net", true, "accept")
+	if !p.leaseName("data.example.net") {
+		t.Fatal("no lookup to lease")
+	}
+	leased = p.leaseAddrs([]probe.Spec{{Kind: probe.SpecTCP, Host: "10.0.5.7", Port: 5432}})
+	failed := evidence.Evidence{Kind: evidence.KindTCP, Status: evidence.StatusFailed, Err: &evidence.Error{Message: "no executor"}}
+	p.settle([]string{"data.example.net"}, leased, []evidence.Evidence{failed}, false, errors.New("no executor"))
+	if p.addrs[ap] != ApprovalBudget || p.approved["data.example.net"] != ApprovalBudget {
+		t.Errorf("an executor that never ran: %d connects and %d lookups left", p.addrs[ap], p.approved["data.example.net"])
+	}
+
+	// Through the guard: a name on the approved port that doesn't resolve.
+	r := newResolving(t, "nameserver 10.0.0.53\noptions ndots:0\n", "")
+	q, err := New(Deps{Settings: Settings{Docker: true, Allow: []string{"loopback", "rfc1918", "docker"}, RatePerMinute: 100},
+		Docker: fakeDocker{}, Listeners: fakeDocker{}, Host: r, Client: ClientMCP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	q.RecordAddrConsent(ap, true, "accept")
+	for range ApprovalBudget + 1 {
+		if _, err := q.Probe(context.Background(), ProbeArgs{Kind: "tcp", Target: "nxdb:5432"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !q.AddrAllowed(ap) || q.addrs[ap] != ApprovalBudget {
+		t.Errorf("checks of a name that didn't resolve spent the approval: %d left", q.addrs[ap])
 	}
 }
 
@@ -410,5 +468,44 @@ func TestMacvlanSubnetIsNotFree(t *testing.T) {
 		if held := AddrHeldBack(res.Evidence[0]); held == free {
 			t.Errorf("%s: held back %v, want %v", target, held, !free)
 		}
+	}
+}
+
+// doctor's DNS lines: a blocked host resolver in either file, and a warning
+// when systemd-resolved's list can't be read (whyreach's image with
+// --network host on a systemd-resolved host).
+func TestDNSChecks(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	host := []netip.Addr{netip.MustParseAddr("169.254.169.254")}
+	direct := write("direct.conf", "nameserver 169.254.169.254\n")
+	stub := write("stub.conf", "nameserver 127.0.0.53\noptions edns0\n")
+	upstreams := write("upstreams.conf", "nameserver 169.254.169.254\n")
+	plain := write("plain.conf", "nameserver 10.0.0.2\n")
+	for name, tt := range map[string]struct {
+		hostFile, systemdFile string
+		status                string
+	}{
+		"the host's resolver in its own file": {direct, upstreams, engine.CheckInfo},
+		"systemd-resolved's upstream list":    {stub, upstreams, engine.CheckInfo},
+		"systemd-resolved's list unreadable":  {stub, filepath.Join(dir, "missing.conf"), engine.CheckWarn},
+		"nothing on the block list":           {plain, upstreams, ""},
+	} {
+		got := dnsChecks(tt.hostFile, tt.systemdFile, host)
+		switch {
+		case tt.status == "" && len(got) != 0:
+			t.Errorf("%s: %+v, want no line", name, got)
+		case tt.status != "" && (len(got) != 1 || got[0].Status != tt.status):
+			t.Errorf("%s: %+v, want one %s line", name, got, tt.status)
+		}
+	}
+	if got := dnsChecks(stub, filepath.Join(dir, "missing.conf"), host); len(got) != 1 || !strings.Contains(got[0].Fix, "/run/systemd/resolve:/run/systemd/resolve:ro") {
+		t.Errorf("the unreadable list's fix: %+v", got)
 	}
 }

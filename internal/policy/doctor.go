@@ -42,20 +42,11 @@ func (p *Policy) Doctor(ctx context.Context) []engine.Check {
 		Detail: fmt.Sprintf("TCP probes may go to %s; at most %d probes a minute; link-local and cloud-metadata addresses are always blocked, and as nameservers asked only when they are the host's own resolvers (DNS only). "+
 			"For MCP clients, a name with a dot that Docker doesn't know is looked up only after the user approves it (%d lookups an approval); %s.%s", allow, p.d.Settings.RatePerMinute, ApprovalBudget, names, private)})
 
-	const hostResolv, systemdResolv = "/etc/resolv.conf", "/run/systemd/resolve/resolv.conf"
 	var host []netip.Addr
 	if p.d.HostResolvers != nil {
 		host = p.d.HostResolvers()
 	}
-	if ns, blocked, err := probe.FirstNameserverBlocked(hostResolv); err == nil && blocked {
-		out = append(out, resolverCheck("the first nameserver in /etc/resolv.conf", ns, host))
-	} else if path := probe.DockerResolvConf(hostResolv, systemdResolv); path != hostResolv {
-		// systemd-resolved: the host asks its stub, and Docker gives
-		// default-bridge containers the upstreams behind it instead.
-		if ns, blocked, err := probe.FirstNameserverBlocked(path); err == nil && blocked {
-			out = append(out, resolverCheck("the first nameserver Docker gives containers on the default bridge (from "+path+", since /etc/resolv.conf lists only systemd-resolved's 127.0.0.53)", ns, host))
-		}
-	}
+	out = append(out, dnsChecks("/etc/resolv.conf", "/run/systemd/resolve/resolv.conf", host)...)
 	pl := platform.Detect()
 	out = append(out, p.netnsCheck(ctx, pl))
 	if pl.InContainer {
@@ -201,4 +192,31 @@ func resolverCheck(which, ns string, host []netip.Addr) engine.Check {
 	return engine.Check{Name: "dns", Status: engine.CheckWarn, Detail: fmt.Sprintf(
 		"%s, %s, is a link-local or cloud-metadata address, and whyreach can't see the host's resolvers from here, so it doesn't ask it: no lookups through it (INITIAL.md §10 Q13)", which, ns),
 		Fix: executor.HostHiddenAdvice + "."}
+}
+
+// dnsChecks are doctor's lines about the resolvers the host and Docker's
+// default-bridge containers ask, when one is on the probe block list
+// (INITIAL.md §10 Q13): hostResolv is the host's resolv.conf, systemdResolv
+// systemd-resolved's upstream list, host the host's own resolvers.
+func dnsChecks(hostResolv, systemdResolv string, host []netip.Addr) []engine.Check {
+	if ns, blocked, err := probe.FirstNameserverBlocked(hostResolv); err == nil && blocked {
+		return []engine.Check{resolverCheck("the first nameserver in "+hostResolv, ns, host)}
+	}
+	path := probe.DockerResolvConf(hostResolv, systemdResolv)
+	if path == hostResolv {
+		return nil
+	}
+	// systemd-resolved: the host asks its stub, and Docker gives
+	// default-bridge containers the upstreams behind it instead.
+	switch ns, blocked, err := probe.FirstNameserverBlocked(path); {
+	case err != nil:
+		// whyreach's image doesn't see that file unless it is mounted.
+		return []engine.Check{{Name: "dns", Status: engine.CheckWarn,
+			Detail: hostResolv + " lists only systemd-resolved's 127.0.0.53, so Docker gives containers on the default bridge the upstreams in " + path +
+				", which whyreach can't read here: if the first of them is a link-local or cloud-metadata address (169.254.169.254 on some clouds), whyreach can't tell it is the host's own resolver, and makes no lookups through it from those containers (INITIAL.md §10 Q13)",
+			Fix: "In whyreach's image, mount systemd-resolved's directory read-only: -v /run/systemd/resolve:/run/systemd/resolve:ro."}}
+	case blocked:
+		return []engine.Check{resolverCheck("the first nameserver Docker gives containers on the default bridge (from "+path+", since "+hostResolv+" lists only systemd-resolved's 127.0.0.53)", ns, host)}
+	}
+	return nil
 }

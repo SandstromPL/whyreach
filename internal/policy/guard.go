@@ -47,7 +47,7 @@ func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 		lim.Approved = g.p.leaseAddrs(specs)
 	}
 	ran := false // the executor started: a failure since may have sent
-	defer func() { g.p.settle(leasedNames, lim.Approved, evs, ran && err != nil) }()
+	defer func() { g.p.settle(leasedNames, lim.Approved, evs, ran, err) }()
 	var refused []evidence.Evidence
 	var send []probe.Spec
 	for _, s := range specs {
