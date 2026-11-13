@@ -36,6 +36,9 @@ type fakeAPI struct {
 	leftovers []docker.Summary
 	removed   []string
 	created   []docker.ProbeSpec
+	createErr error
+	reclaimed []string
+	sweepErr  error
 }
 
 func (f *fakeAPI) call(s string) {
@@ -67,7 +70,16 @@ func (f *fakeAPI) ImageImport(_ context.Context, tag string, r io.Reader, change
 func (f *fakeAPI) Create(_ context.Context, spec docker.ProbeSpec) (string, error) {
 	f.call("create " + spec.Image + " netns=" + spec.NetnsOf)
 	f.created = append(f.created, spec)
+	if f.createErr != nil {
+		return "", f.createErr
+	}
 	return "probe-id", nil
+}
+
+func (f *fakeAPI) Reclaim(_ context.Context, name string) (bool, error) {
+	f.call("reclaim " + name)
+	f.reclaimed = append(f.reclaimed, name)
+	return true, nil
 }
 
 func (f *fakeAPI) Start(context.Context, string) error {
@@ -97,7 +109,7 @@ func (f *fakeAPI) Remove(_ context.Context, id string) error {
 
 func (f *fakeAPI) Leftovers(context.Context, time.Time) ([]docker.Summary, error) {
 	f.call("leftovers")
-	return f.leftovers, nil
+	return f.leftovers, f.sweepErr
 }
 
 // fakeELF writes a minimal ELF64 executable header for the running
@@ -173,7 +185,8 @@ func TestProbeContainerRun(t *testing.T) {
 	}
 	pc := NewProbeContainer(api, bin, "0.1.0-dirty", nil)
 	specs := []probe.Spec{{Kind: probe.SpecTCP, Host: "api", Port: 8080}}
-	evs, err := pc.Run(context.Background(), worker, specs)
+	ctx, effectsOf := WithSideEffects(context.Background())
+	evs, err := pc.Run(ctx, worker, specs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,17 +213,25 @@ func TestProbeContainerRun(t *testing.T) {
 	if api.removed[len(api.removed)-1] != "probe-id" {
 		t.Errorf("probe container not removed: %v", api.removed)
 	}
-	effects := strings.Join(pc.SideEffects(), "\n")
+	effects := strings.Join(effectsOf.List(), "\n")
 	for _, want := range []string{"removed 1 leftover probe container", "imported image whyreach-probe:0.1.0-dirty-", "(removed)"} {
 		if !strings.Contains(effects, want) {
 			t.Errorf("side effects %q lack %q", effects, want)
 		}
 	}
-	// A second run reuses the image and does not sweep again.
+	if cmd := api.created[0].Cmd; len(cmd) != 4 || cmd[2] != "--budget" || cmd[3] != probe.Budget.String() {
+		t.Errorf("probe command = %q, want the spec and the full budget", cmd)
+	}
+	// A second run reuses the image and does not sweep again, and its side
+	// effects are its own.
 	api.calls = nil
 	api.images = map[string]docker.Image{}
-	if _, err := pc.Run(context.Background(), worker, specs); err != nil {
+	ctx2, effects2 := WithSideEffects(context.Background())
+	if _, err := pc.Run(ctx2, worker, specs); err != nil {
 		t.Fatal(err)
+	}
+	if got := effects2.List(); len(got) != 1 || !strings.HasSuffix(got[0], "(removed)") {
+		t.Errorf("second run's side effects = %q, want only its own container", got)
 	}
 	for _, c := range api.calls {
 		if strings.HasPrefix(c, "import") || c == "leftovers" || c == "negotiate" {
@@ -363,5 +384,61 @@ func TestHostRun(t *testing.T) {
 	}
 	if evs[0].Status != evidence.StatusSkipped {
 		t.Errorf("a blocked address must not be dialed: %+v", evs[0])
+	}
+}
+
+func TestProbeContainerReclaimsAnInterruptedCreate(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the probe container needs a Linux whyreach")
+	}
+	api := &fakeAPI{version: docker.Version{Os: "linux", Arch: runtime.GOARCH}, createErr: context.Canceled}
+	ctx, effects := WithSideEffects(context.Background())
+	_, err := NewProbeContainer(api, fakeELF(t, false), "dev", nil).Run(ctx, worker, []probe.Spec{{Kind: probe.SpecListeners}})
+	if err == nil {
+		t.Fatal("want an error")
+	}
+	if len(api.reclaimed) != 1 || api.reclaimed[0] != api.created[0].Name {
+		t.Errorf("reclaimed %v, want the name sent to create (%s)", api.reclaimed, api.created[0].Name)
+	}
+	if got := strings.Join(effects.List(), "\n"); !strings.Contains(got, "creation interrupted; removed") {
+		t.Errorf("side effects = %q", got)
+	}
+}
+
+func TestProbeBudgetFollowsTheDeadline(t *testing.T) {
+	if got := probeBudget(context.Background()); got != probe.Budget {
+		t.Errorf("no deadline: %s, want %s", got, probe.Budget)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	if got := probeBudget(ctx); got > 2600*time.Millisecond || got < 2*time.Second {
+		t.Errorf("4 s left: budget %s, want about 2.5 s", got)
+	}
+	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
+	defer cancel2()
+	if got := probeBudget(ctx2); got != minProbeBudget {
+		t.Errorf("1 s left: budget %s, want the minimum %s", got, minProbeBudget)
+	}
+}
+
+func TestSweepIsRetriedAfterAFailure(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the probe container needs a Linux whyreach")
+	}
+	api := &fakeAPI{version: docker.Version{Os: "linux", Arch: runtime.GOARCH}, sweepErr: errors.New("daemon busy")}
+	pc := NewProbeContainer(api, fakeELF(t, false), "dev", nil)
+	specs := []probe.Spec{{Kind: probe.SpecListeners}}
+	_, _ = pc.Run(context.Background(), worker, specs)
+	api.sweepErr = nil
+	api.imported = nil
+	_, _ = pc.Run(context.Background(), worker, specs)
+	n := 0
+	for _, c := range api.calls {
+		if c == "leftovers" {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Errorf("leftovers listed %d times, want a retry after the failed sweep", n)
 	}
 }

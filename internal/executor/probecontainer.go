@@ -46,6 +46,7 @@ type ProbeAPI interface {
 	Wait(ctx context.Context, id string) (int, error)
 	Logs(ctx context.Context, id string, limit int) (stdout, stderr []byte, err error)
 	Remove(ctx context.Context, id string) error
+	Reclaim(ctx context.Context, name string) (bool, error)
 	Leftovers(ctx context.Context, cutoff time.Time) ([]docker.Summary, error)
 }
 
@@ -64,9 +65,6 @@ type ProbeContainer struct {
 	prepMu   sync.Mutex // serializes the sweep and the image check
 	swept    bool
 	imageRef string // set once the image is known to exist
-
-	mu      sync.Mutex
-	effects []string
 }
 
 // NewProbeContainer returns a probe-container executor that imports binary.
@@ -76,20 +74,6 @@ func NewProbeContainer(api ProbeAPI, binary, version string, logger *slog.Logger
 
 // Name is "probe-container".
 func (p *ProbeContainer) Name() string { return evidence.ExecutorProbeContainer }
-
-// SideEffects lists the Docker writes made so far, for the diagnosis's
-// side_effects (INITIAL.md §3.3).
-func (p *ProbeContainer) SideEffects() []string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return append([]string(nil), p.effects...)
-}
-
-func (p *ProbeContainer) record(effect string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.effects = append(p.effects, effect)
-}
 
 func (p *ProbeContainer) logger() *slog.Logger {
 	if p.Logger != nil {
@@ -125,9 +109,12 @@ func (p *ProbeContainer) Run(ctx context.Context, where evidence.ContextRef, spe
 	name := "wr-probe-" + randomHex(4)
 	id, err := p.API.Create(ctx, docker.ProbeSpec{
 		Name: name, Image: ref, NetnsOf: where.Container,
-		Cmd: []string{"--spec", specJSON},
+		Cmd: []string{"--spec", specJSON, "--budget", probeBudget(ctx).String()},
 	})
 	if err != nil {
+		// The daemon may have created the container although its answer was
+		// lost, for instance when the diagnosis was cancelled mid-request.
+		p.reclaim(ctx, name)
 		return fail(statusOf(ctx, err), evidence.CodeDockerUnavailable, fmt.Errorf("create probe container: %w", err))
 	}
 	defer p.remove(ctx, id, name)
@@ -161,6 +148,23 @@ func (p *ProbeContainer) Run(ctx context.Context, where evidence.ContextRef, spe
 	return evs, nil
 }
 
+// Bounds of the probe process's own time budget.
+const (
+	probeOverhead  = 1500 * time.Millisecond // create, start, wait, logs and remove around the probe
+	minProbeBudget = 500 * time.Millisecond
+)
+
+// probeBudget is how long the probe process may take: what is left of ctx
+// after the container's own overhead, capped at probe.Budget. A probe that
+// outlived the executor's wait would lose results it had already gathered.
+func probeBudget(ctx context.Context) time.Duration {
+	budget := probe.Budget
+	if deadline, ok := ctx.Deadline(); ok {
+		budget = min(budget, time.Until(deadline)-probeOverhead)
+	}
+	return max(budget, minProbeBudget).Round(time.Millisecond)
+}
+
 // statusOf tells a deadline from other failures.
 func statusOf(ctx context.Context, err error) evidence.Status {
 	if ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) {
@@ -176,10 +180,26 @@ func (p *ProbeContainer) remove(ctx context.Context, id, name string) {
 	defer cancel()
 	if err := p.API.Remove(rctx, id); err != nil {
 		p.logger().Warn("could not remove probe container", "name", name, "err", err)
-		p.record(fmt.Sprintf("ephemeral probe container %s (removal failed: %v; it is labeled %s=1 and the next run removes it)", name, err, docker.ProbeLabel))
+		RecordSideEffect(ctx, fmt.Sprintf("ephemeral probe container %s (removal failed: %v; it is labeled %s=1 and a later run removes it)", name, err, docker.ProbeLabel))
 		return
 	}
-	p.record("ephemeral probe container " + name + " (removed)")
+	RecordSideEffect(ctx, "ephemeral probe container "+name+" (removed)")
+}
+
+// reclaim removes a probe container whose create request failed but may
+// have succeeded on the daemon's side. It only touches a container with this
+// exact name and the probe label.
+func (p *ProbeContainer) reclaim(ctx context.Context, name string) {
+	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+	defer cancel()
+	found, err := p.API.Reclaim(rctx, name)
+	switch {
+	case err != nil:
+		p.logger().Warn("could not check for a half-created probe container", "name", name, "err", err)
+		RecordSideEffect(ctx, fmt.Sprintf("ephemeral probe container %s may exist (its creation was interrupted; it is labeled %s=1 and a later run removes it)", name, docker.ProbeLabel))
+	case found:
+		RecordSideEffect(ctx, "ephemeral probe container "+name+" (creation interrupted; removed)")
+	}
 }
 
 func decodeEvidence(stdout []byte) ([]evidence.Evidence, error) {
@@ -222,20 +242,19 @@ func randomHex(n int) string {
 	return hex.EncodeToString(b)
 }
 
-// prepare removes labeled leftovers of crashed runs (once per process) and
-// makes sure the probe image exists, importing it if needed. Success is
-// remembered; a failure is retried by the next run.
+// prepare removes labeled leftovers of crashed runs (once per process, or
+// until a sweep succeeds) and makes sure the probe image exists, importing
+// it if needed. Success is remembered; a failure is retried by the next run.
 func (p *ProbeContainer) prepare(ctx context.Context) (string, error) {
 	p.prepMu.Lock()
 	defer p.prepMu.Unlock()
-	if p.imageRef != "" {
-		return p.imageRef, nil
-	}
 	ctx, cancel := context.WithTimeout(ctx, importTimeout)
 	defer cancel()
 	if !p.swept {
-		p.sweep(ctx)
-		p.swept = true
+		p.swept = p.sweep(ctx)
+	}
+	if p.imageRef != "" {
+		return p.imageRef, nil
 	}
 	ref, err := p.ensureImage(ctx)
 	if err != nil {
@@ -245,11 +264,14 @@ func (p *ProbeContainer) prepare(ctx context.Context) (string, error) {
 	return ref, nil
 }
 
-func (p *ProbeContainer) sweep(ctx context.Context) {
+// sweep removes labeled probes that a crashed or killed whyreach left
+// behind. It reports whether the listing worked, so a failed sweep is
+// retried by the next run.
+func (p *ProbeContainer) sweep(ctx context.Context) bool {
 	left, err := p.API.Leftovers(ctx, time.Now().Add(-leftoverAge))
 	if err != nil {
 		p.logger().Warn("could not list leftover probe containers", "err", err)
-		return
+		return false
 	}
 	n := 0
 	for _, s := range left {
@@ -260,8 +282,9 @@ func (p *ProbeContainer) sweep(ctx context.Context) {
 		n++
 	}
 	if n > 0 {
-		p.record(fmt.Sprintf("removed %d leftover probe container(s) from an earlier run", n))
+		RecordSideEffect(ctx, fmt.Sprintf("removed %d leftover probe container(s) from an earlier run", n))
 	}
+	return true
 }
 
 func (p *ProbeContainer) ensureImage(ctx context.Context) (string, error) {
@@ -289,7 +312,7 @@ func (p *ProbeContainer) ensureImage(ctx context.Context) (string, error) {
 	if err := p.importImage(ctx, tag); err != nil {
 		return "", err
 	}
-	p.record("imported image " + ref)
+	RecordSideEffect(ctx, "imported image "+ref)
 	return ref, nil
 }
 

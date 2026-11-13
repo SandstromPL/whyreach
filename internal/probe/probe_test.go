@@ -500,7 +500,7 @@ func TestDecodeSpecs(t *testing.T) {
 
 func TestMainWritesJSONLines(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := Main(context.Background(), `[{"kind":"listeners"}]`, &stdout, &stderr)
+	code := Main(context.Background(), `[{"kind":"listeners"}]`, 0, &stdout, &stderr)
 	if code != ExitOK {
 		t.Fatalf("exit %d, stderr %s", code, stderr.String())
 	}
@@ -511,7 +511,7 @@ func TestMainWritesJSONLines(t *testing.T) {
 	if ev.Kind != evidence.KindListeners {
 		t.Errorf("kind = %s", ev.Kind)
 	}
-	if code := Main(context.Background(), `nonsense`, &stdout, &stderr); code != ExitInternal {
+	if code := Main(context.Background(), `nonsense`, time.Second, &stdout, &stderr); code != ExitInternal {
 		t.Errorf("bad spec: exit %d, want %d", code, ExitInternal)
 	}
 }

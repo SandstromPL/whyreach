@@ -16,14 +16,14 @@ import (
 const maxFacts = 10
 
 // compose turns the ranked findings and the evidence into the answer.
-func (r *run) compose(v evidence.View, ranked rules.Ranked) *Diagnosis {
+func (r *run) compose(v evidence.View, ranked rules.Ranked, sideEffects []string) *Diagnosis {
 	d := &Diagnosis{
 		SchemaVersion: SchemaVersion,
 		Question:      r.q,
 		Findings:      []rules.Finding{},
 		Suppressed:    ranked.Suppressed,
 		Evidence:      v.Items(),
-		SideEffects:   r.e.sideEffects(),
+		SideEffects:   sideEffects,
 		ChangesMade:   false,
 	}
 	if d.SideEffects == nil {

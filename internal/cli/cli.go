@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -148,19 +149,21 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 	})
 
 	var spec string
+	var budget time.Duration
 	probeCmd := &cobra.Command{
 		Use:    "__probe",
 		Short:  "Run probe specs in this network namespace (inside a probe container)",
 		Hidden: true,
 		Args:   cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if c := probe.Main(cmd.Context(), spec, cmd.OutOrStdout(), cmd.ErrOrStderr()); c != probe.ExitOK {
+			if c := probe.Main(cmd.Context(), spec, budget, cmd.OutOrStdout(), cmd.ErrOrStderr()); c != probe.ExitOK {
 				return internalErr(errors.New("probe failed"))
 			}
 			return nil
 		},
 	}
 	probeCmd.Flags().StringVar(&spec, "spec", "", "JSON list of probe specs")
+	probeCmd.Flags().DurationVar(&budget, "budget", probe.Budget, "time the whole batch may take")
 	root.AddCommand(probeCmd)
 	return root
 }

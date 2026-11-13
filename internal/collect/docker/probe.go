@@ -301,9 +301,10 @@ func (p *ProbeClient) Remove(ctx context.Context, id string) error {
 	return err
 }
 
-// Leftovers lists probe containers created before cutoff (from a whyreach
-// process that crashed or was killed) and marks them removable. Younger
-// ones may belong to a whyreach process that is still running.
+// Leftovers lists probe containers that a whyreach process which crashed or
+// was killed left behind, and marks them removable: stopped ones created
+// before cutoff. A running or younger probe may belong to a whyreach process
+// that is still using it.
 func (p *ProbeClient) Leftovers(ctx context.Context, cutoff time.Time) ([]Summary, error) {
 	list, err := p.c.ListContainers(ctx, true, ProbeLabel+"=1")
 	if err != nil {
@@ -311,11 +312,29 @@ func (p *ProbeClient) Leftovers(ctx context.Context, cutoff time.Time) ([]Summar
 	}
 	var out []Summary
 	for _, s := range list {
-		if s.Labels[ProbeLabel] != "1" || !time.Unix(s.Created, 0).Before(cutoff) {
+		if s.Labels[ProbeLabel] != "1" || s.State == "running" || !time.Unix(s.Created, 0).Before(cutoff) {
 			continue
 		}
 		p.own(s.ID)
 		out = append(out, s)
 	}
 	return out, nil
+}
+
+// Reclaim removes the probe container with exactly this name, if one
+// exists: the remains of a create request whose answer was lost. Only a
+// container carrying the probe label is touched. It reports whether one was
+// found.
+func (p *ProbeClient) Reclaim(ctx context.Context, name string) (bool, error) {
+	list, err := p.c.ListContainers(ctx, true, ProbeLabel+"=1")
+	if err != nil {
+		return false, err
+	}
+	for _, s := range list {
+		if s.Name() == name && s.Labels[ProbeLabel] == "1" {
+			p.own(s.ID)
+			return true, p.Remove(ctx, s.ID)
+		}
+	}
+	return false, nil
 }

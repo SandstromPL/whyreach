@@ -10,6 +10,8 @@ package executor
 
 import (
 	"context"
+	"slices"
+	"sync"
 	"time"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
@@ -83,5 +85,38 @@ func specSubject(s probe.Spec) string {
 		t := evidence.Target{Host: s.Host, Port: s.Port}
 		_, t.Addr = evidence.ClassifyHost(s.Host)
 		return t.String()
+	}
+}
+
+// SideEffects collects the Docker writes made for one diagnosis
+// (INITIAL.md §3.3). The engine puts one in the context of each diagnosis,
+// so a long-lived process never mixes up the writes of different ones.
+type SideEffects struct {
+	mu   sync.Mutex
+	list []string
+}
+
+// List returns the writes in the order they happened.
+func (s *SideEffects) List() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.list)
+}
+
+type sideEffectsKey struct{}
+
+// WithSideEffects returns a context that collects the side effects of the
+// work done under it.
+func WithSideEffects(ctx context.Context) (context.Context, *SideEffects) {
+	s := &SideEffects{}
+	return context.WithValue(ctx, sideEffectsKey{}, s), s
+}
+
+// RecordSideEffect notes a Docker write in the diagnosis that ctx belongs to.
+func RecordSideEffect(ctx context.Context, effect string) {
+	if s, ok := ctx.Value(sideEffectsKey{}).(*SideEffects); ok {
+		s.mu.Lock()
+		s.list = append(s.list, effect)
+		s.mu.Unlock()
 	}
 }

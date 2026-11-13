@@ -103,9 +103,6 @@ func IsUsage(err error) bool {
 	return errors.As(err, &te)
 }
 
-// sideEffecter is implemented by executors that write to Docker.
-type sideEffecter interface{ SideEffects() []string }
-
 // run is the state of one diagnosis.
 type run struct {
 	e       *Engine
@@ -130,6 +127,7 @@ func (e *Engine) Diagnose(ctx context.Context, from target.From, to evidence.Tar
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, e.d.Deadline)
 	defer cancel()
+	ctx, effects := executor.WithSideEffects(ctx)
 
 	r := &run{e: e, docker: e.d.Docker, from: from, timing: map[string]time.Duration{}}
 	r.q = evidence.Question{From: evidence.Source{Kind: evidence.SourceHost, Ref: from.String()}, To: to}
@@ -162,7 +160,7 @@ func (e *Engine) Diagnose(ctx context.Context, from target.From, to evidence.Tar
 	ranked := rules.Rank(findings)
 	r.timing["evaluate"] = time.Since(t)
 
-	d := r.compose(view, ranked)
+	d := r.compose(view, ranked, effects.List())
 	d.ID = newID(start)
 	d.Timing = Timing{StartedAt: start.UTC(), TotalMS: evidence.Millis(time.Since(start)), Stages: map[string]float64{}}
 	for k, v := range r.timing {
@@ -178,12 +176,4 @@ func newID(t time.Time) string {
 	b := make([]byte, 3)
 	_, _ = rand.Read(b) // crypto/rand.Read never fails on supported platforms
 	return "dg-" + t.UTC().Format("20060102T150405Z") + "-" + hex.EncodeToString(b)
-}
-
-// sideEffects collects the Docker writes the executors made.
-func (e *Engine) sideEffects() []string {
-	if se, ok := e.d.Probe.(sideEffecter); ok {
-		return se.SideEffects()
-	}
-	return nil
 }

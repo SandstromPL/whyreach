@@ -14,6 +14,7 @@ import (
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/probe"
 	"github.com/SandstromPL/whyreach/internal/rules"
 	"github.com/SandstromPL/whyreach/internal/target"
@@ -129,13 +130,14 @@ type scripted struct {
 
 func (s *scripted) Name() string { return s.name }
 
-func (s *scripted) SideEffects() []string { return s.effect }
-
 func (s *scripted) Run(ctx context.Context, where evidence.ContextRef, specs []probe.Spec) ([]evidence.Evidence, error) {
 	s.mu.Lock()
 	s.ran = append(s.ran, specs)
 	s.where = append(s.where, where)
 	s.mu.Unlock()
+	for _, e := range s.effect {
+		executor.RecordSideEffect(ctx, e)
+	}
 	if s.block {
 		<-ctx.Done()
 		return nil, ctx.Err()

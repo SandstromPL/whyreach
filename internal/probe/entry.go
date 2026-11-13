@@ -10,8 +10,9 @@ import (
 	"time"
 )
 
-// Budget is how long the probe process may run. It stays under the probe
-// container's 8 s limit (INITIAL.md §4.4) so the results get written.
+// Budget is the longest the probe process may run. It stays under the probe
+// container's 8 s limit (INITIAL.md §4.4) so the results get written; the
+// executor passes a smaller one when the diagnosis has less time left.
 const Budget = 6 * time.Second
 
 // Exit codes of `whyreach __probe`: it fails only on an internal error.
@@ -23,13 +24,18 @@ const (
 // Main is the entrypoint of the hidden `whyreach __probe --spec '<json>'`
 // subcommand, which runs inside the probe container. It writes one JSON
 // evidence record per line to stdout. Failed checks are evidence, not errors.
-func Main(ctx context.Context, specJSON string, stdout, stderr io.Writer) int {
+//
+// budget bounds the whole batch; 0 or anything above Budget means Budget.
+func Main(ctx context.Context, specJSON string, budget time.Duration, stdout, stderr io.Writer) int {
 	specs, err := DecodeSpecs(specJSON)
 	if err != nil {
 		fmt.Fprintln(stderr, "whyreach __probe:", err)
 		return ExitInternal
 	}
-	ctx, cancel := context.WithTimeout(ctx, Budget)
+	if budget <= 0 || budget > Budget {
+		budget = Budget
+	}
+	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 	netns := SelfNetnsID()
 	enc := json.NewEncoder(stdout)

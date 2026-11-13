@@ -300,9 +300,11 @@ func TestProbeLifecycle(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodGet && r.URL.Path == "/v1.56/containers/json":
 			writeJSON(w, []map[string]any{
-				{"Id": "old", "Names": []string{"/wr-probe-old"}, "Created": time.Now().Add(-time.Hour).Unix(), "Labels": map[string]string{ProbeLabel: "1"}},
-				{"Id": "young", "Names": []string{"/wr-probe-young"}, "Created": time.Now().Unix(), "Labels": map[string]string{ProbeLabel: "1"}},
-				{"Id": "liar", "Names": []string{"/postgres"}, "Created": 1, "Labels": map[string]string{}},
+				{"Id": "old", "Names": []string{"/wr-probe-old"}, "State": "exited", "Created": time.Now().Add(-time.Hour).Unix(), "Labels": map[string]string{ProbeLabel: "1"}},
+				{"Id": "busy", "Names": []string{"/wr-probe-busy"}, "State": "running", "Created": time.Now().Add(-time.Hour).Unix(), "Labels": map[string]string{ProbeLabel: "1"}},
+				{"Id": "young", "Names": []string{"/wr-probe-young"}, "State": "created", "Created": time.Now().Unix(), "Labels": map[string]string{ProbeLabel: "1"}},
+				{"Id": "liar", "Names": []string{"/postgres"}, "State": "exited", "Created": 1, "Labels": map[string]string{}},
+				{"Id": "lost", "Names": []string{"/wr-probe-lost"}, "State": "created", "Created": time.Now().Unix(), "Labels": map[string]string{ProbeLabel: "1"}},
 			})
 		default:
 			notFound(w, r)
@@ -381,6 +383,19 @@ func TestProbeLifecycle(t *testing.T) {
 	}
 	if err := p.Remove(ctx, "liar"); !errors.Is(err, ErrNotAllowed) {
 		t.Errorf("an unlabeled container must never be removed: err = %v", err)
+	}
+	if err := p.Remove(ctx, "busy"); !errors.Is(err, ErrNotAllowed) {
+		t.Errorf("a running probe may belong to a running whyreach: err = %v", err)
+	}
+	// Reclaim matches the exact name, never a substring.
+	if found, err := p.Reclaim(ctx, "wr-probe-lo"); found || err != nil {
+		t.Errorf("Reclaim(prefix) = %v, %v; want no match", found, err)
+	}
+	if found, err := p.Reclaim(ctx, "postgres"); found || err != nil {
+		t.Errorf("Reclaim(unlabeled) = %v, %v; want no match", found, err)
+	}
+	if found, err := p.Reclaim(ctx, "wr-probe-lost"); !found || err != nil {
+		t.Errorf("Reclaim(wr-probe-lost) = %v, %v; want it removed", found, err)
 	}
 }
 
