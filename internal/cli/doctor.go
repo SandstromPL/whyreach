@@ -61,7 +61,7 @@ Exit codes: 0 nothing failed, 1 something failed, 3 usage error, 4 internal erro
 			switch exe, err := os.Executable(); {
 			case platform.Detect().InContainer:
 				r.Checks = append(r.Checks, engine.Check{Name: "mcp", Status: engine.CheckInfo,
-					Detail: "add the image to Claude Code: claude mcp add whyreach -- docker run --rm -i --pid host -v /var/run/docker.sock:/var/run/docker.sock IMAGE mcp serve"})
+					Detail: "add the image to Claude Code: claude mcp add whyreach -- docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock IMAGE mcp serve"})
 			case err == nil:
 				r.Checks = append(r.Checks, engine.Check{Name: "mcp", Status: engine.CheckInfo,
 					Detail: "add it to Claude Code: claude mcp add whyreach -- " + exe + " mcp serve"})

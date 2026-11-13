@@ -19,6 +19,7 @@ import (
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/collect/host"
 	"github.com/SandstromPL/whyreach/internal/config"
+	"github.com/SandstromPL/whyreach/internal/engine"
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/platform"
@@ -319,6 +320,9 @@ func newProbe(o Options) *cobra.Command {
 // probeHowTo is the advice for a check that needs probe containers.
 func probeHowTo(p *policy.Policy) func(evidence.Evidence) string {
 	return func(e evidence.Evidence) string {
+		if e.Err != nil && e.Err.Message == executor.HostHidden {
+			return executor.HostHiddenAdvice + "."
+		}
 		if e.Status != evidence.StatusPermissionDenied {
 			return ""
 		}
@@ -370,6 +374,12 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 	} else {
 		logger.Warn("no audit log", "err", err)
 	}
+	// In a container without --network host, whyreach's own network
+	// namespace would pass for the host's: host-side checks become
+	// unsupported records, which the diagnosis reports as gaps.
+	if platform.Detect().InContainer && !host.DockerBridgeVisible() {
+		hideHost(&deps)
+	}
 	warnForeignDirs(logger)
 	if cfg.Permissions.Docker {
 		endpoint, err := docker.Endpoint(o.Getenv)
@@ -415,6 +425,25 @@ func warnForeignDirs(logger *slog.Logger) {
 		}
 	}
 }
+
+// hideHost makes the host's side unsupported: its interfaces, its
+// listening sockets and checks run from it. Containers' listeners, read
+// through /proc/<pid> (with --pid host), stay.
+func hideHost(d *policy.Deps) {
+	d.Interfaces = func() (evidence.HostAddrs, error) { return evidence.HostAddrs{}, hostHidden{} }
+	d.Listeners = hiddenHostListeners{d.Listeners}
+	d.Host = executor.Unsupported{Executor: evidence.ExecutorHost, Reason: executor.HostHidden}
+}
+
+// hostHidden is the error of a host-side read that can't describe the host.
+type hostHidden struct{}
+
+func (hostHidden) Error() string        { return executor.HostHidden }
+func (hostHidden) Is(target error) bool { return target == probe.ErrUnsupported }
+
+type hiddenHostListeners struct{ engine.Listeners }
+
+func (hiddenHostListeners) Host() ([]evidence.Socket, error) { return nil, hostHidden{} }
 
 // procListeners reads listeners from /proc on the host. The host's own come
 // from the reading thread's view (/proc/thread-self): /proc/net shows the

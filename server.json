@@ -20,6 +20,12 @@
       "runtimeArguments": [
         {
           "type": "named",
+          "name": "--network",
+          "value": "host",
+          "description": "Puts whyreach in the host's network namespace, where it sees the host's interfaces, listening sockets and connections."
+        },
+        {
+          "type": "named",
           "name": "--pid",
           "value": "host",
           "description": "Lets whyreach read the containers' listening sockets through /proc/<pid>/net, without probe containers."

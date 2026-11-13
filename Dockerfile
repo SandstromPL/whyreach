@@ -2,11 +2,14 @@
 # from the release binaries, which it puts at linux/<arch>/whyreach in the
 # build context. FROM scratch: nothing is pulled, and the binary is static.
 #
-#   docker run --rm -i --pid host -v /var/run/docker.sock:/var/run/docker.sock \
+#   docker run --rm -i --network host --pid host \
+#     -v /var/run/docker.sock:/var/run/docker.sock \
 #     ghcr.io/sandstrompl/whyreach:VERSION mcp serve
 #
-# --pid host lets whyreach read the containers' listening sockets through
-# /proc/<pid>/net, as it does natively. whyreach's config is read from
+# --network host puts whyreach in the host's network namespace, as it is
+# natively (without it, host-side checks are reported as unsupported), and
+# --pid host lets it read the containers' listening sockets through
+# /proc/<pid>/net. whyreach's config is read from
 # /config/whyreach/config.toml: mount yours there (read-only) to change it.
 FROM scratch
 ARG TARGETPLATFORM

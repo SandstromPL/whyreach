@@ -187,3 +187,45 @@ func TestLogsGoToStderr(t *testing.T) {
 		t.Errorf("debug log missing from stderr: %s", stderr.String())
 	}
 }
+
+// In a container without --network host, whyreach's own namespace must not
+// pass for the host's: a host target gets unsupported gaps that say how to
+// fix it, never a finding about the host (M4 correctness review).
+func TestHiddenHostIsAGap(t *testing.T) {
+	deps := policy.Deps{
+		Settings: policy.Settings{Docker: true, ConfigPath: "/test/config.toml"},
+		Docker:   fakeDocker{}, Listeners: fakeDocker{}, Client: policy.ClientCLI,
+		Interfaces: func() (evidence.HostAddrs, error) { return evidence.HostAddrs{}, nil },
+	}
+	hideHost(&deps)
+	p, err := policy.New(deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range []policy.DiagnoseArgs{{From: "host", To: "localhost:5432"}, {From: "container:shop-worker-1", To: "host.docker.internal:5432"}} {
+		d, err := p.Diagnose(context.Background(), args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range d.Findings {
+			if f.RuleID == "WR001" || f.RuleID == "WR012" || f.RuleID == "WR019" {
+				t.Errorf("%v: %s judged the host from whyreach's own namespace: %s", args, f.RuleID, f.Title)
+			}
+		}
+		if args.From == "host" && d.Verdict != "inconclusive" {
+			t.Errorf("%v: %s, want inconclusive", args, d.Verdict)
+		}
+		advised := false
+		for _, g := range d.Gaps {
+			advised = advised || (g.Why == "unsupported" && strings.Contains(g.HowToEnable, "--network host"))
+		}
+		if !advised {
+			t.Errorf("%v: no gap says to run with --network host: %+v", args, d.Gaps)
+		}
+	}
+	// Containers' listeners, read through /proc/<pid> (--pid host), stay.
+	in, err := p.Inspect(context.Background(), "container:shop-api-1")
+	if err != nil || !strings.Contains(strings.Join(in.Container.Listening, " "), "127.0.0.1:8080") {
+		t.Errorf("container listeners: %+v, %v", in, err)
+	}
+}

@@ -21,3 +21,14 @@ func TestAddrs(t *testing.T) {
 		}
 	}
 }
+
+func TestIsDockerBridge(t *testing.T) {
+	for name, want := range map[string]bool{
+		"docker0": true, "br-0123456789ab": true, "br-0123456789AB": false, "br-0123": false,
+		"eth0": false, "lo": false, "docker1": false, "br-0123456789abc": false,
+	} {
+		if got := IsDockerBridge(name); got != want {
+			t.Errorf("IsDockerBridge(%q) = %v, want %v", name, got, want)
+		}
+	}
+}

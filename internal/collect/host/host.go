@@ -61,3 +61,25 @@ func Addrs() (evidence.HostAddrs, error) {
 	slices.SortFunc(out.Interfaces, func(a, b evidence.Interface) int { return strings.Compare(a.Name, b.Name) })
 	return out, nil
 }
+
+// DockerBridgeVisible reports whether this network namespace holds a
+// Docker bridge: docker0, or br-<12 hex digits> for a user-defined
+// network. The host's namespace does; a container's own doesn't. whyreach
+// in a container therefore sees the host's network only when it runs with
+// --network host.
+func DockerBridgeVisible() bool {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return false
+	}
+	return slices.ContainsFunc(ifaces, func(i net.Interface) bool { return IsDockerBridge(i.Name) })
+}
+
+// IsDockerBridge reports an interface name Docker gives a bridge network.
+func IsDockerBridge(name string) bool {
+	if name == "docker0" {
+		return true
+	}
+	id, ok := strings.CutPrefix(name, "br-")
+	return ok && len(id) == 12 && strings.Trim(id, "0123456789abcdef") == ""
+}
