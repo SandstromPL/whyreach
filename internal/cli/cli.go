@@ -11,6 +11,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -323,6 +325,9 @@ func probeHowTo(p *policy.Policy) func(evidence.Evidence) string {
 		if e.Err != nil && e.Err.Message == executor.HostHidden {
 			return executor.HostHiddenAdvice + "."
 		}
+		if e.Err != nil && e.Err.Message == executor.PIDsHidden {
+			return executor.PIDsHiddenAdvice + "."
+		}
 		if e.Status != evidence.StatusPermissionDenied {
 			return ""
 		}
@@ -374,12 +379,6 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 	} else {
 		logger.Warn("no audit log", "err", err)
 	}
-	// In a container without --network host, whyreach's own network
-	// namespace would pass for the host's: host-side checks become
-	// unsupported records, which the diagnosis reports as gaps.
-	if platform.Detect().InContainer && !host.DockerBridgeVisible() {
-		hideHost(&deps)
-	}
 	warnForeignDirs(logger)
 	if cfg.Permissions.Docker {
 		endpoint, err := docker.Endpoint(o.Getenv)
@@ -408,8 +407,56 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 			}
 		}
 	}
+	// In a container without --network host, whyreach's own network
+	// namespace would pass for the host's: host-side checks become
+	// unsupported records, which the diagnosis reports as gaps. Without
+	// --pid host, containers' PIDs aren't its own to read.
+	if platform.Detect().InContainer {
+		deps.Self = platform.OwnContainerID()
+		v := viewFromContainer(context.Background(), deps.Docker, deps.Self, host.DockerBridgeVisible, "/proc", logger)
+		if !v.network {
+			hideHost(&deps)
+		}
+		if !v.pids {
+			deps.Listeners = hiddenPIDs{deps.Listeners}
+		}
+	}
 	return policy.New(deps)
 }
+
+// view is what whyreach, in a container, can see of the host: its network
+// namespace (--network host) and its PIDs (--pid host).
+type view struct{ network, pids bool }
+
+// viewFromContainer asks Docker about the container whyreach runs in (the
+// one whose files are mounted over /etc). Its network is the host's with
+// --network host, or when it joins a container that has it; the host's
+// PIDs are in sight when Docker's PID for it, a host PID, is in procDir.
+// Without Docker's answer, a Docker bridge in sight decides the network
+// (the host's namespace has one, a container's own doesn't), and a read
+// of a container's PID says for itself whether it worked.
+func viewFromContainer(ctx context.Context, dk engine.Docker, ownID string, bridgeVisible func() bool, procDir string, logger *slog.Logger) view {
+	if dk != nil && ownID != "" {
+		ctx, cancel := context.WithTimeout(ctx, selfInspectTimeout)
+		defer cancel()
+		self, err := dk.InspectContainer(ctx, ownID)
+		netns := self
+		if err == nil && self.NetnsOwner() != "" {
+			netns, err = dk.InspectContainer(ctx, self.NetnsOwner())
+		}
+		if err == nil {
+			_, perr := os.Stat(filepath.Join(procDir, strconv.Itoa(self.Pid)))
+			v := view{network: netns.HostNetwork(), pids: self.Pid > 0 && perr == nil}
+			logger.Debug("whyreach's container", "id", evidence.ShortID(ownID), "network_mode", self.NetworkMode, "host_network", v.network, "host_pids", v.pids)
+			return v
+		}
+		logger.Debug("Docker couldn't say what whyreach's container sees of the host", "err", err)
+	}
+	return view{network: bridgeVisible(), pids: true}
+}
+
+// selfInspectTimeout bounds asking Docker about whyreach's own container.
+const selfInspectTimeout = 3 * time.Second
 
 // warnForeignDirs warns when whyreach runs as root but its state and data
 // directories belong to another user, as after sudo -E: the root-owned
@@ -444,6 +491,18 @@ func (hostHidden) Is(target error) bool { return target == probe.ErrUnsupported 
 type hiddenHostListeners struct{ engine.Listeners }
 
 func (hiddenHostListeners) Host() ([]evidence.Socket, error) { return nil, hostHidden{} }
+
+// hiddenPIDs reads no container's listeners: whyreach runs in a container
+// without the host's PIDs, so Docker's PIDs aren't ones it can see.
+type hiddenPIDs struct{ engine.Listeners }
+
+func (hiddenPIDs) Container(int, string) ([]evidence.Socket, error) { return nil, pidsHidden{} }
+
+// pidsHidden is the error of such a read.
+type pidsHidden struct{}
+
+func (pidsHidden) Error() string        { return executor.PIDsHidden }
+func (pidsHidden) Is(target error) bool { return target == probe.ErrUnsupported }
 
 // procListeners reads listeners from /proc on the host. The host's own come
 // from the reading thread's view (/proc/thread-self): /proc/net shows the

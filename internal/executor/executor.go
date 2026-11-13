@@ -57,8 +57,19 @@ func (h *Host) Run(ctx context.Context, where evidence.ContextRef, specs []probe
 // (no --network host): its own namespace would pass for the host's.
 const HostHidden = "whyreach runs in a container without the host's network namespace (docker run --network host), so the host's interfaces, listening sockets and connections can't be seen from here"
 
-// HostHiddenAdvice says how to let whyreach's image see the host.
-const HostHiddenAdvice = "Run whyreach's image with --network host, and --pid host for containers' listening sockets: docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock IMAGE …"
+// HostHiddenAdvice says how to let whyreach's image see the host. It gives
+// whyreach the host's network and processes, so it is the user's to do.
+const HostHiddenAdvice = "Letting whyreach's image see the host is the user's decision, not an agent's: run it with --network host, and --pid host for containers' listening sockets (docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock IMAGE …)"
+
+// PIDsHidden is the message of a container's listeners whyreach can't
+// read because it runs in a container without the host's PIDs (no --pid
+// host): Docker's PID for the container isn't one it can see.
+const PIDsHidden = "whyreach runs in a container without the host's PIDs (docker run --pid host), so it can't read containers' listening sockets through /proc/<pid>/net"
+
+// PIDsHiddenAdvice says how to let whyreach's image read containers'
+// listening sockets. It shows whyreach the host's processes, so it is the
+// user's to do.
+const PIDsHiddenAdvice = "Letting whyreach's image see containers' processes is the user's decision, not an agent's: run it with --pid host, and --network host for the host's side (docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock IMAGE …)"
 
 // Unsupported answers every check with an unsupported record that says
 // why: an executor for a place whyreach can't reach.

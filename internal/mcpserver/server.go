@@ -390,30 +390,52 @@ func (s *Server) probe(ctx context.Context, req *mcp.CallToolRequest, in ProbeIn
 			}
 		}
 	}
-	out := report.CompactProbe(res, s.advice)
+	out := report.CompactProbe(res, s.adviceFor(req))
 	var text bytes.Buffer
 	report.RenderProbe(&text, out)
 	return textResult(text.String()), out, nil
+}
+
+// adviceFor returns advice for this call's client: whether whyreach can
+// still ask about a name depends on the client and on the session.
+func (s *Server) adviceFor(req *mcp.CallToolRequest) func(evidence.Evidence) string {
+	caps := req.ClientCapabilities()
+	canAsk := caps != nil && caps.Elicitation != nil
+	return func(e evidence.Evidence) string { return s.advice(e, canAsk) }
 }
 
 // advice says how to allow a check that couldn't run, addressed to the
 // user: turning a tier on or approving a name is their decision, never an
 // agent's (an agent that can write files must not change the config to
 // widen its own permissions).
-func (s *Server) advice(e evidence.Evidence) string {
+func (s *Server) advice(e evidence.Evidence, canAsk bool) string {
 	switch {
 	case e.Err != nil && e.Err.Message == executor.HostHidden:
 		return executor.HostHiddenAdvice + "."
+	case e.Err != nil && e.Err.Message == executor.PIDsHidden:
+		return executor.PIDsHiddenAdvice + "."
 	case e.Status == evidence.StatusPermissionDenied:
 		return "This check runs inside the container through a probe container, which is off. Turning them on is the user's decision: " +
 			"approve probe containers when whyreach asks, or set probe_containers = true under [permissions] in " + s.p.ConfigPath() + "."
 	case policy.NameHeldBack(e):
+		how := "list its domain under names in [probe] in " + s.p.ConfigPath() + "."
+		if canAsk && s.mayAskAbout(target.NormalizeName(e.Subject)) {
+			how = "approve the name when whyreach asks, or " + how
+		}
 		return "A lookup sends its name to the DNS servers of the name's domain, so whyreach looks up a name with a dot that Docker doesn't know " +
-			"only with the user's approval. That is the user's decision: approve the name when whyreach asks, or list its domain under names in [probe] in " +
-			s.p.ConfigPath() + "."
+			"only with the user's approval. That is the user's decision: " + how
 	default:
 		return ""
 	}
+}
+
+// mayAskAbout reports whether whyreach would still ask the user about a
+// name in this session: not one asked about already (and declined, or it
+// wouldn't be held back), and not past maxNameQuestions.
+func (s *Server) mayAskAbout(name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return !s.askedNames[name] && len(s.askedNames) < maxNameQuestions
 }
 
 // SaveIn is save_report's input. It has no way to turn redaction off:

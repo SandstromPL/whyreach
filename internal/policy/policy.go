@@ -80,6 +80,7 @@ type Deps struct {
 	Listeners  engine.Listeners
 	Interfaces func() (evidence.HostAddrs, error)
 	Host       executor.Executor // runs probes in the host's network namespace
+	Self       string            // the ID of the Docker container whyreach runs in, if any
 	// NewProbe builds the probe-container executor the first time tier 2b
 	// is used; nil when it can't exist (no Docker API).
 	NewProbe func() (executor.Executor, error)
@@ -154,15 +155,23 @@ func New(d Deps) (*Policy, error) {
 	if d.Netns != nil {
 		netns = &guard{p: p, name: evidence.ExecutorNetns, inner: func() (executor.Executor, error) { return d.Netns, nil }, fallback: p.probeExecutor}
 	}
+	// A host executor that can't run anything (whyreach's image without
+	// --network host) sends nothing: it takes no rate tokens, needs no name
+	// checks, and the audit has nothing to count.
+	var hostEx executor.Executor = &guard{p: p, name: evidence.ExecutorHost, inner: func() (executor.Executor, error) { return host, nil }}
+	if u, ok := host.(executor.Unsupported); ok {
+		hostEx = u
+	}
 	p.engine = engine.New(engine.Deps{
 		Docker:     d.Docker,
 		DockerErr:  d.DockerErr,
-		Host:       &guard{p: p, name: evidence.ExecutorHost, inner: func() (executor.Executor, error) { return host, nil }},
+		Host:       hostEx,
 		Probe:      &guard{p: p, name: evidence.ExecutorProbeContainer, tier2b: true, inner: p.probeExecutor},
 		Netns:      netns,
 		Listeners:  d.Listeners,
 		Interfaces: d.Interfaces,
 		ConfigPath: d.Settings.ConfigPath,
+		Self:       d.Self,
 		Deadline:   d.Deadline,
 		Logger:     d.Logger,
 	})

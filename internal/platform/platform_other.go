@@ -15,3 +15,6 @@ func Detect() Info {
 
 // OwnedByOther needs Unix file ownership; elsewhere it reports false.
 func OwnedByOther(string) bool { return false }
+
+// OwnContainerID needs /proc; elsewhere it reports no container.
+func OwnContainerID() string { return "" }

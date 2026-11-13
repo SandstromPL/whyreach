@@ -44,6 +44,16 @@ func Detect() Info {
 	return i
 }
 
+// OwnContainerID returns the ID of the Docker container whyreach runs in,
+// from the files Docker mounts into it, or "" outside one.
+func OwnContainerID() string {
+	b, err := os.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		return ""
+	}
+	return containerIDFrom(string(b))
+}
+
 // effectiveCaps reads whyreach's effective capability set.
 func effectiveCaps() (uint64, bool) {
 	b, err := os.ReadFile("/proc/self/status")

@@ -4,6 +4,11 @@
 // decide what that evidence means.
 package platform
 
+import (
+	"regexp"
+	"strings"
+)
+
 // Info is what whyreach knows about where it runs.
 type Info struct {
 	OS          string `json:"os"`
@@ -33,4 +38,29 @@ func (i Info) NetnsExecutor() (bool, string) {
 		return false, "the kernel lacks openat2 (Linux 5.6 or later), which reading a container's files safely needs"
 	}
 	return true, ""
+}
+
+// containerFile matches a file Docker mounts into a container from the
+// container's own directory: <data-root>/containers/<id>/resolv.conf,
+// hostname or hosts.
+var containerFile = regexp.MustCompile(`/containers/([0-9a-f]{64})/(?:resolv\.conf|hostname|hosts)$`)
+
+// containerIDFrom finds the ID of the Docker container whose resolv.conf,
+// hostname or hosts file is mounted over /etc, in a mountinfo listing
+// (proc_pid_mountinfo(5): the fourth field is the mount's root within its
+// filesystem, the fifth its mount point). It returns "" when there is none.
+func containerIDFrom(mountinfo string) string {
+	for line := range strings.Lines(mountinfo) {
+		f := strings.Fields(line)
+		if len(f) < 5 {
+			continue
+		}
+		switch f[4] {
+		case "/etc/resolv.conf", "/etc/hostname", "/etc/hosts":
+			if m := containerFile.FindStringSubmatch(f[3]); m != nil {
+				return m[1]
+			}
+		}
+	}
+	return ""
 }

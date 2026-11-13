@@ -688,6 +688,11 @@ func TestNameQuestionsAreBounded(t *testing.T) {
 		if !strings.Contains(p.HowToEnable, "names in [probe]") {
 			t.Errorf("probe %d: %+v", i, p)
 		}
+		// Declined, or past the cap: whyreach won't ask about it again, so
+		// the advice doesn't promise a question.
+		if strings.Contains(p.HowToEnable, "when whyreach asks") {
+			t.Errorf("probe %d promises a question whyreach won't ask: %s", i, p.HowToEnable)
+		}
 	}
 	if len(asked) != maxNameQuestions || len(r.queries) != 0 {
 		t.Errorf("asked %d times (want %d), sent %v", len(asked), maxNameQuestions, r.queries)

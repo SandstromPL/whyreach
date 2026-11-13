@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"slices"
 	"time"
 
+	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/executor"
 )
 
 // Check is one line of whyreach doctor: a capability and whether it works.
@@ -57,7 +60,9 @@ func (e *Engine) SelfCheck(ctx context.Context) []Check {
 
 	if e.d.Interfaces == nil {
 		out = append(out, Check{Name: "interfaces", Status: CheckWarn, Detail: "no interface reader on this platform"})
-	} else if addrs, err := e.d.Interfaces(); err != nil {
+	} else if addrs, err := e.d.Interfaces(); err != nil && err.Error() == executor.HostHidden {
+		out = append(out, Check{Name: "interfaces", Status: CheckWarn, Detail: err.Error(), Fix: executor.HostHiddenAdvice + "."})
+	} else if err != nil {
 		out = append(out, Check{Name: "interfaces", Status: CheckFail, Detail: err.Error()})
 	} else {
 		out = append(out, Check{Name: "interfaces", Status: CheckOK, Detail: fmt.Sprintf("%d with addresses, read from the kernel", len(addrs.Interfaces))})
@@ -66,6 +71,10 @@ func (e *Engine) SelfCheck(ctx context.Context) []Check {
 	if ev := r.hostListeners(); ev.OK() {
 		n := len(ev.Data.(evidence.Listeners).Sockets)
 		out = append(out, Check{Name: "host listeners", Status: CheckOK, Detail: fmt.Sprintf("%d TCP listeners readable from /proc/thread-self/net/tcp{,6}", n)})
+	} else if ev.Err.Message == executor.HostHidden {
+		// Only host flows need them: whyreach's image without --network host
+		// still diagnoses containers.
+		out = append(out, Check{Name: "host listeners", Status: CheckWarn, Detail: ev.Err.Message, Fix: executor.HostHiddenAdvice + "."})
 	} else {
 		out = append(out, Check{Name: "host listeners", Status: CheckFail, Detail: ev.Err.Message})
 	}
@@ -94,6 +103,9 @@ func (r *run) containerListenerCheck(ctx context.Context) Check {
 		c.Status, c.Detail = CheckFail, err.Error()
 		return c
 	}
+	// Not whyreach's own container: inside its own cgroup namespace, its
+	// cgroup file can't name it.
+	list = slices.DeleteFunc(list, func(s docker.Summary) bool { return r.e.d.Self != "" && s.ID == r.e.d.Self })
 	if len(list) == 0 {
 		c.Status, c.Detail = CheckInfo, "no running container to try; listeners are read through /proc/<pid>/net/tcp{,6}, which needs no root on Linux Docker Engine"
 		return c
@@ -107,6 +119,9 @@ func (r *run) containerListenerCheck(ctx context.Context) Check {
 	if !ev.OK() {
 		c.Status, c.Detail = CheckFail, ev.Err.Message
 		c.Fix = "Run whyreach as a user in the docker group on Linux Docker Engine, or as root."
+		if ev.Err.Message == executor.PIDsHidden {
+			c.Fix = executor.PIDsHiddenAdvice + "."
+		}
 		return c
 	}
 	c.Status, c.Detail = CheckOK, fmt.Sprintf("read %s's through /proc/<pid>/net/tcp{,6}, no root needed", ctr.Name)

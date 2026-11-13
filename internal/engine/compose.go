@@ -425,12 +425,14 @@ func (r *run) howToEnable(e evidence.Evidence) string {
 	switch {
 	case e.Err.Message == executor.HostHidden:
 		return executor.HostHiddenAdvice + "."
+	case e.Err.Message == executor.PIDsHidden:
+		return executor.PIDsHiddenAdvice + "."
 	case executor.CannotEnter(e.Err):
 		return fmt.Sprintf("whyreach runs as root, so it enters containers' network namespaces itself, and couldn't here. Allow probe containers for whyreach to use one instead (the user's decision: approve them when an MCP client asks, or set probe_containers = true under [permissions] in %s), or run whyreach as a regular user.", cfg)
 	case e.Status == evidence.StatusPermissionDenied && e.Err.Message == executor.ProbeContainersOff:
 		return fmt.Sprintf("Enable probe containers (the user's decision, not an agent's): approve them when an MCP client asks, or set probe_containers = true under [permissions] in %s. whyreach then imports its own binary as the image whyreach-probe and runs each check in a short-lived, hardened container labeled io.whyreach.probe=1, which it removes afterwards.", cfg)
 	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && e.Err.Message == probe.NameNotApproved:
-		return fmt.Sprintf("A lookup sends its name to the DNS servers of the name's domain, so for an MCP client whyreach looks up a name with a dot that Docker doesn't know only with the user's approval (the user's decision, not an agent's): approve the name when whyreach asks, or list its domain under names in [probe] in %s (example.com covers its subdomains).", cfg)
+		return fmt.Sprintf("A lookup sends its name to the DNS servers of the name's domain, so for an MCP client whyreach looks up a name with a dot that Docker doesn't know only with the user's approval (the user's decision, not an agent's): approve the name if whyreach asks (it asks only through clients that support elicitation, about 3 names at most in a session, and not again about a name the user declined), or list its domain under names in [probe] in %s (example.com covers its subdomains).", cfg)
 	case e.Status == evidence.StatusSkipped && e.Err.Code == evidence.CodePolicyDenied && strings.Contains(e.Err.Message, "block list"):
 		return "whyreach never sends a query to a link-local or cloud-metadata address (INITIAL.md §10 Q11), and the first nameserver the source asks is one, so it can't make the lookup the app makes. " +
 			"Some clouds use 169.254.169.254 as their resolver, and Docker copies the host's resolver into containers on the default bridge and on the host's network. " +

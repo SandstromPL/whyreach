@@ -72,8 +72,11 @@ type Deps struct {
 	Listeners  Listeners
 	Interfaces func() (evidence.HostAddrs, error)
 	ConfigPath string // named in the advice for enabling tier 2b
-	Deadline   time.Duration
-	Logger     *slog.Logger
+	// Self is the ID of the Docker container whyreach runs in, if any:
+	// doctor doesn't try its listeners, which its own cgroup can't name.
+	Self     string
+	Deadline time.Duration
+	Logger   *slog.Logger
 }
 
 // Engine diagnoses connections.

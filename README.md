@@ -181,7 +181,8 @@ docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/do
 For Claude Code: `claude mcp add whyreach -- docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/sandstrompl/whyreach:0.1.0 mcp serve`. Pass a command instead of `mcp serve` to use the CLI the same way.
 
 - **`--network host`** puts whyreach in the host's network namespace, where it sees the host's interfaces, listening sockets and connections. Without it, the host's side can't be seen from the container, and whyreach reports those checks as unsupported rather than mistake the container for the host.
-- **`--pid host`** lets whyreach read the containers' listening sockets. Without it, causes that depend on listeners drop to lower confidence.
+- **`--pid host`** lets whyreach read the containers' listening sockets. Without it, whyreach reports those reads as unsupported, and causes that depend on listeners drop to lower confidence.
+- To see which of the two whyreach has, run your command with `doctor` in place of `mcp serve`.
 - **Your config:** mount it with `-v ~/.config/whyreach:/config/whyreach:ro`.
 - **Audit log and reports:** they stay in the container unless you mount `/state` and `/data`.
 

@@ -45,8 +45,11 @@ func (p *Policy) Doctor(ctx context.Context) []engine.Check {
 	pl := platform.Detect()
 	out = append(out, p.netnsCheck(ctx, pl))
 	if pl.InContainer {
-		out = append(out, engine.Check{Name: "environment", Status: engine.CheckWarn,
-			Detail: "whyreach runs inside a container: host interfaces and listeners describe that container's network namespace, not the host's"})
+		// The interfaces, host listeners and container listeners lines say
+		// what it has: host-side checks are unsupported records without
+		// --network host, never the container's own state.
+		out = append(out, engine.Check{Name: "environment", Status: engine.CheckInfo,
+			Detail: "whyreach runs inside a container: it sees the host's network only with --network host, and containers' listening sockets only with --pid host"})
 	}
 	if pl.WSL {
 		out = append(out, engine.Check{Name: "environment", Status: engine.CheckWarn,

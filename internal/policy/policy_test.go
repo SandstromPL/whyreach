@@ -575,6 +575,40 @@ func (h *holder) Run(ctx context.Context, where evidence.ContextRef, specs []pro
 
 // A check whose name was held back sent nothing: the audit counts it as
 // denied, once per check, though a connect reports its lookup too.
+// Host checks that can't run (whyreach's image without --network host)
+// send nothing: no rate tokens, and the audit counts nothing.
+func TestUnsupportedHostSendsNothing(t *testing.T) {
+	audit := filepath.Join(t.TempDir(), "audit.jsonl")
+	p, err := New(Deps{
+		Settings: Settings{Docker: true, RatePerMinute: 1}, Docker: fakeDocker{}, Listeners: fakeDocker{}, Audit: NewAudit(audit), Client: ClientMCP,
+		Host: executor.Unsupported{Executor: evidence.ExecutorHost, Reason: executor.HostHidden},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	for _, a := range []ProbeArgs{{Kind: "tcp", Target: "localhost:5432"}, {Kind: "dns", Target: "example.com"}, {Kind: "tcp", Target: "10.0.0.5:80"}} {
+		r, err := p.Probe(ctx, a)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range r.Evidence {
+			if e.Status != evidence.StatusUnsupported {
+				t.Errorf("%v: %s %s (%+v), want unsupported", a, e.Kind, e.Status, e.Err)
+			}
+		}
+	}
+	es := entries(t, audit)
+	if len(es) != 3 {
+		t.Fatalf("%d audit entries, want 3", len(es))
+	}
+	for _, e := range es {
+		if e.ProbesSent != 0 || e.ProbesDenied != 0 {
+			t.Errorf("audit counts sent %d, denied %d for checks that couldn't run", e.ProbesSent, e.ProbesDenied)
+		}
+	}
+}
+
 func TestHeldBackNamesCountAsDenied(t *testing.T) {
 	audit := filepath.Join(t.TempDir(), "audit.jsonl")
 	h := &holder{}

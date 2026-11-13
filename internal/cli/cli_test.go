@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -251,5 +253,82 @@ func TestHiddenHostIsAGap(t *testing.T) {
 				t.Errorf("container listeners: %+v, %v", in, err)
 			}
 		})
+	}
+}
+
+// selfDocker answers inspects of the containers it holds.
+type selfDocker struct {
+	fakeDocker
+	cs map[string]evidence.Container
+}
+
+func (d selfDocker) InspectContainer(_ context.Context, ref string) (evidence.Container, error) {
+	if c, ok := d.cs[ref]; ok {
+		return c, nil
+	}
+	return evidence.Container{}, &docker.APIError{Status: 404, Message: "No such container"}
+}
+
+// Docker's record of whyreach's own container decides whether it shares
+// the host's network and PIDs; the Docker bridge in sight decides the
+// network only without it.
+func TestViewFromContainer(t *testing.T) {
+	own, other, unknown := strings.Repeat("e", 64), strings.Repeat("f", 64), strings.Repeat("0", 64)
+	proc := t.TempDir()
+	if err := os.Mkdir(filepath.Join(proc, "4242"), 0o700); err != nil { // a host PID in sight
+		t.Fatal(err)
+	}
+	mode := func(m string, pid int) selfDocker {
+		return selfDocker{cs: map[string]evidence.Container{own: {ID: own, NetworkMode: m, Pid: pid}, other: {ID: other, NetworkMode: "host", Pid: 99}}}
+	}
+	tests := []struct {
+		name   string
+		dk     engine.Docker
+		id     string
+		bridge bool
+		want   view
+	}{
+		{"--network host --pid host, with no bridge named docker0 or br-*", mode("host", 4242), own, false, view{network: true, pids: true}},
+		{"--network host without --pid host", mode("host", 777), own, true, view{network: true}},
+		{"the default bridge, whatever the interfaces show", mode("bridge", 777), own, true, view{}},
+		{"a user-defined network, --pid host", mode("shop_default", 4242), own, true, view{pids: true}},
+		{"joined to a container on the host's network", mode("container:"+other, 4242), own, false, view{network: true, pids: true}},
+		{"Docker doesn't know it, a bridge in sight", mode("host", 4242), unknown, true, view{network: true, pids: true}},
+		{"Docker doesn't know it, no bridge in sight", mode("host", 4242), unknown, false, view{pids: true}},
+		{"no Docker", nil, own, false, view{pids: true}},
+		{"no container ID", mode("host", 4242), "", false, view{pids: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := viewFromContainer(context.Background(), tt.dk, tt.id, func() bool { return tt.bridge }, proc, slog.New(slog.DiscardHandler))
+			if got != tt.want {
+				t.Errorf("view = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// Without the host's PIDs, a container's listeners are an unsupported
+// record with the advice, never a bare "no such file".
+func TestHiddenPIDsIsAGap(t *testing.T) {
+	deps := policy.Deps{
+		Settings: policy.Settings{Docker: true, ConfigPath: "/test/config.toml"},
+		Docker:   fakeDocker{}, Listeners: hiddenPIDs{fakeDocker{}}, Client: policy.ClientCLI,
+		Interfaces: func() (evidence.HostAddrs, error) { return evidence.HostAddrs{}, nil },
+	}
+	p, err := policy.New(deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := p.Diagnose(context.Background(), policy.DiagnoseArgs{From: "container:shop-worker-1", To: "localhost:8080"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	advised := false
+	for _, g := range d.Gaps {
+		advised = advised || (g.Why == "unsupported" && strings.Contains(g.HowToEnable, "--pid host"))
+	}
+	if !advised {
+		t.Errorf("no gap says to run with --pid host: %+v", d.Gaps)
 	}
 }
