@@ -10,12 +10,11 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 - M2: all 14 v0.1 rules; host↔container flows; `policy` (tiers, probe allowlist, rate limit, audit log); the MCP server (`whyreach mcp serve`, four tools, consent for probe containers: `docs/adr/0003-mcp-server.md`); `inspect`, `probe` and `doctor`. `make lab` passes 20 scenarios with probe containers on and off, and `make lab-agent` has a headless agent diagnose each one through the MCP tools alone.
 - M3: the netns executor. As root on Linux Docker Engine, container checks enter the containers' network namespaces with `setns`, with no Docker write; a probe container stands in only when entering fails and tier 2b is on (ADR 0001, M3 amendment). `make lab-root` passes all 20 scenarios through it.
 - M4: through MCP, outside names are looked up only with the user's approval or under `[probe] names`, and nameservers pass the block list (§10 Q11, ADR 0003's amendments); `save_report` always redacts (Q12); `diagnose --report`, `report list|show|export` and `rules list|explain`; the demo (`demo/compose.yaml`, WR007); release builds prepared but never published (`.goreleaser.yaml`, `Dockerfile`, `.github/workflows/release.yml`, `server.json`). A fresh agent installed whyreach from a release-layout archive, connected it and diagnosed the demo with only the docs.
-- Next: build the decisions on `INITIAL.md` §10 Q13–Q15:
-  - the host's own resolver may be asked even at a blocked address;
-  - an approval covers 3 lookups;
-  - through MCP, private addresses outside Docker need approval.
-
-  Then publishing, which is the owner's step (tag, release, image, MCP Registry), and M5: the benchmark (`INITIAL.md` §6.4) and the launch.
+- Before v0.1.0 is tagged (2026-11-14), `INITIAL.md` §10 Q13–Q15 are built:
+  - a blocked nameserver that is one of the host's own resolvers is asked, for DNS only;
+  - each approval of a name or an address covers 3 uses;
+  - through MCP, a private address outside Docker's networks and the host's own addresses needs the user's approval of that address and port.
+- Next is publishing, which is the owner's step (tag, release, image, MCP Registry), and M5: the benchmark (`INITIAL.md` §6.4) and the launch.
 
 **Source of truth:** `INITIAL.md` holds the current design: decisions, HLD, LLD, the rule catalog and the milestones. The original project proposal (not published) is background only.
 - If the two disagree, `INITIAL.md` wins.
@@ -85,10 +84,11 @@ cli / mcpserver → policy → engine → { rules, collect/host, collect/docker,
 3. **Tool arguments can narrow permissions, never widen them.** Permission tiers come from the user's config or from MCP elicitation, never from an argument the agent supplies.
 4. **Probe policy.**
    - One host:port per call. Reject CIDRs, ranges, lists and wildcards.
-   - Block link-local and cloud-metadata addresses, as targets and as nameservers.
+   - Block link-local and cloud-metadata addresses, as targets and as nameservers. The one exception: a nameserver that is one of the host's own resolvers (in the host's `/etc/resolv.conf` or systemd-resolved's `/run/systemd/resolve/resolv.conf`) may be asked, for DNS on port 53 only; a connect to it stays blocked, and one that only a container's `resolv.conf` names stays refused (`INITIAL.md` §10 Q13).
    - Rate-limit probes.
    - Connect, then close; never send a payload.
-   - Through MCP, never send a lookup of an outside name (one with a dot, other than `localhost`, `*.localhost`, `host.docker.internal` and `gateway.docker.internal`) unless Docker's metadata or the source's hosts file knows it, the user approved that exact name through elicitation, or `[probe] names` covers it. The probe enforces this at send time (`probe.Limits`). The CLI is unrestricted (`INITIAL.md` §10 Q11).
+   - Through MCP, never send a lookup of an outside name (one with a dot, other than `localhost`, `*.localhost`, `host.docker.internal` and `gateway.docker.internal`) unless Docker's metadata or the source's hosts file knows it, the user approved that exact name through elicitation, or `[probe] names` covers it. An approval covers 3 lookups in the session (`probe.ApprovalBudget`); then whyreach asks again. The probe enforces this at send time (`probe.Limits`). The CLI is unrestricted (`INITIAL.md` §10 Q11, Q14).
+   - Through MCP, never connect to a private address that only the allowlist's `rfc1918` class admits unless the user approved that exact address and port through elicitation (3 connects an approval) or an explicit address or CIDR in `[probe] allow` covers it. Loopback, Docker's networks and the host's own interface addresses stay free. The guard checks literal targets and the probe checks every resolved address at dial time, counting the batch's approved connects down. The CLI is unrestricted (`INITIAL.md` §10 Q15).
 5. **stdout belongs to MCP in `mcp serve`.** Log with `log/slog` to stderr only. A stray `fmt.Print` breaks the protocol.
 6. **Collect no secrets.**
    - Evidence never includes env var values, or file contents other than `resolv.conf` and `hosts`. WR018 (v0.3) reads env var *keys* only.
@@ -127,7 +127,7 @@ The default answer to adding a tool is no. The surface stays at 4 tools: `diagno
 - Keep annotations honest: `readOnlyHint` must be false when tier 2b is enabled.
 - Return tool errors as results with `isError: true`.
 - Probe containers by consent: ask the user once per session, only when they'd change the answer, through the client's elicitation (both protocol paths; ADR 0003). Never let an argument answer it.
-- Outside names by consent too, per name: an approval covers that exact name for the session, and the request state says which question an answer belongs to (ADR 0003, M4 amendment).
+- Outside names and private addresses by consent too, per name or address and port: an approval covers that exact one for 3 uses, a declined one isn't asked about again, and questions about names and addresses share the session's limit of 3. The request state says which question an answer belongs to (ADR 0003's M4 and 2026-11-14 amendments).
 - No argument relaxes a privacy default: `save_report` always redacts; an unredacted bundle comes only from the CLI (`INITIAL.md` §10 Q12). `internal/mcpserver/testdata/tools.golden` pins the tools' schemas.
 - Claude Code shows the model the `structuredContent`, not the text (ADR 0001). Keep the structured output compact (about 1.5k tokens) and lead it with the verdict and summary. Also keep a text summary of similar size for other clients, and cover both with golden tests.
 - Name and describe tools with the words agents search for: network, connect, docker, diagnose.

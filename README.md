@@ -126,10 +126,12 @@ whyreach is read-only. It never changes containers, networks, routes, firewall r
 Some checks need permissions that are off by default. These are your decisions. An agent can't turn them on, and an agent that can edit files shouldn't change whyreach's config to give itself more.
 
 - **Probe containers.** These run DNS and TCP checks from inside a container. whyreach imports its own binary as the local image `whyreach-probe` (no registry pull) and runs each batch of checks in a short-lived, locked-down container. The container joins the checked container's network namespace, carries the label `io.whyreach.probe=1`, and is removed afterwards. They are off by default because they write to Docker. Through MCP, whyreach asks you once per session when a probe container would change the answer, if your client supports elicitation. To allow them for good, set `probe_containers = true`.
-- **Names outside Docker.** A DNS lookup sends its name to the servers of the name's domain, so through MCP an agent could pass data out through the names it asks whyreach to look up. Some names are always free: names that Docker's metadata knows (containers, Compose services, aliases), names in the source's hosts file, names without a dot, `localhost`, and `host.docker.internal`. Any other name, such as `example.com`, is looked up only after you approve that exact name when whyreach asks (at most three questions a session; approve only names you expect), or when its domain is listed under `[probe] names`. Without an approval nothing is sent, and the diagnosis says what it couldn't check. The CLI looks up any name you type.
+- **Names outside Docker.** A DNS lookup sends its name to the servers of the name's domain, so through MCP an agent could pass data out through the names it asks whyreach to look up. Some names are always free: names that Docker's metadata knows (containers, Compose services, aliases), names in the source's hosts file, names without a dot, `localhost`, and `host.docker.internal`. Any other name, such as `example.com`, is looked up only after you approve that exact name when whyreach asks, or when its domain is listed under `[probe] names`. An approval covers 3 lookups; after them whyreach asks again. Approve only names you expect. Without an approval nothing is sent, and the diagnosis says what it couldn't check. The CLI looks up any name you type.
+- **Private addresses outside Docker.** A connect's address, port and timing can carry data to whoever runs the address, so through MCP whyreach connects to a private address (10/8, 172.16/12, 192.168/16) only on Docker's networks, at this machine's own addresses, or after you approve that exact address and port when whyreach asks. An approval covers 3 connects. To allow an address or a range for good, add it to `[probe] allow` (`allow = ["loopback", "rfc1918", "docker", "10.20.0.0/16"]`). The CLI connects to any address you type that the allowlist admits.
+- **Questions:** whyreach asks at most three questions about names and addresses in a session, and doesn't ask again about one you declined.
 - **Root.** Run as root (`sudo whyreach …`), whyreach enters containers' network namespaces itself and needs no probe containers. It then reads root's config and writes root's audit log. Use `sudo`, not `sudo -E`, and use root for the CLI only.
 
-TCP probes may go only to the address classes in `[probe] allow`, at most `rate_per_minute` checks a minute. whyreach never contacts link-local or cloud-metadata addresses, nameservers included: where the first nameserver is one, as on some cloud VMs, it makes no lookup through it, and `whyreach doctor` warns.
+TCP probes may go only to the address classes in `[probe] allow`, at most `rate_per_minute` checks a minute. whyreach never connects to link-local or cloud-metadata addresses. As nameservers, it asks them only when they are this machine's own resolvers, as on some cloud VMs, and only for DNS. One that only a container's own settings name gets no query, and that container's lookups are reported as not made.
 
 Settings live in `~/.config/whyreach/config.toml`. Every key is optional; an unknown key is an error:
 
@@ -139,7 +141,7 @@ probe_containers = false   # true: allow probe containers (tier 2b)
 netns = true               # false: as root, don't enter network namespaces
 
 [probe]
-allow = ["loopback", "rfc1918", "docker"]   # where TCP probes may go; also CIDRs
+allow = ["loopback", "rfc1918", "docker"]   # where TCP probes may go; also addresses and CIDRs, which need no approval through MCP
 rate_per_minute = 30
 names = []                 # domains an agent may have looked up without asking, e.g. ["example.com"]
 
