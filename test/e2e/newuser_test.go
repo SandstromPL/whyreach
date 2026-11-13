@@ -158,12 +158,21 @@ When all three are done, reply with the single line DONE.`,
 	if err != nil || json.Unmarshal(b, &cfg) != nil {
 		t.Fatalf("no MCP configuration at %s: %v\n%s", mcpConfig, err, b)
 	}
-	if s, ok := cfg.MCPServers["whyreach"]; !ok || s.Command != binary || !slices.Equal(s.Args, []string{"mcp", "serve"}) {
-		t.Fatalf("the MCP configuration doesn't start the installed whyreach: %s", b)
+	// The second agent starts every server listed: whyreach's, and only it.
+	if s, ok := cfg.MCPServers["whyreach"]; !ok || len(cfg.MCPServers) != 1 || s.Command != binary || !slices.Equal(s.Args, []string{"mcp", "serve"}) {
+		t.Fatalf("the MCP configuration doesn't start the installed whyreach alone: %s", b)
 	}
-	out, err := exec.CommandContext(context.Background(), "docker", "ps", "--filter", "label=com.docker.compose.project="+demoProject, "--format", "{{.Names}}").Output()
-	if err != nil || strings.Count(strings.TrimSpace(string(out)), "\n") != 1 {
+	// Compose records the file each container came from: the archive's demo.
+	out, err := exec.CommandContext(context.Background(), "docker", "ps", "--filter", "label=com.docker.compose.project="+demoProject,
+		"--format", `{{.Names}} {{.Label "com.docker.compose.project.config_files"}}`).Output()
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if err != nil || len(lines) != 2 {
 		t.Fatalf("the demo isn't running as %s: %q, %v", demoProject, out, err)
+	}
+	for _, l := range lines {
+		if _, files, _ := strings.Cut(l, " "); files != composeFile {
+			t.Fatalf("a demo container came from %q, not %s", files, composeFile)
+		}
 	}
 	if realHome, err := os.UserHomeDir(); err == nil {
 		if _, err := os.Stat(filepath.Join(realHome, ".local", "bin", "whyreach")); err == nil {
