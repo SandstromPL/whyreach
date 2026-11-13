@@ -320,6 +320,9 @@ func ParseName(s string) (string, error) {
 	if addressRange(in) {
 		return bad("address ranges are not allowed: give one name or address")
 	}
+	if len(in) > 253 {
+		return bad("a host name has at most 253 characters")
+	}
 	if !hostName.MatchString(in) {
 		return bad("not a host name: give the name alone, without a port or scheme")
 	}

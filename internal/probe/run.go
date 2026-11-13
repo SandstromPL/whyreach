@@ -198,7 +198,12 @@ func connect(ctx context.Context, env Env, l *lookups, s Spec) []evidence.Eviden
 		// connect was made, without claiming the name doesn't exist when
 		// the lookup couldn't even run.
 		why := &evidence.Error{Code: evidence.CodeNotFound, Message: s.Host + " did not resolve, so there was no address to connect to"}
-		if !lk.ev.OK() && lk.ev.Err != nil {
+		switch {
+		case lk.ev.Status == evidence.StatusSkipped && lk.ev.Err != nil:
+			// The policy held the lookup back: the connect shares its
+			// reason, so the two make one gap.
+			why = &evidence.Error{Code: lk.ev.Err.Code, Message: lk.ev.Err.Message}
+		case !lk.ev.OK() && lk.ev.Err != nil:
 			why = &evidence.Error{Code: lk.ev.Err.Code, Errno: lk.ev.Err.Errno,
 				Message: "the lookup of " + s.Host + " could not be made (" + lk.ev.Err.Message + "), so there was no address to connect to"}
 		}
@@ -266,7 +271,7 @@ func (l *lookups) entry(name string) *lookup {
 
 func (l *lookups) resolve(ctx context.Context, name string) *lookup {
 	lk := l.entry(name)
-	lk.once.Do(func() { lk.ev = l.env.Resolver.Lookup(ctx, name) })
+	lk.once.Do(func() { lk.ev = l.env.Resolver.lookupWithin(ctx, name, l.env.Limits) })
 	return lk
 }
 

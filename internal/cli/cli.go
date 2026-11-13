@@ -173,7 +173,7 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 
 // newProbeEntry is the hidden subcommand the probe container runs.
 func newProbeEntry() *cobra.Command {
-	var spec, allow string
+	var spec, allow, names string
 	var budget time.Duration
 	cmd := &cobra.Command{
 		Use:    "__probe",
@@ -188,6 +188,13 @@ func newProbeEntry() *cobra.Command {
 					return internalErr(err)
 				}
 			}
+			if cmd.Flags().Changed("names") {
+				var err error
+				lim.NamesRestricted = true
+				if lim.Names, err = probe.ParseNames(names); err != nil {
+					return internalErr(err)
+				}
+			}
 			if c := probe.Main(cmd.Context(), spec, budget, lim, cmd.OutOrStdout(), cmd.ErrOrStderr()); c != probe.ExitOK {
 				return internalErr(errors.New("probe failed"))
 			}
@@ -197,6 +204,7 @@ func newProbeEntry() *cobra.Command {
 	cmd.Flags().StringVar(&spec, "spec", "", "JSON list of probe specs")
 	cmd.Flags().DurationVar(&budget, "budget", probe.Budget, "time the whole batch may take")
 	cmd.Flags().StringVar(&allow, "allow", "", "comma-separated prefixes connects are restricted to (absent: no allowlist)")
+	cmd.Flags().StringVar(&names, "names", "", "comma-separated outside names that may be sent to a nameserver (absent: any name)")
 	return cmd
 }
 

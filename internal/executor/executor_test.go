@@ -230,6 +230,17 @@ func TestProbeContainerRun(t *testing.T) {
 	if cmd := api.created[len(api.created)-1].Cmd; len(cmd) != 6 || cmd[4] != "--allow" || cmd[5] != "172.22.0.0/16" {
 		t.Errorf("probe command = %q, want --allow 172.22.0.0/16", cmd)
 	}
+	// So do the names it may look up; an empty list still restricts.
+	for _, names := range [][]string{{"example.com", "api.internal"}, nil} {
+		lim := probe.Limits{NamesRestricted: true, Names: names}
+		if _, err := pc.Run(probe.WithLimits(context.Background(), lim), worker, specs); err != nil {
+			t.Fatal(err)
+		}
+		want := strings.Join(names, ",")
+		if cmd := api.created[len(api.created)-1].Cmd; len(cmd) != 6 || cmd[4] != "--names" || cmd[5] != want {
+			t.Errorf("probe command = %q, want --names %q", cmd, want)
+		}
+	}
 	// A second run reuses the image and does not sweep again, and its side
 	// effects are its own.
 	api.calls = nil

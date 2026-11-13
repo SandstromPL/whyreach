@@ -19,6 +19,7 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/target"
 )
 
 // DNS timeouts (INITIAL.md §4.4): 2 s per query with 1 retry. A whole lookup,
@@ -63,8 +64,16 @@ func (r *Resolver) open(ctx context.Context, path string) (io.ReadCloser, error)
 }
 
 // Lookup resolves name and records how. It never returns an error: a failed
-// lookup is an observation.
+// lookup is an observation. Every name may be looked up; the nameservers
+// still pass the block list.
 func (r *Resolver) Lookup(ctx context.Context, name string) evidence.Evidence {
+	return r.lookupWithin(ctx, name, Limits{})
+}
+
+// lookupWithin is Lookup under lim, which may hold back an outside name
+// (Limits.CheckName). The hosts file answers first either way, as it does
+// for the app; a name it doesn't answer and lim refuses is never sent.
+func (r *Resolver) lookupWithin(ctx context.Context, name string, lim Limits) evidence.Evidence {
 	start := time.Now()
 	ev := evidence.Evidence{
 		Kind:    evidence.KindDNS,
@@ -74,7 +83,8 @@ func (r *Resolver) Lookup(ctx context.Context, name string) evidence.Evidence {
 			"the app's libc (glibc or musl) may order IPv4 and IPv6 answers differently",
 		},
 	}
-	p, err := r.lookup(ctx, name)
+	p, notes, err := r.lookup(ctx, name, lim)
+	ev.Limitations = append(ev.Limitations, notes...)
 	ev.Duration = time.Since(start)
 	ev.ObservedAt = time.Now()
 	ev.Data = p
@@ -90,26 +100,39 @@ func (r *Resolver) Lookup(ctx context.Context, name string) evidence.Evidence {
 	return ev
 }
 
-func (r *Resolver) lookup(ctx context.Context, name string) (evidence.DNSProbe, error) {
-	p := evidence.DNSProbe{Name: name}
+// lookup resolves name: the hosts file first, then, if lim lets the name
+// out, the nameservers that pass the block list. notes are limitations of
+// the lookup, such as a nameserver it skipped.
+func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evidence.DNSProbe, notes []string, err error) {
+	p = evidence.DNSProbe{Name: name}
 	addrs, err := r.hostsLookup(ctx, name)
 	switch {
 	case err == nil && len(addrs) > 0:
 		p.Via, p.Answered, p.Answers = evidence.ViaHosts, name, addrs
-		return p, nil
+		return p, nil, nil
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
 		// The app reads this file before any DNS: without it, an answer
 		// from DNS would describe a lookup the app doesn't make.
-		return p, fmt.Errorf("read the hosts file: %w", err)
+		return p, nil, fmt.Errorf("read the hosts file: %w", err)
+	}
+	if reason, ok := lim.CheckName(name); !ok {
+		return p, nil, &Refused{Reason: reason}
 	}
 	conf, err := r.readResolvConf(ctx)
 	if err != nil {
-		return p, fmt.Errorf("read resolver config: %w", err)
+		return p, nil, fmt.Errorf("read resolver config: %w", err)
 	}
 	p.Upstream = conf.extServers
 	if len(conf.servers) == 0 {
-		return p, fmt.Errorf("%s lists no nameserver", r.ResolvPath)
+		return p, nil, fmt.Errorf("%s lists no nameserver", r.ResolvPath)
 	}
+	// The container controls its resolv.conf: a nameserver on the block list
+	// (link-local, cloud metadata) gets no query (INITIAL.md §10 Q11).
+	servers, notes, refusal := allowedServers(conf.servers, r.ResolvPath)
+	if len(servers) == 0 {
+		return p, notes, &Refused{Reason: refusal}
+	}
+	conf.servers = servers
 	p.Server = conf.servers[0]
 	ctx, cancel := context.WithTimeout(ctx, r.budget())
 	defer cancel()
@@ -123,7 +146,7 @@ func (r *Resolver) lookup(ctx context.Context, name string) (evidence.DNSProbe, 
 		if res.err != nil {
 			// No query could be sent from the namespace: that is no answer
 			// from the resolver, so it must not read as an rcode.
-			return p, res.err
+			return p, notes, res.err
 		}
 		for _, a := range res.attempts {
 			a.Query = cand.label
@@ -137,7 +160,7 @@ func (r *Resolver) lookup(ctx context.Context, name string) (evidence.DNSProbe, 
 		}
 		if len(res.answers) > 0 {
 			p.Via, p.Answered, p.Answers, p.Rcode = evidence.ViaDNS, cand.label, res.answers, res.rcode
-			return p, nil
+			return p, notes, nil
 		}
 		if ctx.Err() != nil {
 			break
@@ -146,7 +169,29 @@ func (r *Resolver) lookup(ctx context.Context, name string) (evidence.DNSProbe, 
 	if givenRcode != "" {
 		p.Rcode = givenRcode
 	}
-	return p, nil
+	return p, notes, nil
+}
+
+// allowedServers drops the nameservers ("addr:53") that the block list
+// refuses. notes say which were skipped; refusal says why none is left.
+func allowedServers(servers []string, path string) (ok, notes []string, refusal string) {
+	var blocked []string
+	for _, s := range servers {
+		ap, err := netip.ParseAddrPort(s)
+		if err != nil {
+			continue
+		}
+		if reason, isBlocked := target.Blocked(ap.Addr()); isBlocked {
+			blocked = append(blocked, ap.Addr().String())
+			notes = append(notes, fmt.Sprintf("skipped nameserver %s from %s, which the app asks first: %s", ap.Addr(), path, reason))
+			continue
+		}
+		ok = append(ok, s)
+	}
+	if len(ok) == 0 {
+		refusal = fmt.Sprintf("not looked up: every nameserver in %s (%s) is on the probe block list (link-local and cloud-metadata addresses)", path, strings.Join(blocked, ", "))
+	}
+	return ok, notes, refusal
 }
 
 type candidate struct {

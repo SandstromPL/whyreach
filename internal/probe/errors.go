@@ -26,10 +26,21 @@ var (
 	ErrNotContainer = errors.New("the PID does not belong to the container")
 )
 
+// Refused is a check the probe policy kept from being sent: an outside name
+// no one approved, or a nameserver on the block list. Its record is a
+// skipped check with code policy_denied, so it becomes a policy gap.
+type Refused struct{ Reason string }
+
+func (r *Refused) Error() string { return r.Reason }
+
 // Classify maps the error of a failed check to an evidence status and error.
 func Classify(err error) (evidence.Status, *evidence.Error) {
 	e := &evidence.Error{Message: err.Error(), Errno: errnoName(err)}
+	var refused *Refused
 	switch {
+	case errors.As(err, &refused):
+		e.Code, e.Message = evidence.CodePolicyDenied, refused.Reason
+		return evidence.StatusSkipped, e
 	case errors.Is(err, ErrUnsupported):
 		e.Code = evidence.CodeUnsupported
 		return evidence.StatusUnsupported, e
