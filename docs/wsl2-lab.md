@@ -22,7 +22,7 @@ In PowerShell, stop the other setup:
 
 ### Run A: Docker Engine in `Ubuntu-24.04`
 
-In PowerShell:
+In PowerShell (if WSL itself isn't installed yet, the first `wsl --install` needs PowerShell run as administrator, and Windows may ask for a reboot before the distro starts):
 
 ```powershell
 wsl --install -d Ubuntu-24.04
@@ -67,11 +67,12 @@ docker version
 
 ## 2. Go (in each distro)
 
-The repository builds with the Go toolchain `go.mod` pins (go1.27.4). Install exactly that one, for your PC's architecture (`uname -m`: `x86_64` is amd64, `aarch64` is arm64):
+The repository builds with the Go toolchain `go.mod` pins (go1.27.4). Install exactly that one; `dpkg --print-architecture` picks the build for your PC (amd64 or arm64):
 
 ```bash
-curl -fsSLO https://go.dev/dl/go1.27.4.linux-amd64.tar.gz
-sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.27.4.linux-amd64.tar.gz && rm go1.27.4.linux-amd64.tar.gz
+go_tgz="go1.27.4.linux-$(dpkg --print-architecture).tar.gz"
+curl -fsSLO "https://go.dev/dl/$go_tgz"
+sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf "$go_tgz" && rm "$go_tgz"
 echo 'export PATH=/usr/local/go/bin:$PATH' >> ~/.bashrc && export PATH=/usr/local/go/bin:$PATH
 go version
 ```
@@ -103,14 +104,17 @@ What passing means:
 
 ## 5. The launch from Windows (once per distro)
 
-This is what an MCP client on Windows does: start whyreach through `wsl.exe`, talk to it over its input and output, then go away. In PowerShell, from the folder that holds the repository's `test\wsl2\mcp-launch.ps1` (`\\wsl.localhost\Ubuntu-24.04\home\<distro user>\whyreach\test\wsl2`, or a copy):
+This is what an MCP client on Windows does: start whyreach through `wsl.exe`, talk to it over its input and output, then go away. In PowerShell, run the script straight from the distro's copy of the repository (`<distro user>` is your user name inside the distro):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\mcp-launch.ps1 -Distro Ubuntu-24.04 -Whyreach /home/<distro user>/whyreach/bin/whyreach
-powershell -ExecutionPolicy Bypass -File .\mcp-launch.ps1 -Distro Debian -Whyreach /home/<distro user>/whyreach/bin/whyreach
+powershell -NoProfile -ExecutionPolicy Bypass -File \\wsl.localhost\Ubuntu-24.04\home\<distro user>\whyreach\test\wsl2\mcp-launch.ps1 -Distro Ubuntu-24.04 -Whyreach /home/<distro user>/whyreach/bin/whyreach
 ```
 
-Run each after step 4 in that distro (which built `bin/whyreach`), with that distro's setup running (step 0). Each must end in `PASS`: whyreach answered, listed its four tools, reported its platform, exited within 5 s of its input closing, and left nothing running in the distro.
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File \\wsl.localhost\Debian\home\<distro user>\whyreach\test\wsl2\mcp-launch.ps1 -Distro Debian -Whyreach /home/<distro user>/whyreach/bin/whyreach
+```
+
+Run each after step 4 in that distro (which built `bin/whyreach`), with that distro's setup running (step 0). Each must end in `PASS`: whyreach answered, listed its four tools, reported its platform, exited within 5 s of its input closing, and left no whyreach server of its own running in the distro (one started by another MCP client there doesn't count).
 
 ## 6. Optional: the netns executor in run A
 
