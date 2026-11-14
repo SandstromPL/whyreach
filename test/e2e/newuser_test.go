@@ -14,9 +14,12 @@ package e2e
 // the binary, LICENSE, README.md and demo/compose.yaml at its root, and
 // checksums.txt (.goreleaser.yaml).
 //
-// The agents work in a temporary directory that stands in for their home;
-// the demo runs as the Compose project whyreach-lab-demo, which the test
-// removes afterwards. Run it with make lab-agent.
+// The agents work in a fresh directory that stands in for their home,
+// with a clean Claude Code each (agentenv_test.go); the demo runs as a
+// Compose project with a neutral name (whyreach-lab-<6 hex>), which the
+// test removes afterwards. The second agent starts in an empty directory,
+// and noHints checks what it is given first: like TestAgent's, it must
+// find the cause, not read it. Run it with make lab-agent.
 //
 // The first agent may read the sandbox, write only the MCP configuration,
 // and run the few commands the README's steps need; Compose only as the
@@ -28,7 +31,6 @@ package e2e
 
 import (
 	"archive/tar"
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -46,11 +48,17 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/SandstromPL/whyreach/test/bench"
 )
 
 const (
 	newUserVersion = "0.1.0"
-	demoProject    = "whyreach-lab-demo"
+	// demoScenario is the lab's name for the README's demo
+	// (test/lab/demo-localhost): what the diagnosing agent must not be told.
+	demoScenario = "demo-localhost"
+	// demoTarget is what the demo's worker can't reach: the problem itself.
+	demoTarget = "http://localhost:8080"
 )
 
 func TestAgentNewUser(t *testing.T) {
@@ -61,14 +69,13 @@ func TestAgentNewUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sandbox := t.TempDir()
-	home := filepath.Join(sandbox, "home")
+	sandbox := agentDirs(t)
+	home, work := filepath.Join(sandbox, "home"), filepath.Join(sandbox, "work")
 	release := filepath.Join(sandbox, "release")
-	for _, d := range []string{home, release} {
-		if err := os.MkdirAll(d, 0o700); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.Mkdir(release, 0o700); err != nil {
+		t.Fatal(err)
 	}
+	project := bench.NeutralProject()
 	archive := fmt.Sprintf("whyreach_%s_linux_%s.tar.gz", newUserVersion, runtime.GOARCH)
 	if dist := os.Getenv("WHYREACH_RELEASE_DIR"); dist != "" {
 		matches, _ := filepath.Glob(filepath.Join(dist, "whyreach_*_linux_"+runtime.GOARCH+".tar.gz"))
@@ -92,24 +99,16 @@ func TestAgentNewUser(t *testing.T) {
 	t.Cleanup(func() {
 		files, _ := filepath.Glob(filepath.Join(sandbox, "*", "demo", "compose.yaml"))
 		files = append(files, filepath.Join(root, "demo", "compose.yaml"))
-		cmd := exec.CommandContext(context.Background(), "docker", "compose", "-p", demoProject, "-f", files[0], "down", "-v", "--timeout", "1")
+		cmd := exec.CommandContext(context.Background(), "docker", "compose", "-p", project, "-f", files[0], "down", "-v", "--timeout", "1")
 		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Errorf("compose down %s: %v\n%s", demoProject, err, out)
+			t.Errorf("compose down %s: %v\n%s", project, err, out)
 		}
 	})
 
-	// The sandbox is the agents' home; Claude Code keeps reading its own
-	// config (and sign-in) from the real one.
-	claudeConfig := os.Getenv("CLAUDE_CONFIG_DIR")
-	if claudeConfig == "" {
-		realHome, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatal(err)
-		}
-		claudeConfig = filepath.Join(realHome, ".claude")
-	}
-	env := append(os.Environ(),
-		"HOME="+home, "CLAUDE_CONFIG_DIR="+claudeConfig,
+	// The sandbox is the agents' home, with a clean Claude Code that keeps
+	// its own configuration and sign-in where they are; whyreach's XDG
+	// directories are in the sandbox too.
+	env := cleanClaudeEnv(home, filepath.Join(sandbox, "tmp"), claudeConfigDir(t),
 		"XDG_CONFIG_HOME="+filepath.Join(sandbox, "config"),
 		"XDG_STATE_HOME="+filepath.Join(sandbox, "state"),
 		"XDG_DATA_HOME="+filepath.Join(sandbox, "data"),
@@ -121,7 +120,7 @@ func TestAgentNewUser(t *testing.T) {
 2. Connect an MCP client. This machine's client reads the JSON configuration form the README gives, from the file %s. Write that file for the whyreach you installed.
 3. Start the README's demo from %s and leave it running, but name its Compose project %s instead of the name in the file: start every docker compose command with docker compose -p %s.
 When all three are done, reply with the single line DONE.`,
-		filepath.Join(sandbox, "README.md"), release, extract, home, binary, sandbox, mcpConfig, extract, demoProject, demoProject)
+		filepath.Join(sandbox, "README.md"), release, extract, home, binary, sandbox, mcpConfig, extract, project, project)
 	// Reads stay in the sandbox, the one file written is the MCP
 	// configuration, and Compose runs only as the README starts and reads
 	// the demo, under the test's project name.
@@ -132,10 +131,10 @@ When all three are done, reply with the single line DONE.`,
 	}
 	for _, f := range []string{"demo/compose.yaml", composeFile} {
 		for _, sub := range []string{"up -d --wait", "logs worker", "ps"} {
-			allowed = append(allowed, "Bash(docker compose -p "+demoProject+" -f "+f+" "+sub+")")
+			allowed = append(allowed, "Bash(docker compose -p "+project+" -f "+f+" "+sub+")")
 		}
 	}
-	first := runClaude(t, sandbox, env, install, "--tools", "Bash,Read,Write", "--allowedTools", strings.Join(allowed, ","))
+	first := runClaude(t, sandbox, env, 8*time.Minute, install, "--tools", "Bash,Read,Write", "--allowedTools", strings.Join(allowed, ","))
 	t.Logf("install: %d turns, $%.4f, %.0f s\ncommands:\n  %s\nanswer: %s", first.turns, first.cost, first.seconds,
 		strings.ReplaceAll(strings.Join(first.commands, "\n"), "\n", "\n  "), first.final)
 
@@ -163,11 +162,11 @@ When all three are done, reply with the single line DONE.`,
 		t.Fatalf("the MCP configuration doesn't start the installed whyreach alone: %s", b)
 	}
 	// Compose records the file each container came from: the archive's demo.
-	out, err := exec.CommandContext(context.Background(), "docker", "ps", "--filter", "label=com.docker.compose.project="+demoProject,
+	out, err := exec.CommandContext(context.Background(), "docker", "ps", "--filter", "label=com.docker.compose.project="+project,
 		"--format", `{{.Names}} {{.Label "com.docker.compose.project.config_files"}}`).Output()
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	if err != nil || len(lines) != 2 {
-		t.Fatalf("the demo isn't running as %s: %q, %v", demoProject, out, err)
+		t.Fatalf("the demo isn't running as %s: %q, %v", project, out, err)
 	}
 	for _, l := range lines {
 		if _, files, _ := strings.Cut(l, " "); files != composeFile {
@@ -181,12 +180,14 @@ When all three are done, reply with the single line DONE.`,
 	}
 
 	// 2. Diagnose the demo with whyreach's tools and nothing else, through
-	// the configuration the first agent wrote.
-	ask := fmt.Sprintf("On this machine, the worker service of the Docker Compose project %s can't connect to http://localhost:8080 (its log says Connection refused). "+
-		"Find out why, using the whyreach tools. Finish with one line `RESULT: <rule ID>` naming the rule of the cause whyreach found (such as WR002), "+
-		"or `RESULT: none` if whyreach found no settled cause.", demoProject)
-	second := runClaude(t, sandbox, env, ask, "--mcp-config", mcpConfig, "--strict-mcp-config", "--tools", "",
-		"--allowedTools", strings.Join(tools, ","))
+	// the configuration the first agent wrote, from an empty directory.
+	if entries, err := os.ReadDir(work); err != nil || len(entries) > 0 {
+		t.Fatalf("the diagnosing agent's working directory %s isn't empty: %d entries, %v", work, len(entries), err)
+	}
+	ask := bench.DiagnosePrompt("service:worker@"+project, demoTarget, "its log says Connection refused")
+	args := []string{"--mcp-config", mcpConfig, "--tools", "", "--allowedTools", strings.Join(tools, ",")}
+	noHints(t, demoScenario, demoTarget, append(append([]string{ask, project, work, string(b)}, args...), env...)...)
+	second := runClaude(t, work, env, 8*time.Minute, ask, args...)
 	t.Logf("diagnose: %d turns, $%.4f, %.0f s, tools %v\nanswer: %s", second.turns, second.cost, second.seconds, second.tools, second.final)
 	got := ""
 	if m := regexp.MustCompile(`(?m)^\W*RESULT:\s*\W*(WR\d{3}|none)\b`).FindAllStringSubmatch(second.final, -1); len(m) > 0 {
@@ -203,77 +204,6 @@ When all three are done, reply with the single line DONE.`,
 	if b, err := os.ReadFile(filepath.Join(sandbox, "state", "whyreach", "audit.jsonl")); err != nil || !strings.Contains(string(b), `"primary":"WR007"`) {
 		t.Errorf("the installed whyreach's audit log has no WR007 diagnosis: %v\n%s", err, b)
 	}
-}
-
-type claudeRun struct {
-	final    string
-	tools    []string
-	commands []string // what the agent ran with Bash
-	turns    int
-	cost     float64
-	seconds  float64
-}
-
-// runClaude runs a fresh headless Claude Code in dir and reads its stream.
-func runClaude(t *testing.T, dir string, env []string, prompt string, args ...string) claudeRun {
-	t.Helper()
-	model := agentModel
-	if m := os.Getenv("WHYREACH_AGENT_MODEL"); m != "" {
-		model = m
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
-	defer cancel()
-	all := append([]string{"-p", prompt, "--model", model, "--output-format", "stream-json", "--verbose", "--no-session-persistence"}, args...)
-	cmd := exec.CommandContext(ctx, "claude", all...)
-	cmd.Dir, cmd.Env = dir, env
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	start := time.Now()
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("claude: %v\nstderr: %s", err, stderr.String())
-	}
-	r := claudeRun{seconds: time.Since(start).Seconds()}
-	sc := bufio.NewScanner(&stdout)
-	sc.Buffer(make([]byte, 1<<20), 16<<20)
-	for sc.Scan() {
-		var ev struct {
-			Type    string `json:"type"`
-			Message struct {
-				Content []struct {
-					Type  string `json:"type"`
-					Name  string `json:"name"`
-					Input struct {
-						Command  string `json:"command"`
-						FilePath string `json:"file_path"`
-					} `json:"input"`
-				} `json:"content"`
-			} `json:"message"`
-			Result  string  `json:"result"`
-			Turns   int     `json:"num_turns"`
-			CostUSD float64 `json:"total_cost_usd"`
-		}
-		if json.Unmarshal(sc.Bytes(), &ev) != nil {
-			continue
-		}
-		switch ev.Type {
-		case "assistant":
-			for _, c := range ev.Message.Content {
-				if c.Type != "tool_use" {
-					continue
-				}
-				r.tools = append(r.tools, strings.TrimPrefix(c.Name, "mcp__whyreach__"))
-				switch {
-				case c.Input.Command != "":
-					r.commands = append(r.commands, c.Input.Command)
-				case c.Input.FilePath != "":
-					r.commands = append(r.commands, c.Name+" "+c.Input.FilePath)
-				}
-			}
-		case "result":
-			r.final, r.turns, r.cost = ev.Result, ev.Turns, ev.CostUSD
-		}
-	}
-	return r
 }
 
 // buildRelease builds what .goreleaser.yaml would for this machine's

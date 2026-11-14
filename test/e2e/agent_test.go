@@ -2,22 +2,23 @@
 
 package e2e
 
-// The agent check (M2's exit criterion, INITIAL.md §7): for each lab
-// scenario, a headless Claude Code on a small model gets only whyreach's
-// four MCP tools (--tools "" removes every built-in tool, --strict-mcp-config
-// every other server) and a one-line problem report, and must name the
-// cause whyreach's lab expects. Like spikes/mcphello/claude-check.sh, it
-// adds nothing to the user's Claude Code config.
+// The agent check (M2's exit criterion, INITIAL.md §6.3 and §7): for each
+// lab scenario, a headless Claude Code on a small model gets only
+// whyreach's four MCP tools (--tools "" removes every built-in tool,
+// --strict-mcp-config every other server) and a one-line problem report,
+// and must name the cause whyreach's lab expects.
+//
+// It sees the scenario only as a developer would (agentenv_test.go): a
+// neutral Compose project from comment-free copies of the scenario's
+// files, directories whose names say nothing, and a clean Claude Code that
+// reads none of the user's configuration and changes none of it. noHints
+// checks what the agent is given before it starts.
 //
 // Run it with `make lab-agent`. It needs Docker, the claude CLI and network
 // access for the model, and spends a little of the user's model quota.
 
 import (
-	"bufio"
-	"bytes"
-	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,6 +27,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/SandstromPL/whyreach/test/bench"
 )
 
 // agentModel is the small model the check runs on; WHYREACH_AGENT_MODEL
@@ -53,14 +56,8 @@ func TestAgent(t *testing.T) {
 	if _, err := exec.LookPath("claude"); err != nil {
 		t.Skip("the claude CLI is not installed")
 	}
-	dirs, err := filepath.Glob(filepath.Join("..", "lab", "*", "scenario.yaml"))
-	if err != nil || len(dirs) == 0 {
-		t.Fatalf("no scenarios: %v", err)
-	}
-	slices.Sort(dirs)
 	var results []agentResult
-	for _, path := range dirs {
-		dir := filepath.Dir(path)
+	for _, dir := range scenarioDirs(t) {
 		t.Run(filepath.Base(dir), func(t *testing.T) {
 			r := runAgent(t, dir)
 			results = append(results, r)
@@ -80,92 +77,58 @@ func TestAgent(t *testing.T) {
 }
 
 func runAgent(t *testing.T, dir string) agentResult {
-	r := bringUp(t, dir)
-	res := agentResult{Scenario: filepath.Base(dir), Want: "none"}
+	name := filepath.Base(dir)
+	root := agentDirs(t)
+	r := bringUpNeutral(t, dir, root)
+	res := agentResult{Scenario: name, Want: "none"}
 	if e := r.s.Expect; e.TopRule != "" && (e.Verdict == "cause_identified" || e.Verdict == "likely_cause") {
 		res.Want = e.TopRule
 	}
 
-	tmp := t.TempDir()
-	logPath := filepath.Join(tmp, "server.log")
+	// whyreach's XDG directories are the run's own: its advice names its
+	// config file, and save_report its reports.
+	xdg := filepath.Join(root, "xdg")
 	// Probe containers are on by default: a headless run has no one to
 	// answer a consent request, and the config lists example.com under
 	// [probe] names for the same reason (WR020's scenario looks it up).
 	// WHYREACH_AGENT_PROBES=off runs with the default config instead, so the
 	// server asks the client.
-	configHome := l.withProbe
 	if os.Getenv("WHYREACH_AGENT_PROBES") == "off" {
-		configHome = l.noProbe
 		if res.Want != "none" && r.s.ExpectWithoutProbe != nil && r.s.ExpectWithoutProbe.TopRule == "" {
 			res.Want = "none" // the rule needs a probe container
 		}
+	} else {
+		if err := os.MkdirAll(filepath.Join(xdg, "config", "whyreach"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		copyFile(t, filepath.Join(l.withProbe, "whyreach", "config.toml"), filepath.Join(xdg, "config", "whyreach", "config.toml"))
 	}
+	logPath := filepath.Join(root, "server.log")
 	server := map[string]any{
 		"command": "/bin/sh",
 		"args":    []string{"-c", `exec "$0" mcp serve 2>>"$1"`, l.bin, logPath},
 		"env": map[string]string{
-			"XDG_CONFIG_HOME": configHome,
-			"XDG_STATE_HOME":  filepath.Join(tmp, "state"),
-			"XDG_DATA_HOME":   filepath.Join(tmp, "data"),
+			"XDG_CONFIG_HOME": filepath.Join(xdg, "config"),
+			"XDG_STATE_HOME":  filepath.Join(xdg, "state"),
+			"XDG_DATA_HOME":   filepath.Join(xdg, "data"),
 			"WHYREACH_LOG":    "info",
 		},
 	}
 	cfg, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{"whyreach": server}})
-	cfgPath := filepath.Join(tmp, "mcp.json")
+	cfgPath := filepath.Join(root, "mcp.json")
 	if err := os.WriteFile(cfgPath, cfg, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	model := agentModel
-	if m := os.Getenv("WHYREACH_AGENT_MODEL"); m != "" {
-		model = m
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "claude", "-p", prompt(r),
-		"--model", model, "--mcp-config", cfgPath, "--strict-mcp-config", "--tools", "",
-		"--allowedTools", strings.Join(tools, ","),
-		"--output-format", "stream-json", "--verbose", "--no-session-persistence")
-	cmd.Dir = tmp // no project CLAUDE.md or settings reach the agent
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	start := time.Now()
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("claude: %v\nstderr: %s", err, stderr.String())
-	}
-	res.Seconds = time.Since(start).Seconds()
+	work := filepath.Join(root, "work")
+	env := cleanClaudeEnv(filepath.Join(root, "home"), filepath.Join(root, "tmp"), claudeConfigDir(t))
+	prompt := bench.DiagnosePrompt(r.from, r.to, "")
+	args := []string{"--mcp-config", cfgPath, "--tools", "", "--allowedTools", strings.Join(tools, ",")}
+	noHints(t, name, r.to, append(append([]string{prompt, r.project, work, string(cfg)}, args...), env...)...)
+	run := runClaude(t, work, env, 4*time.Minute, prompt, args...)
+	res.ToolCalls, res.Turns, res.Seconds, res.CostUSD = run.tools, run.turns, run.seconds, run.cost
 
-	final := ""
-	sc := bufio.NewScanner(&stdout)
-	sc.Buffer(make([]byte, 1<<20), 16<<20)
-	for sc.Scan() {
-		var ev struct {
-			Type    string `json:"type"`
-			Message struct {
-				Content []struct {
-					Type string `json:"type"`
-					Name string `json:"name"`
-				} `json:"content"`
-			} `json:"message"`
-			Result  string  `json:"result"`
-			Turns   int     `json:"num_turns"`
-			CostUSD float64 `json:"total_cost_usd"`
-		}
-		if json.Unmarshal(sc.Bytes(), &ev) != nil {
-			continue
-		}
-		switch ev.Type {
-		case "assistant":
-			for _, c := range ev.Message.Content {
-				if c.Type == "tool_use" {
-					res.ToolCalls = append(res.ToolCalls, strings.TrimPrefix(c.Name, "mcp__whyreach__"))
-				}
-			}
-		case "result":
-			final, res.Turns, res.CostUSD = ev.Result, ev.Turns, ev.CostUSD
-		}
-	}
-	if m := regexp.MustCompile(`(?m)^\W*RESULT:\s*\W*(WR\d{3}|none)\b`).FindAllStringSubmatch(final, -1); len(m) > 0 {
+	if m := regexp.MustCompile(`(?m)^\W*RESULT:\s*\W*(WR\d{3}|none)\b`).FindAllStringSubmatch(run.final, -1); len(m) > 0 {
 		res.Got = m[len(m)-1][1]
 	}
 	res.Pass = strings.EqualFold(res.Got, res.Want)
@@ -175,7 +138,7 @@ func runAgent(t *testing.T, dir string) agentResult {
 			t.Errorf("the agent used %s, which is not one of whyreach's tools", c)
 		}
 	}
-	if b, err := os.ReadFile(filepath.Join(tmp, "state", "whyreach", "audit.jsonl")); err == nil {
+	if b, err := os.ReadFile(filepath.Join(xdg, "state", "whyreach", "audit.jsonl")); err == nil {
 		for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
 			if strings.Contains(line, `"tool":"probe_containers_consent"`) || strings.Contains(line, `"tool":"name_lookup_consent"`) {
 				t.Logf("consent: %s", line)
@@ -188,19 +151,6 @@ func runAgent(t *testing.T, dir string) agentResult {
 		}
 	}
 	t.Logf("%s: want %s, got %s in %.0f s, %d turns, $%.4f, tools %v\nanswer: %s",
-		res.Scenario, res.Want, res.Got, res.Seconds, res.Turns, res.CostUSD, res.ToolCalls, final)
+		res.Scenario, res.Want, res.Got, res.Seconds, res.Turns, res.CostUSD, res.ToolCalls, run.final)
 	return res
-}
-
-// prompt is the problem report a developer would give: who can't reach
-// what, and nothing about the cause.
-func prompt(r running) string {
-	who := "On this machine (the host itself, not inside a container), a program"
-	if svc, ok := strings.CutPrefix(r.from, "service:"); ok {
-		name, project, _ := strings.Cut(svc, "@")
-		who = fmt.Sprintf("In the Docker Compose project %q on this machine, the %s service", project, name)
-	}
-	return who + " can't connect to " + r.to + ". Find out why, using the whyreach tools. " +
-		"Finish with one line `RESULT: <rule ID>` naming the rule of the cause whyreach found (such as WR002), " +
-		"or `RESULT: none` if whyreach reproduced no problem or found no settled cause."
 }

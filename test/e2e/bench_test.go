@@ -53,8 +53,6 @@ import (
 	"testing"
 	"time"
 
-	"go.yaml.in/yaml/v3"
-
 	"github.com/SandstromPL/whyreach/test/bench"
 )
 
@@ -219,14 +217,7 @@ func newBenchEnv(t *testing.T) *benchEnv {
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(func() { _ = srv.Close() })
 
-	b.claudeConf = os.Getenv("CLAUDE_CONFIG_DIR")
-	if b.claudeConf == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatal(err)
-		}
-		b.claudeConf = filepath.Join(home, ".claude")
-	}
+	b.claudeConf = claudeConfigDir(t)
 	b.masker = newBenchMasker(t)
 	return b
 }
@@ -427,82 +418,19 @@ func (b *benchEnv) selfTest(t *testing.T) {
 	}
 }
 
-// prepareCompose copies a scenario's Compose files without comments, under
-// the project's neutral directory.
-func (b *benchEnv) prepareCompose(t *testing.T, dir, project string) string {
-	t.Helper()
-	var s scenario
-	raw, err := os.ReadFile(filepath.Join(dir, "scenario.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := yaml.Unmarshal(raw, &s); err != nil {
-		t.Fatal(err)
-	}
-	if len(s.Projects) == 0 {
-		s.Projects = []string{"compose.yaml"}
-	}
-	out := filepath.Join(b.root, "projects", project)
-	if err := os.MkdirAll(out, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for _, f := range s.Projects {
-		src, err := os.ReadFile(filepath.Join(dir, f))
-		if err != nil {
-			t.Fatal(err)
-		}
-		clean, err := stripComments(src)
-		if err != nil {
-			t.Fatalf("%s: %v", f, err)
-		}
-		if err := os.WriteFile(filepath.Join(out, f), clean, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	return out
-}
-
-func stripComments(src []byte) ([]byte, error) {
-	var n yaml.Node
-	if err := yaml.Unmarshal(src, &n); err != nil {
-		return nil, err
-	}
-	var clear func(*yaml.Node)
-	clear = func(n *yaml.Node) {
-		n.HeadComment, n.LineComment, n.FootComment = "", "", ""
-		for _, c := range n.Content {
-			clear(c)
-		}
-	}
-	clear(&n)
-	var buf bytes.Buffer
-	enc := yaml.NewEncoder(&buf)
-	enc.SetIndent(2)
-	if err := enc.Encode(&n); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), enc.Close()
-}
-
 func (b *benchEnv) run(t *testing.T, scenarioDir, arm string) bench.Run {
 	name := filepath.Base(scenarioDir)
-	project := bench.LabPrefix + randHex(3)
-	composeDir := b.prepareCompose(t, scenarioDir, project)
+	project := bench.NeutralProject()
+	composeDir := prepareCompose(t, scenarioDir, b.root, project)
 	r := bringUpAs(t, scenarioDir, project, composeDir)
 	b.noteLabSubnets(t, project)
 
 	dir := filepath.Join(b.root, "runs", name+"."+arm)
 	sb := sandboxDirs(t, dir)
 	run := bench.Run{Scenario: name, Arm: arm, Want: benchWant(r.s)}
-	env := []string{
-		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-		"HOME=" + filepath.Join(sb, "home"), "TMPDIR=" + filepath.Join(sb, "tmp"),
-		"CLAUDE_CONFIG_DIR=" + b.claudeConf, "SHELL=/bin/bash", "LANG=C.UTF-8", "TERM=dumb",
-		"CLAUDE_CODE_DISABLE_CLAUDE_MDS=1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY=1", "DISABLE_AUTOUPDATER=1",
-	}
-	args := []string{"-p", benchPrompt(r), "--model", b.model, "--max-turns", benchMaxTurns, "--max-budget-usd", benchMaxBudget,
-		"--setting-sources", "project,local", "--strict-mcp-config", "--disable-slash-commands",
-		"--output-format", "stream-json", "--verbose", "--no-session-persistence"}
+	env := cleanClaudeEnv(filepath.Join(sb, "home"), filepath.Join(sb, "tmp"), b.claudeConf)
+	args := append([]string{"-p", benchPrompt(r), "--model", b.model, "--max-turns", benchMaxTurns, "--max-budget-usd", benchMaxBudget},
+		cleanClaudeArgs...)
 	var auditPath string
 	switch arm {
 	case bench.ArmShell:
