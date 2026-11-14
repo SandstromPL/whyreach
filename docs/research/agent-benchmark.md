@@ -2,7 +2,7 @@
 
 > **What this is:** the validation experiment in `INITIAL.md` §6.4. For each lab scenario, one headless agent gets a shell only and another gets whyreach's four MCP tools only; both get the same problem report.
 > **Status:** method fixed on 2026-11-14, before the first run; run the same day. The method wasn't changed after seeing results. **Result: §6.4 passed: whyreach's agent was clearly better on 18 of 21 scenarios.**
-> **How to run it:** `make lab-bench` (Docker, the `claude` CLI, `bwrap` and model access; about an hour, and a few dollars on Claude Haiku).
+> **How to run it:** `make lab-bench` (Docker, the `claude` CLI, `bwrap` and model access; the recorded run took 9.6 minutes and cost $0.073 on Claude Haiku).
 
 ## Question
 
