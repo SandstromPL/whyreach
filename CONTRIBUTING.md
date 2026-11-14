@@ -108,6 +108,19 @@ Diagnoses follow a few more rules:
 - Before opening a pull request, run `make build test lint`. If behaviour changed, run `make lab` too.
 - Fill in the pull request template. It asks what you ran.
 
+## Using AI tools
+
+AI coding tools are welcome; whyreach itself is built with them. These rules keep the quality up:
+
+- **You own the change.** Read and understand every line before you open a pull request, and be ready to explain it in review.
+- **Test it for real.** Run the same checks as for any change: `make build test lint`, and `make lab` when behaviour changes. AI tools are confident about code they never ran.
+- **Say so.** If an AI tool wrote a meaningful part of the change, mention it in the pull request. An `Assisted-by:` or `Co-Authored-By:` line in the commit message works too.
+- **Point your agent at [CLAUDE.md](CLAUDE.md).** It holds the project's rules for coding agents: the safety rules, the architecture and the conventions. Claude Code reads it automatically; give it to other agents in their instructions.
+- **Keep private data out of AI tools.** Don't paste unredacted reports, or raw output from your machine, into an AI chat or agent. Use `whyreach report export` and check the copy first.
+- **No careless bulk changes.** Pull requests and issues that look generated without review, such as large rewrites nobody asked for, made-up APIs or invented problems, will be closed.
+- **Security reports need proof.** If an AI tool found a possible vulnerability, confirm it yourself and include a working reproduction before you report it.
+- **Licensing still applies.** Submit only code you have the right to contribute under Apache-2.0, and don't let a tool copy in code from other projects.
+
 ## Reporting a bug
 
 Use the bug report form. The most useful thing to attach is a redacted report:

@@ -14,3 +14,4 @@
 - [ ] If the design changed, INITIAL.md or an ADR says so.
 - [ ] A new rule comes with fixtures, a lab scenario, a `docs/rules` page and a catalog entry.
 - [ ] Tests and fixtures use made-up values only.
+- [ ] If AI tools helped, I reviewed and understand every change, and I said so above.
