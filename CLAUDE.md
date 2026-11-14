@@ -38,7 +38,7 @@ make test       # go test ./...  (unit + rule fixtures; no Docker, no root, no n
 make lint       # golangci-lint run
 make vuln       # govulncheck ./...  (pinned version; known CVEs in code we call, stdlib included; needs network)
 make lab        # go test -tags lab -count=1 ./test/e2e/...  (needs Docker; scenarios in test/lab/)
-make lab-agent  # go test -tags lab,agent -count=1 -run TestAgent ./test/e2e/...  (Docker + claude CLI; a small model diagnoses each scenario over MCP)
+make lab-agent  # go test -tags lab,agent -count=1 -run TestAgent ./test/e2e/...  (Docker + claude CLI; a small model diagnoses each scenario over MCP, under a neutral project name with a clean client, as in lab-bench)
 make lab-bench  # go test -tags lab,agent,bench -count=1 -run TestBench ./test/e2e/...  (the M5 agent benchmark: a shell-only agent, sandboxed, against a whyreach-only one on every scenario; Docker, bwrap, claude CLI; masked results in bin/bench/)
 make lab-root   # builds as you, then sudo runs only the test binaries: the executor's root-only test and TestLabNetns (tags lab,privileged: every scenario through the netns executor, no Docker writes)
 make golden     # go test ./internal/report/... ./internal/mcpserver/... -update  (text, the compact MCP structured form, Diagnosis JSON, the MCP tools)
@@ -118,7 +118,7 @@ cli / mcpserver → policy → engine → { rules, collect/host, collect/docker,
 
 1. Implement `Rule` in `internal/rules/wrxxx_<slug>.go`. Give it a `Layer()` from the precedence table, and declare `Supersedes()` if it makes another rule redundant.
 2. Add fixtures in `internal/rules/testdata/WRxxx/`: at least one case where the rule fires and one where it must **not** fire. If the rule's meaning depends on the platform, add a must-not-fire fixture for each platform where it doesn't apply.
-3. Add a lab scenario in `test/lab/wrxxx-<slug>/`, with `compose.yaml` and `scenario.yaml` (format: `INITIAL.md` §5 and `test/e2e/lab_test.go`), and expectations both with probe containers on and with the default config.
+3. Add a lab scenario in `test/lab/wrxxx-<slug>/`, with `compose.yaml` and `scenario.yaml` (format: `INITIAL.md` §5 and `test/e2e/lab_test.go`), and expectations both with probe containers on and with the default config. Agents get the Compose files without comments, under a neutral project name, so comments may explain the scenario, but no setting (a service, network or container name, a label) may name it or a rule: `TestScenariosGiveNoHints` (`make test`) checks.
 4. Write the doc page `docs/rules/WRxxx.md`: the pitfall, the evidence, the fix, and notes on false positives.
 5. Update the catalog table in `INITIAL.md` §4.6.
 
@@ -150,7 +150,7 @@ The default answer to adding a tool is no. The surface stays at 4 tools: `diagno
   - `golang.org/x/sync` (`errgroup`, for the engine's collect stage)
   - `github.com/google/go-cmp`
   - `github.com/BurntSushi/toml`
-  - `go.yaml.in/yaml/v3` (the lab harness only: it parses `scenario.yaml`)
+  - `go.yaml.in/yaml/v3` (the lab harness only: it parses `scenario.yaml` and copies Compose files without comments)
   - `github.com/Microsoft/go-winio` (Windows named pipe; only once native Windows support lands in v0.3)
   - `golang.org/x/net` (`route` for routing sockets; only once native macOS support lands in v0.3)
 
