@@ -339,16 +339,16 @@ func (e *Engine) inspectContainer(ctx context.Context, scope target.Scope, in *I
 	}
 	var ev evidence.Evidence
 	switch {
-	case !r.engineHere:
+	case !r.engineHere && netns.Running():
 		// Docker's PIDs aren't this machine's (Docker Desktop): only a probe
 		// container could read the sockets, and an inspection writes
 		// nothing to Docker (its tool says read-only). run_probe can.
 		in.Gaps = append(in.Gaps, Gap{What: "its listening sockets", Why: "unsupported", Detail: InspectNoProbe,
 			HowToEnable: fmt.Sprintf("Read them with run_probe (kind listeners, from container:%s), which runs a probe container when they are allowed.", c.Name)})
-	case netns.HostNetwork():
+	case netns.HostNetwork() && r.engineHere:
 		ev = r.hostListeners() // its sockets are the host's
 	default:
-		ev = r.containerListeners(ctx, netns)
+		ev = r.containerListeners(ctx, netns) // a stopped one's is a skipped record, never a probe
 	}
 	if ev.OK() {
 		for _, s := range ev.Data.(evidence.Listeners).Sockets {

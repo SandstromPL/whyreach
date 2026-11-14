@@ -135,33 +135,26 @@ var wslInterop = []string{"/proc/sys/fs/binfmt_misc/WSLInterop", "/proc/sys/fs/b
 // inside a container or in a WSL2 distro. read and exists read the real
 // filesystem, or a test's fixtures.
 //
-// A container has Docker's /.dockerenv, Podman's /run/.containerenv, or a
-// container runtime in PID 1's cgroup. WSL2 needs three things (INITIAL.md
-// §3.7, item 4): the kernel's name says microsoft (only a hint), WSL's
-// interop entry is there, and whyreach isn't in a container, where the
-// kernel's name is the same.
+// A container runtime in PID 1's cgroup settles "container". Otherwise
+// WSL2 needs its kernel's name to say microsoft (only a hint: containers
+// on a WSL2 kernel say so too) and WSL's interop entry, which WSL's own
+// init registers and containers don't see (binfmt_misc isn't mounted in
+// them; INITIAL.md §3.7, item 4). Docker's /.dockerenv and Podman's
+// /run/.containerenv mark a container only without that entry: a distro
+// imported with wsl --import from a docker export keeps the export's
+// /.dockerenv.
 func environment(read func(string) ([]byte, error), exists func(string) bool) (inContainer, wsl bool) {
-	for _, marker := range []string{"/.dockerenv", "/run/.containerenv"} {
-		if exists(marker) {
-			inContainer = true
-		}
-	}
 	if b, err := read("/proc/1/cgroup"); err == nil && (bytes.Contains(b, []byte("docker")) || bytes.Contains(b, []byte("containerd"))) {
-		inContainer = true
-	}
-	if inContainer {
 		return true, false
 	}
-	b, err := read("/proc/sys/kernel/osrelease")
-	if err != nil || !wslKernel(string(b)) {
-		return false, false
-	}
-	for _, f := range wslInterop {
-		if exists(f) {
-			return false, true
+	if b, err := read("/proc/sys/kernel/osrelease"); err == nil && wslKernel(string(b)) {
+		for _, f := range wslInterop {
+			if exists(f) {
+				return false, true
+			}
 		}
 	}
-	return false, false
+	return exists("/.dockerenv") || exists("/run/.containerenv"), false
 }
 
 // containerFile matches a file Docker mounts into a container from the

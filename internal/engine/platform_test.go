@@ -385,6 +385,14 @@ func TestInspectWritesNothingOnDesktop(t *testing.T) {
 	if !slices.ContainsFunc(in.Gaps, func(g Gap) bool { return g.Detail == InspectNoProbe && strings.Contains(g.HowToEnable, "run_probe") }) {
 		t.Errorf("gaps %+v, want one that points at run_probe", in.Gaps)
 	}
+	// A stopped container has no sockets: no gap, as on Docker Engine.
+	w.containers[1].State, w.containers[1].Pid = evidence.StateExited, 0
+	if in, err = e.Inspect(context.Background(), scope); err != nil {
+		t.Fatal(err)
+	}
+	if len(in.Gaps) != 0 || len(probes.ran) != 0 {
+		t.Errorf("a stopped container: gaps %+v, probe runs %v; want none", in.Gaps, probes.ran)
+	}
 }
 
 // TestDesktopListenerGapsMerge: on Docker Desktop without probe

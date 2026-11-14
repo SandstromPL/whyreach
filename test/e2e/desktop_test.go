@@ -104,7 +104,10 @@ func TestDegradedProblems(t *testing.T) {
 		{"a forbidden finding", engine.Diagnosis{Verdict: engine.VerdictInconclusive, Findings: finding("WR004", "low"), Gaps: probeGap}, wr002, false},
 		{"surer than with probes", engine.Diagnosis{Verdict: engine.VerdictCause, Findings: finding("WR002", "high")},
 			expect{Verdict: engine.VerdictLikelyCause, TopRule: "WR002", Confidence: "medium"}, false},
+		{"inconclusive, with another rule as the weak lead", engine.Diagnosis{Verdict: engine.VerdictInconclusive, Findings: finding("WR001", "low"), Gaps: probeGap}, wr002, false},
+		{"inconclusive, with the expected rule as the weak lead", engine.Diagnosis{Verdict: engine.VerdictInconclusive, Findings: finding("WR002", "low"), Gaps: probeGap}, wr002, true},
 		{"healthy, unconfirmed", engine.Diagnosis{Verdict: engine.VerdictInconclusive, Gaps: probeGap}, healthy, true},
+		{"healthy, unconfirmed with a weak lead", engine.Diagnosis{Verdict: engine.VerdictInconclusive, Findings: finding("WR001", "low"), Gaps: probeGap}, healthy, true},
 		{"healthy, a cause", engine.Diagnosis{Verdict: engine.VerdictCause, Findings: finding("WR002", "high"), Gaps: probeGap}, healthy, false},
 	}
 	for _, tt := range tests {

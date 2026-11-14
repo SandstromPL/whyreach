@@ -500,7 +500,9 @@ const maxProbeListeners = 6
 
 // takeProbeListener takes one of the diagnosis's probe-container listener
 // reads; false when none is left. Callers take them in order, before any
-// read starts, so which containers get read doesn't depend on timing.
+// read starts, so this bound picks the same containers every time. Each
+// read also draws on the policy's rate limit, inside the parallel reads:
+// close to that limit, which of them it refuses depends on timing.
 func (r *run) takeProbeListener() bool {
 	if r.probeListeners >= maxProbeListeners {
 		return false
@@ -528,9 +530,14 @@ func (r *run) probeListenersGap(names []string) Gap {
 	}
 }
 
+// Where a container's listening sockets come from. ProcListenerSource is
+// set only on a record whose read went through /proc/<pid> on this
+// machine, so the lab can check that none did where Docker's PIDs aren't
+// this machine's, whether the read worked or not.
 const (
-	listenerSource      = "/proc/<pid>/net/tcp{,6} read from the host, after /proc/<pid>/cgroup named the container"
+	ProcListenerSource  = "/proc/<pid>/net/tcp{,6} read from the host, after /proc/<pid>/cgroup named the container"
 	probeListenerSource = "/proc/net/tcp{,6} read inside a probe container joined to the container's network namespace"
+	stateSource         = "docker GET /containers/{id}/json (its state)"
 )
 
 // containerListeners reads a running container's listening sockets: from
@@ -539,7 +546,7 @@ const (
 func (r *run) containerListeners(ctx context.Context, c evidence.Container) evidence.Evidence {
 	ev := evidence.Evidence{
 		Kind: evidence.KindListeners, Context: evidence.InContainer(c), Subject: "listeners",
-		ObservedAt: time.Now(), Source: listenerSource,
+		ObservedAt: time.Now(),
 	}
 	switch {
 	case ctx.Err() != nil:
@@ -547,12 +554,13 @@ func (r *run) containerListeners(ctx context.Context, c evidence.Container) evid
 		ev.Err = &evidence.Error{Code: evidence.CodeTimeout, Message: "the diagnosis deadline passed before the listeners were read"}
 		return ev
 	case !c.Running() || c.Pid <= 0:
-		ev.Status = evidence.StatusSkipped
+		ev.Status, ev.Source = evidence.StatusSkipped, stateSource
 		ev.Err = &evidence.Error{Code: evidence.CodeNotFound, Message: fmt.Sprintf("%s is %s, so it has no sockets to read", c.DisplayName(), c.State)}
 		return ev
 	case !r.engineHere:
 		return r.listenersElsewhere(ctx, c)
 	}
+	ev.Source = ProcListenerSource
 	start := time.Now()
 	socks, err := r.e.d.Listeners.Container(c.Pid, c.ID)
 	ev.Duration, ev.ObservedAt = time.Since(start), time.Now()

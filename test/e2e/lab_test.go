@@ -157,6 +157,13 @@ func run(m *testing.M) int {
 		return 1
 	}
 	fmt.Fprintln(os.Stderr, "lab: platform", l.platform)
+	if *labDesktop {
+		// What the rehearsal can't show: it runs as linux-desktop, so the
+		// Windows host of Docker Desktop's WSL integration (its listeners'
+		// unsupported record), the WSL2 VM's labels and the WSL2 fact run
+		// only in unit tests and in the owner's run on Windows.
+		fmt.Fprintln(os.Stderr, "lab: rehearsing wsl2-desktop's expectations; Windows' side (host.docker.internal, WSL2 labels) isn't simulated")
+	}
 	code := m.Run()
 	if left := leftoverProbes(); left != "" {
 		fmt.Fprintln(os.Stderr, "lab: probe containers were left behind:\n"+left)
@@ -611,6 +618,10 @@ func diagnose(t *testing.T, configHome, from, to string) *engine.Diagnosis {
 	if code != d.ExitCode() {
 		t.Errorf("exit code %d, want %d for verdict %s", code, d.ExitCode(), d.Verdict)
 	}
+	// The expectations assume whyreach sees the platform the lab does.
+	if p, ok := evidence.NewView(d.Question, d.Evidence).Platform(); ok && p.P.Name != l.platform {
+		t.Errorf("whyreach recorded platform %s, and the lab runs on %s: the expectations don't apply", p.P.Name, l.platform)
+	}
 	t.Logf("%s in %s (exit %d): %s", d.Verdict, time.Since(start).Round(time.Millisecond), code, d.Summary)
 	if stderr.Len() > 0 {
 		t.Logf("stderr: %s", stderr.String())
@@ -701,7 +712,10 @@ func degradedProblems(d *engine.Diagnosis, e expect) []string {
 			out = append(out, fmt.Sprintf("verdict %s, want %s or weaker", d.Verdict, e.Verdict))
 		}
 	}
-	if p := d.Primary(); p != nil && d.Verdict != engine.VerdictNoProblem && d.Verdict != engine.VerdictInconclusive {
+	// The primary finding, a weak lead in an inconclusive diagnosis
+	// included, is the expected rule or none. A scenario that expects no
+	// cause is held to must_not_fire alone.
+	if p := d.Primary(); p != nil && d.Verdict != engine.VerdictNoProblem && (e.TopRule != "" || d.Verdict != engine.VerdictInconclusive) {
 		conf := map[string]int{"low": 0, "medium": 1, "high": 2}
 		if e.TopRule == "" || p.RuleID != e.TopRule || conf[string(p.Confidence)] > conf[e.Confidence] {
 			out = append(out, fmt.Sprintf("primary %s (%s), want %s at %s or lower, or none", p.RuleID, p.Confidence, e.TopRule, e.Confidence))
@@ -739,15 +753,24 @@ func onProblems(d *engine.Diagnosis, e expectOn) []string {
 }
 
 // readNoLocalPID checks, where Docker's PIDs aren't this machine's, that
-// every container's listening sockets whyreach read came from a probe
-// container, never through /proc/<pid> on this machine.
+// whyreach never tried to read a container's listening sockets through
+// /proc/<pid> on this machine, whether the read worked or not (on Docker
+// Desktop it would fail the cgroup check, and the diagnosis would only
+// degrade), and that every listener read that worked came from a probe
+// container.
 func readNoLocalPID(t *testing.T, d *engine.Diagnosis) {
 	t.Helper()
 	if platform.EngineHere(l.platform) {
 		return
 	}
 	for _, ev := range d.Evidence {
-		if ev.Kind == evidence.KindListeners && ev.Context.Kind == evidence.ContextContainer && ev.OK() && ev.Context.Executor != evidence.ExecutorProbeContainer {
+		if ev.Kind != evidence.KindListeners || ev.Context.Kind != evidence.ContextContainer {
+			continue
+		}
+		switch {
+		case ev.Source == engine.ProcListenerSource:
+			t.Errorf("on %s, whyreach read %s's listening sockets through /proc/<pid> on this machine (%s)", l.platform, ev.Context.Name, ev.Status)
+		case ev.OK() && ev.Context.Executor != evidence.ExecutorProbeContainer:
 			t.Errorf("on %s, %s's listeners were read by %q (%s), not in a probe container", l.platform, ev.Context.Name, ev.Context.Executor, ev.Source)
 		}
 	}

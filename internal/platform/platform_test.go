@@ -103,8 +103,9 @@ func TestEnvironment(t *testing.T) {
 		{"a WSL2 distro with systemd (WSLInterop-late)", fixture{"/proc/sys/kernel/osrelease": wslKernel, "/proc/sys/fs/binfmt_misc/WSLInterop-late": interop, "/proc/1/cgroup": "0::/init.scope\n"}, false, true},
 		{"a WSL kernel without WSL's interop entry: only a hint", fixture{"/proc/sys/kernel/osrelease": wslKernel}, false, false},
 		{"WSL's interop entry on another kernel", fixture{"/proc/sys/kernel/osrelease": ubuntuKernel, "/proc/sys/fs/binfmt_misc/WSLInterop": interop}, false, false},
-		{"a Docker container on a WSL2 kernel", fixture{"/proc/sys/kernel/osrelease": wslKernel, "/.dockerenv": "", "/proc/sys/fs/binfmt_misc/WSLInterop": interop}, true, false},
-		{"a container found by its cgroup", fixture{"/proc/sys/kernel/osrelease": wslKernel, "/proc/1/cgroup": "0::/system.slice/docker-" + strings.Repeat("ab", 32) + ".scope\n"}, true, false},
+		{"a Docker container on a WSL2 kernel", fixture{"/proc/sys/kernel/osrelease": wslKernel, "/.dockerenv": "", "/proc/1/cgroup": "0::/\n"}, true, false},
+		{"a WSL2 distro imported from a docker export keeps its /.dockerenv", fixture{"/proc/sys/kernel/osrelease": wslKernel, "/.dockerenv": "", "/proc/sys/fs/binfmt_misc/WSLInterop": interop, "/proc/1/cgroup": "0::/init.scope\n"}, false, true},
+		{"a container found by its cgroup, WSL's entry or not", fixture{"/proc/sys/kernel/osrelease": wslKernel, "/proc/sys/fs/binfmt_misc/WSLInterop": interop, "/proc/1/cgroup": "0::/system.slice/docker-" + strings.Repeat("ab", 32) + ".scope\n"}, true, false},
 		{"a Podman container", fixture{"/proc/sys/kernel/osrelease": ubuntuKernel, "/run/.containerenv": ""}, true, false},
 	}
 	for _, tt := range tests {
