@@ -15,6 +15,7 @@ import (
 
 	"github.com/SandstromPL/whyreach/internal/engine"
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/platform"
 )
 
 // TestLabNetns is M3's exit criterion (INITIAL.md §7): every lab scenario,
@@ -30,6 +31,11 @@ import (
 func TestLabNetns(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("needs root: run make lab-root")
+	}
+	if !platform.EngineHere(l.platform) {
+		// Docker's PIDs aren't this machine's (Docker Desktop): whyreach
+		// never enters them, by design (ADR 0004).
+		t.Skipf("the netns executor runs only where Docker Engine runs on this machine, and this is %s", l.platform)
 	}
 	// The probe image's tag carries this build's digest, so it can only
 	// exist if this binary imported it. Start without it (it is the lab's
