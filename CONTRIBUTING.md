@@ -82,7 +82,7 @@ Diagnoses follow a few more rules:
 
 1. Implement it in `internal/rules/wrxxx_<slug>.go`. Give it a layer from the precedence table, and declare `Supersedes()` if it makes another rule redundant ([ADR 0002](docs/adr/0002-rule-order.md)).
 2. Add fixtures in `internal/rules/testdata/WRxxx/`: at least one case where the rule fires and one where it must not.
-3. Add a lab scenario in `test/lab/wrxxx-<slug>/` (`compose.yaml` and `scenario.yaml`), with expectations for probe containers on and off.
+3. Add a lab scenario in `test/lab/wrxxx-<slug>/` (`compose.yaml` and `scenario.yaml`), with expectations for probe containers on and off. Comments may explain the scenario, since agents get the Compose files without them, but no setting (a service, network or container name, a label) may name the scenario or a rule. `make test` checks.
 4. Write `docs/rules/WRxxx.md`: the pitfall, the evidence, the fix, and the known false positives.
 5. Add the rule to the catalog in [INITIAL.md §4.6](INITIAL.md).
 
