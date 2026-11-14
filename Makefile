@@ -9,7 +9,7 @@ CROSS_TARGETS := darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 GOVULNCHECK := golang.org/x/vuln/cmd/govulncheck@v1.9.0
 GORELEASER := github.com/goreleaser/goreleaser/v2@v2.19.0
 
-.PHONY: build test lint vuln lab lab-agent lab-bench lab-root golden cross release-check release-snapshot release clean
+.PHONY: build test lint vuln lab lab-desktop lab-agent lab-bench lab-root golden cross release-check release-snapshot release clean
 
 ## build: static binary in bin/whyreach
 build:
@@ -30,6 +30,13 @@ vuln:
 ## lab: failure-lab scenarios in test/lab against Docker (never cached)
 lab:
 	go test -tags lab -count=1 ./test/e2e/...
+
+## lab-desktop: the lab with whyreach behind a Docker API proxy whose /version
+## says Docker Desktop, so it reads every listener in a probe container: a
+## rehearsal on Docker Engine of the run on Docker Desktop's WSL integration
+## (docs/adr/0004-wsl2.md)
+lab-desktop:
+	go test -tags lab -count=1 ./test/e2e/... -args -lab.desktop
 
 ## lab-agent: a headless Claude Code agent diagnoses each lab scenario through
 ## whyreach's MCP tools alone (needs Docker, the claude CLI and model access)

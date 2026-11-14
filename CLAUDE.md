@@ -17,6 +17,9 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 - M5: the agent benchmark (`INITIAL.md` §6.4, `make lab-bench`). For each lab scenario, one headless agent gets a shell and another gets whyreach's four tools. The shell agent is contained by bwrap, a read-only Docker proxy and a guard hook. The first run's agents could see their scenario's name in their directory names, so it was run again with only that fixed. In the second run each agent was right on 20 of 21 scenarios, and whyreach's was clearly better on 18, the shell agent on 1 (fewer calls, tokens, time and cost, and no unsafe command), so §6.4 passes. Method and results: `docs/research/agent-benchmark.md`. Launch drafts: `docs/launch/`.
 - After M5, `make lab-agent`, `TestAgentNewUser` and `make lab-bench` give agents no hint of the scenario: neutral project names, comment-free Compose copies, directories whose names say nothing, and a clean client (`test/e2e/agentenv_test.go`). Before each agent starts they check that nothing it is handed names its scenario or cause (`bench.Hints`; every scenario's prompt, Compose copies and the harness's paths also in `make test`), and afterwards what Claude Code loaded (`checkClean`). `make lab-agent` passes 21 of 21 (`INITIAL.md` §6.3).
 - v0.1.0 is released (tag, archives, image, MCP Registry). The README shows a demo GIF and the benchmark, with a chart (`docs/assets/`). Next is the launch post, the owner's step (`docs/launch/`).
+- M6 (v0.2) is in progress, in the owner's order: WSL2, then the six v0.2 rules (WR015, WR024, WR014, WR013, WR016, WR021), then CI mode.
+  - WSL2 is built (`docs/adr/0004-wsl2.md`): `platform.Classify` names `linux-engine`, `wsl2-engine` and `wsl2-desktop`, recorded as `platform` evidence; where Docker's PIDs aren't this machine's (Docker Desktop), no `/proc/<pid>` read and no `setns`, and listeners come from probe containers; under WSL2 the host's side is labelled the WSL2 VM; `doctor` names the platform; `--log-level` for `wsl.exe` launches.
+  - It waits for the owner's manual lab runs on Windows (`docs/wsl2-lab.md`). Until they pass, the README and the help text don't claim WSL2 support; `docs/wsl2.md` is marked unvalidated.
 
 **Source of truth:** `INITIAL.md` holds the current design: decisions, HLD, LLD, the rule catalog and the milestones. The original project proposal (not published) is background only.
 - If the two disagree, `INITIAL.md` wins.
@@ -39,6 +42,7 @@ make test       # go test ./...  (unit + rule fixtures; no Docker, no root, no n
 make lint       # golangci-lint run
 make vuln       # govulncheck ./...  (pinned version; known CVEs in code we call, stdlib included; needs network)
 make lab        # go test -tags lab -count=1 ./test/e2e/...  (needs Docker; scenarios in test/lab/)
+make lab-desktop  # the lab with whyreach behind a Docker API proxy whose /version says Docker Desktop: rehearses wsl2-desktop's run on Docker Engine (ADR 0004)
 make lab-agent  # go test -tags lab,agent -count=1 -run TestAgent ./test/e2e/...  (Docker + claude CLI; a small model diagnoses each scenario over MCP, under a neutral project name with a clean client, as in lab-bench)
 make lab-bench  # go test -tags lab,agent,bench -count=1 -run TestBench ./test/e2e/...  (the M5 agent benchmark: a shell-only agent, sandboxed, against a whyreach-only one on every scenario; Docker, bwrap, claude CLI; masked results in bin/bench/)
 make lab-root   # builds as you, then sudo runs only the test binaries: the executor's root-only test and TestLabNetns (tags lab,privileged: every scenario through the netns executor, no Docker writes)
@@ -72,7 +76,9 @@ cli / mcpserver → policy → engine → { rules, collect/host, collect/docker,
 
 ## Platforms (details: INITIAL.md §3.7, §4.15)
 
-- v0.1 supports Linux with Docker Engine only. Don't claim support for another OS or runtime until its lab run passes.
+- v0.1 supports Linux with Docker Engine only. Don't claim support for another OS or runtime until its lab run passes. WSL2 (`wsl2-engine`, `wsl2-desktop`) is built for v0.2 and claimed once the owner's manual runs pass (`docs/wsl2-lab.md`).
+- `platform.Classify` names the setup from where whyreach runs and the daemon's `GET /version`; the engine records it as `platform` evidence, and rules read it from the view, never from the OS directly.
+- Docker's PIDs are this machine's only where Docker Engine runs here (`platform.EngineHere`: `linux-engine`, `wsl2-engine`). Elsewhere never read `/proc/<pid>` or `setns`: a container's listening sockets come from a probe container, or the record says why not (ADR 0004).
 - Linux-only code (netlink, `/proc`, `setns`) carries `//go:build linux` and has an `_other.go` stub that returns `Status: unsupported`. Everything else must compile for darwin and windows; `make cross` checks this.
 - Container-side checks go through the Executor. Never assume the host shares a kernel or network namespace with the containers. On Docker Desktop (macOS, Windows, Linux, and its WSL2 integration) it doesn't, and inside WSL2 the "host" is the WSL2 VM, not Windows.
 - The netns executor runs only on `linux-engine` and `wsl2-engine`, and verifies that the PID belongs to the target container before calling `setns`.

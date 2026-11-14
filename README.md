@@ -241,6 +241,7 @@ make test       # unit tests and rule fixtures (no Docker, no root, no network)
 make lint       # golangci-lint v2
 make cross      # compile check for macOS and Windows
 make lab        # the failure lab in test/lab (needs Docker)
+make lab-desktop  # the same lab, with whyreach told it talks to Docker Desktop: every listener read in a probe container
 make lab-root   # the same lab as root, where whyreach enters network namespaces itself (asks for your sudo password)
 make lab-agent  # a headless agent diagnoses each lab scenario through MCP (needs the claude CLI)
 make lab-bench  # the agent benchmark: a sandboxed shell-only agent against a whyreach-only one (needs the claude CLI and bwrap)
