@@ -40,6 +40,8 @@ make build test
 | `make golden` | Refreshes the golden files after an intended change in output | Go |
 | `make release-snapshot` | Builds the release archives in `dist/`, publishing nothing | Network (it downloads goreleaser) |
 
+The README's demo GIF and benchmark chart are generated. When the CLI's text output changes, run `make build` and then `python3 docs/assets/make_demo_gif.py` (it needs Docker and Pillow, and runs the demo). After a new recorded benchmark run, run `python3 docs/assets/make_benchmark_chart.py`.
+
 CI runs `make test`, `make cross`, `make build`, the linter and `make vuln` on every pull request. It doesn't run the lab, so run `make lab` yourself when you change behaviour, and say so in the pull request.
 
 To run one rule's fixtures or one lab scenario:

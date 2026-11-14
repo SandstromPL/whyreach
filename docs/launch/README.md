@@ -1,8 +1,7 @@
-# Launch drafts (not published)
+# Launch drafts
 
-Drafts for the v0.1.0 launch, written in M5 from the agent benchmark (`docs/research/agent-benchmark.md`) and updated with its second run (2026-11-14), after the first run's agents turned out to see each scenario's name. Nothing here is published or posted: that is the owner's step, after v0.1.0 is released.
+Drafts for the v0.1.0 launch, written in M5 from the agent benchmark (`docs/research/agent-benchmark.md`) and updated with its second run (2026-11-14), after the first run's agents turned out to see each scenario's name. The results section drafted here for the top-level README was published there on 2026-11-14, with a chart; the launch post isn't posted yet, which is the owner's step.
 
-- `readme-results.md`: a results section for the top-level README, to paste in once the release is out.
 - `launch-post.md`: the launch post. Its results table is the benchmark's.
 
 Before publishing, check:

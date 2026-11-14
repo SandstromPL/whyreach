@@ -16,7 +16,7 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
   - through MCP, a private address outside Docker's networks and the host's own addresses needs the user's approval of that address and port.
 - M5: the agent benchmark (`INITIAL.md` §6.4, `make lab-bench`). For each lab scenario, one headless agent gets a shell and another gets whyreach's four tools. The shell agent is contained by bwrap, a read-only Docker proxy and a guard hook. The first run's agents could see their scenario's name in their directory names, so it was run again with only that fixed. In the second run each agent was right on 20 of 21 scenarios, and whyreach's was clearly better on 18, the shell agent on 1 (fewer calls, tokens, time and cost, and no unsafe command), so §6.4 passes. Method and results: `docs/research/agent-benchmark.md`. Launch drafts: `docs/launch/`.
 - After M5, `make lab-agent`, `TestAgentNewUser` and `make lab-bench` give agents no hint of the scenario: neutral project names, comment-free Compose copies, directories whose names say nothing, and a clean client (`test/e2e/agentenv_test.go`). Before each agent starts they check that nothing it is handed names its scenario or cause (`bench.Hints`; every scenario's prompt, Compose copies and the harness's paths also in `make test`), and afterwards what Claude Code loaded (`checkClean`). `make lab-agent` passes 21 of 21 (`INITIAL.md` §6.3).
-- Next is publishing and the launch, which are the owner's steps (tag, release, image, MCP Registry, the README results section and the launch post).
+- v0.1.0 is released (tag, archives, image, MCP Registry). The README shows a demo GIF and the benchmark, with a chart (`docs/assets/`). Next is the launch post, the owner's step (`docs/launch/`).
 
 **Source of truth:** `INITIAL.md` holds the current design: decisions, HLD, LLD, the rule catalog and the milestones. The original project proposal (not published) is background only.
 - If the two disagree, `INITIAL.md` wins.
@@ -49,6 +49,8 @@ make release-snapshot  # goreleaser release --snapshot --skip=docker: archives a
 make release           # the release workflow's step on a v* tag; it publishes, so it refuses to run outside GitHub Actions
 make clean      # rm -rf bin dist spikes/out
 ```
+
+The README's images are generated, not drawn: `docs/assets/make_demo_gif.py` runs the demo and draws `demo.gif` from whyreach's real output (Docker, Pillow, `make build` first), and `docs/assets/make_benchmark_chart.py` draws the benchmark chart from `docs/research/agent-benchmark/results.json`. Re-run the first when the CLI's text output changes, and the second after a new recorded benchmark run.
 
 Run a single rule's fixtures: `go test ./internal/rules -run 'TestFixtures/WR002' -v`. Run one lab scenario: `go test -tags lab -count=1 ./test/e2e -run 'TestLab/wr002' -v`.
 

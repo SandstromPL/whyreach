@@ -2,6 +2,10 @@
 
 **What is it?** A tool that tells you why one Docker container can't connect to another container or to the host. It shows the proof and the fix, and it changes nothing. You can run it yourself or let your AI coding agent run it.
 
+<p align="center">
+  <img src="docs/assets/demo.gif" width="900" alt="whyreach in a terminal. The demo's worker logs Connection refused for http://localhost:8080/. Then whyreach --from service:worker@whyreach-demo localhost:8080 names the cause, WR007: localhost inside worker is worker itself, not api. It lists the facts and the fix: connect to api:8080.">
+</p>
+
 **Why does it exist?** Errors like `Connection refused` or a timeout don't say what's wrong. The cause could be a wrong address or port, a service that only listens to itself, containers on different networks, or a service that isn't ready yet. whyreach finds the real one.
 
 **Who is it for?** Developers who run several services with Docker Compose on Linux, often together with an AI coding agent such as Claude Code, Codex or Cursor. Docker Desktop on macOS and Windows comes later.
@@ -133,7 +137,29 @@ To fix the demo, set `API_URL: http://api:8080/` in `demo/compose.yaml` and run 
 docker compose -f demo/compose.yaml down
 ```
 
-whyreach settled this cause from Docker's metadata and the containers' listening sockets alone, without starting anything. Some causes also need a check from inside the source container, which needs a probe container (see the next section).
+whyreach settled this cause from Docker's metadata and the containers' listening sockets alone, without starting anything. Some causes also need a check from inside the source container, which needs a probe container (see [What whyreach may do](#what-whyreach-may-do)).
+
+## How it compares to a shell
+
+An agent can already debug Docker networking with a shell: `docker inspect`, `ss`, `curl`. To see what whyreach adds, two headless Claude Code agents on Claude Haiku got the same problem report for each of the 21 lab scenarios (`test/lab`). One had only a shell, held to read-only access to the lab. The other had only whyreach's four MCP tools, in whyreach's default configuration.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/benchmark-dark.svg">
+  <img src="docs/assets/benchmark-light.svg" width="720" alt="Bar chart of an AI agent with a shell against one with whyreach, on 21 Docker networking scenarios with Claude Haiku. Both named the right cause in 20 of 21. Tool calls, median: 6 against 2. Tokens, median: 38.9k against 12.5k. Time, median: 16.6 s against 6.5 s. Runs that tried docker exec: 18 of 21 against 0 of 21.">
+</picture>
+
+| | Shell agent | whyreach agent |
+|---|---|---|
+| Named the right cause | 20 of 21 | 20 of 21 |
+| Tool calls, median | 6 | 2 |
+| Tokens, median | 38.9k | 12.5k |
+| Time, median | 16.6 s | 6.5 s |
+| Cost, all 21 runs | $0.060 | $0.023 |
+| Commands that would change something, attempted | 18, in 18 runs | 0 |
+
+Each agent found 20 of the 21 causes, and each missed a different one. whyreach's agent got there with about a third of the tokens and less than half the time. It never reached for `docker exec`; the shell agent did in 18 of its 21 runs, to look inside containers, and the benchmark's guard refused each one.
+
+The method was fixed before the first run. That run's agents could see each scenario's name in their directory names, so it was run again with only that changed; these are the second run's numbers. The per-scenario results, the raw data and the caveats are in [docs/research/agent-benchmark.md](docs/research/agent-benchmark.md): one model, one run each, and stand-in servers that are easier to read than real applications. To run it yourself, use `make lab-bench`; it needs Docker, `bwrap` and the `claude` CLI.
 
 ## What whyreach may do
 
