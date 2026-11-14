@@ -300,6 +300,21 @@ func EvidenceLine(e evidence.Evidence) string {
 			return "nothing listens on TCP in " + where
 		}
 		return "listening on TCP in " + where + ": " + strings.Join(socks, ", ")
+	case evidence.Platform:
+		var notes []string
+		if d.WSL {
+			notes = append(notes, "whyreach runs in WSL2, so the host's side is the WSL2 VM")
+		}
+		if d.InContainer {
+			notes = append(notes, "whyreach runs in a container")
+		}
+		if d.Desktop {
+			notes = append(notes, "Docker Desktop runs the containers in its own VM")
+		}
+		if len(notes) == 0 {
+			return "platform " + d.Name
+		}
+		return "platform " + d.Name + ": " + strings.Join(notes, "; ")
 	default:
 		return fmt.Sprintf("%s %s in %s: %s", e.Kind, e.Subject, where, e.Status)
 	}

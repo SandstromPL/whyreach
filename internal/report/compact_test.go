@@ -126,3 +126,22 @@ func TestEvidenceLineNamesTheHostResolver(t *testing.T) {
 		t.Errorf("without the exception: %q", got)
 	}
 }
+
+// TestEvidenceLineNamesTheWSL2VM: under WSL2 the host's side is the WSL2
+// VM, in every line about it, and the platform record says why.
+func TestEvidenceLineNamesTheWSL2VM(t *testing.T) {
+	p := evidence.Platform{Name: "wsl2-desktop", WSL: true, Desktop: true}
+	host := evidence.HostOn(p)
+	listeners := EvidenceLine(evidence.Evidence{Kind: evidence.KindListeners, Context: host, Status: evidence.StatusOK,
+		Data: evidence.Listeners{Sockets: []evidence.Socket{{Proto: "tcp", Local: netip.MustParseAddrPort("127.0.0.1:5432")}}}})
+	if listeners != "listening on TCP in the WSL2 VM: 127.0.0.1:5432" {
+		t.Errorf("listeners line %q", listeners)
+	}
+	plat := EvidenceLine(evidence.Evidence{Kind: evidence.KindPlatform, Context: host, Status: evidence.StatusOK, Data: p})
+	if !strings.Contains(plat, "platform wsl2-desktop") || !strings.Contains(plat, "WSL2 VM") || !strings.Contains(plat, "Docker Desktop") {
+		t.Errorf("platform line %q", plat)
+	}
+	if got := EvidenceLine(evidence.Evidence{Kind: evidence.KindPlatform, Context: evidence.Host(), Status: evidence.StatusOK, Data: evidence.Platform{Name: "linux-engine"}}); got != "platform linux-engine" {
+		t.Errorf("platform line %q", got)
+	}
+}
