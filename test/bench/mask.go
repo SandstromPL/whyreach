@@ -1,6 +1,8 @@
 package bench
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/netip"
 	"regexp"
@@ -102,7 +104,7 @@ func (m *Masker) String(s string) string {
 		s = replaceToken(s, l.value, l.placeholder)
 	}
 	s = macRe.ReplaceAllStringFunc(s, func(mac string) string { return m.placeholder(strings.ToLower(mac), "mac") })
-	s = replaceAddrs(s, ipv6Re, func(tok string) (string, bool) {
+	s = replaceAddrs(s, ipv6Re, isHexOrColon, func(tok string) (string, bool) {
 		addr, zone, _ := strings.Cut(tok, "%")
 		a, err := netip.ParseAddr(addr)
 		if err != nil || !a.Is6() || a.Is4In6() {
@@ -114,7 +116,7 @@ func (m *Masker) String(s string) string {
 		_ = zone
 		return m.placeholder(a.String(), "ip6"), true
 	})
-	s = replaceAddrs(s, ipv4Re, func(tok string) (string, bool) {
+	s = replaceAddrs(s, ipv4Re, isDigitByte, func(tok string) (string, bool) {
 		a, err := netip.ParseAddr(tok)
 		if err != nil {
 			return "", false
@@ -146,14 +148,19 @@ func (m *Masker) kept(a netip.Addr) bool {
 	return false
 }
 
-// replaceAddrs replaces the matches of re that f accepts, unless they sit
-// inside a longer run of digits, dots or hex (a version string, an ID).
-func replaceAddrs(s string, re *regexp.Regexp, f func(string) (string, bool)) string {
+// replaceAddrs replaces the matches of re that f accepts, unless they
+// continue a longer token: a byte of the address's own kind (in), or a dot
+// followed by a digit, as in a version string. A full stop that ends a
+// sentence doesn't continue it.
+func replaceAddrs(s string, re *regexp.Regexp, in func(byte) bool, f func(string) (string, bool)) string {
 	var b strings.Builder
 	last := 0
 	for _, loc := range re.FindAllStringIndex(s, -1) {
 		start, end := loc[0], loc[1]
-		if start > 0 && (isAddrByte(s[start-1])) || end < len(s) && isAddrByte(s[end]) && s[end] != ':' {
+		if start > 0 && (in(s[start-1]) || (s[start-1] == '.' && start > 1 && isDigitByte(s[start-2]))) {
+			continue
+		}
+		if end < len(s) && (in(s[end]) || (s[end] == '.' && end+1 < len(s) && isDigitByte(s[end+1]))) {
 			continue
 		}
 		rep, ok := f(s[start:end])
@@ -168,8 +175,10 @@ func replaceAddrs(s string, re *regexp.Regexp, f func(string) (string, bool)) st
 	return b.String()
 }
 
-func isAddrByte(c byte) bool {
-	return c == '.' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+func isDigitByte(c byte) bool { return c >= '0' && c <= '9' }
+
+func isHexOrColon(c byte) bool {
+	return c == ':' || isDigitByte(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 }
 
 // replaceToken replaces value, ignoring case, where it isn't part of a
@@ -217,5 +226,58 @@ func (m *Masker) Leaks(s string) []string {
 			out = append(out, "a DNS server address")
 		}
 	}
+	// Any address left that masking would have replaced, whatever its
+	// surroundings.
+	for _, re := range []*regexp.Regexp{ipv4Re, ipv6Re} {
+		for _, tok := range re.FindAllString(s, -1) {
+			addr, _, _ := strings.Cut(tok, "%")
+			if a, err := netip.ParseAddr(addr); err == nil && !m.kept(a) {
+				out = append(out, "an address outside the kept prefixes")
+				return out
+			}
+		}
+	}
 	return out
+}
+
+// JSON masks every string in a JSON document, keys included, and drops the
+// keys named, wherever they are. Masking the decoded strings, not the
+// encoded text, keeps the document valid and sees values next to escapes
+// such as \n.
+func (m *Masker) JSON(doc []byte, drop ...string) ([]byte, error) {
+	dec := json.NewDecoder(bytes.NewReader(doc))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return nil, err
+	}
+	var walk func(any) any
+	walk = func(v any) any {
+		switch t := v.(type) {
+		case string:
+			return m.String(t)
+		case []any:
+			for i := range t {
+				t[i] = walk(t[i])
+			}
+			return t
+		case map[string]any:
+			out := make(map[string]any, len(t))
+			for k, val := range t {
+				if slices.Contains(drop, k) {
+					continue
+				}
+				out[m.String(k)] = walk(val)
+			}
+			return out
+		}
+		return v
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(walk(v)); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
 }

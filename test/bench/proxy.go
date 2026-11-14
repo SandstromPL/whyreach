@@ -127,6 +127,15 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := versionPrefix.ReplaceAllString(r.URL.Path, "")
 	read := r.Method == http.MethodGet || r.Method == http.MethodHead
 	parts := strings.Split(strings.Trim(path, "/"), "/")
+	// The lab check and the forwarded request must name the same resource:
+	// a path with escapes (%2F), dot segments or empty segments could
+	// differ between this decoding and the daemon's. The Docker CLI sends
+	// none, so refuse to read them.
+	if read && (r.URL.RawPath != "" || slices.Contains(parts, "..") || slices.Contains(parts, ".") || slices.Contains(parts, "")) && path != "/" {
+		p.log(r, path, DecisionUnsupported, http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "whyreach-bench proxy: unusual path refused")
+		return
+	}
 
 	refuse := func() {
 		p.log(r, path, DecisionRefused, http.StatusForbidden)
@@ -281,7 +290,11 @@ func (p *Proxy) labImage(ctx context.Context, name string) bool {
 		ID       string `json:"Id"`
 		RepoTags []string
 	}
-	if !p.get(ctx, "/images/"+name+"/json", &img) {
+	segs := strings.Split(name, "/")
+	for i, seg := range segs {
+		segs[i] = url.PathEscape(seg)
+	}
+	if !p.get(ctx, "/images/"+strings.Join(segs, "/")+"/json", &img) {
 		return false
 	}
 	if slices.ContainsFunc(img.RepoTags, labImageTag) {

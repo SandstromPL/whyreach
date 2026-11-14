@@ -140,6 +140,8 @@ func TestProxy(t *testing.T) {
 		{"GET", "/v1.51/info", 200, []string{`"HttpProxy":""`}, []string{"secret"}, DecisionRead},
 		{"GET", "/v1.51/events?since=1", 200, []string{"whyreach-lab-1a2b3c-api-1"}, []string{"billing"}, DecisionRead},
 		{"GET", "/v1.51/system/df", 404, []string{"isn't available"}, nil, DecisionUnsupported},
+		{"GET", "/v1.51/images/python:3.13-slim%2F..%2F..%2Fpostgres:16/json", 400, []string{"unusual path"}, nil, DecisionUnsupported},
+		{"GET", "/v1.51/containers/aaa/../bbb/json", 400, []string{"unusual path"}, nil, DecisionUnsupported},
 	}
 	// …so postgres is hidden after all: fix the expectation in place.
 	tests[15].status, tests[15].decision = 404, DecisionHidden

@@ -42,7 +42,7 @@ lab-agent:
 ## results in bin/bench/ (needs Docker, bwrap, the claude CLI and model access;
 ## about an hour and a few dollars on Claude Haiku; docs/research/agent-benchmark.md)
 lab-bench:
-	go test -tags lab,agent,bench -count=1 -run TestBench -timeout 150m -v ./test/e2e/...
+	go test -tags lab,agent,bench -count=1 -run TestBench -timeout 240m -v ./test/e2e/...
 
 ## lab-root: the lab as root, where whyreach enters the containers' network
 ## namespaces itself (the netns executor): every scenario, and no Docker

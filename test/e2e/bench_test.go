@@ -26,10 +26,15 @@ package e2e
 //	WHYREACH_BENCH_ARMS   shell, whyreach, or both (the default)
 //	WHYREACH_BENCH_KEEP   1 keeps the unmasked run directory under /var/tmp
 //	WHYREACH_AGENT_MODEL  the model (default haiku), as for make lab-agent
+//
+// TestBenchRemask (WHYREACH_BENCH_REMASK=<kept run directory>) masks and
+// writes a kept run directory again, running no agent: for when the last
+// check refused to write a result that still showed a private detail.
 
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -108,6 +113,10 @@ type benchEnv struct {
 	model      string
 	masker     *bench.Masker
 	lab        []netip.Prefix // the lab's Docker subnets seen, kept unmasked
+	out        string         // the output directory, once chosen
+	keep       bool           // keep the unmasked run data: masking failed
+	// claudeVersion is the CLI's version, from the first transcript.
+	claudeVersion string
 }
 
 func TestBench(t *testing.T) {
@@ -137,6 +146,12 @@ func TestBench(t *testing.T) {
 			t.Run(name+"/"+arm, func(t *testing.T) {
 				r := b.run(t, dir, arm)
 				runs = append(runs, r)
+				// The unmasked record stays in the private run directory,
+				// for TestBenchRemask.
+				if raw, err := json.Marshal(r); err == nil {
+					_ = os.WriteFile(filepath.Join(b.root, "runs", name+"."+arm, "run.json"), raw, 0o600)
+				}
+				b.writeRun(t, r)
 				t.Logf("%s %s: want %s, got %q (right %v), %d calls, %d tokens, %.0f s, $%.4f, %d unsafe%s",
 					name, arm, r.Want, r.Got, r.Right, len(r.Calls), r.Tokens.Total(), r.Seconds, r.CostUSD, len(r.Unsafe), errSuffix(r))
 			})
@@ -171,14 +186,14 @@ func newBenchEnv(t *testing.T) *benchEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
+	b := &benchEnv{root: root, guard: filepath.Join(root, "bin", "benchguard"), model: agentModel}
 	t.Cleanup(func() {
-		if os.Getenv("WHYREACH_BENCH_KEEP") == "1" || t.Failed() {
+		if os.Getenv("WHYREACH_BENCH_KEEP") == "1" || b.keep {
 			t.Logf("unmasked run data kept in %s (remove it when done)", root)
 			return
 		}
 		_ = os.RemoveAll(root)
 	})
-	b := &benchEnv{root: root, guard: filepath.Join(root, "bin", "benchguard"), model: agentModel}
 	if m := os.Getenv("WHYREACH_AGENT_MODEL"); m != "" {
 		b.model = m
 	}
@@ -542,6 +557,9 @@ func (b *benchEnv) run(t *testing.T, scenarioDir, arm string) bench.Run {
 
 	tr := parseTranscript(stdout.Bytes())
 	run.Model, run.Turns, run.Tokens, run.CostUSD = tr.model, tr.turns, tr.tokens, tr.cost
+	if b.claudeVersion == "" {
+		b.claudeVersion = tr.version
+	}
 	run.Calls = tr.calls
 	if run.Stop == "" {
 		run.Stop = tr.stop
@@ -577,7 +595,8 @@ func (b *benchEnv) run(t *testing.T, scenarioDir, arm string) bench.Run {
 	return run
 }
 
-// noteLabSubnets keeps the scenario's Docker subnets unmasked.
+// noteLabSubnets keeps the scenario's Docker subnets unmasked, and notes
+// them in the run directory for TestBenchRemask.
 func (b *benchEnv) noteLabSubnets(t *testing.T, project string) {
 	t.Helper()
 	out, err := exec.CommandContext(context.Background(), "docker", "network", "ls", "--filter", "name="+project, "--format", "{{.Name}}").Output()
@@ -588,17 +607,57 @@ func (b *benchEnv) noteLabSubnets(t *testing.T, project string) {
 		for _, p := range networkSubnets(t, n) {
 			b.masker.Keep(p)
 			b.lab = append(b.lab, p)
+			if f, err := os.OpenFile(filepath.Join(b.root, "lab-subnets.txt"), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600); err == nil {
+				_, _ = fmt.Fprintln(f, p)
+				_ = f.Close()
+			}
 		}
 	}
 }
 
+// TestBenchRemask masks a kept run directory again and writes its results,
+// without running any agent.
+func TestBenchRemask(t *testing.T) {
+	root := os.Getenv("WHYREACH_BENCH_REMASK")
+	if root == "" {
+		t.Skip("WHYREACH_BENCH_REMASK names no kept run directory")
+	}
+	b := &benchEnv{root: root, masker: newBenchMasker(t), keep: true}
+	if raw, err := os.ReadFile(filepath.Join(root, "lab-subnets.txt")); err == nil {
+		for _, f := range strings.Fields(string(raw)) {
+			if p, err := netip.ParsePrefix(f); err == nil {
+				b.masker.Keep(p)
+			}
+		}
+	}
+	paths, _ := filepath.Glob(filepath.Join(root, "runs", "*", "run.json"))
+	slices.Sort(paths)
+	var runs []bench.Run
+	for _, p := range paths {
+		raw, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var r bench.Run
+		if err := json.Unmarshal(raw, &r); err != nil {
+			t.Fatalf("%s: %v", p, err)
+		}
+		if tr, err := os.ReadFile(filepath.Join(filepath.Dir(p), "transcript.jsonl")); err == nil && b.claudeVersion == "" {
+			b.claudeVersion = parseTranscript(tr).version
+		}
+		runs = append(runs, r)
+		b.writeRun(t, r)
+	}
+	b.write(t, runs)
+}
+
 type transcript struct {
-	model, final, stop, apiError string
-	tools                        []string
-	calls                        []bench.Call
-	turns                        int
-	tokens                       bench.Tokens
-	cost                         float64
+	model, version, final, stop, apiError string
+	tools                                 []string
+	calls                                 []bench.Call
+	turns                                 int
+	tokens                                bench.Tokens
+	cost                                  float64
 }
 
 // parseTranscript reads Claude Code's stream-json output.
@@ -612,6 +671,7 @@ func parseTranscript(b []byte) transcript {
 			Type    string   `json:"type"`
 			Subtype string   `json:"subtype"`
 			Model   string   `json:"model"`
+			Version string   `json:"claude_code_version"`
 			Tools   []string `json:"tools"`
 			Message struct {
 				Content json.RawMessage `json:"content"`
@@ -633,7 +693,7 @@ func parseTranscript(b []byte) transcript {
 		switch ev.Type {
 		case "system":
 			if ev.Subtype == "init" {
-				tr.tools, tr.model = ev.Tools, ev.Model
+				tr.tools, tr.model, tr.version = ev.Tools, ev.Model, ev.Version
 			}
 		case "assistant", "user":
 			var blocks []struct {
@@ -896,49 +956,110 @@ func auditChecks(path string) []string {
 	return append(out, fmt.Sprintf("audit log: %d entries", calls))
 }
 
-// write masks everything and writes the results; nothing is written if a
-// private detail would still show.
+// outDir is where the masked results go.
+func (b *benchEnv) outDir(t *testing.T) string {
+	t.Helper()
+	if b.out == "" {
+		b.out = os.Getenv("WHYREACH_BENCH_OUT")
+		if b.out == "" {
+			repo, err := repoRoot()
+			if err != nil {
+				t.Fatal(err)
+			}
+			b.out = filepath.Join(repo, "bin", "bench", time.Now().UTC().Format("20060102T150405Z"))
+		}
+	}
+	return b.out
+}
+
+// maskRun masks every text a run recorded.
+func (b *benchEnv) maskRun(r bench.Run) bench.Run {
+	m := b.masker
+	r.Answer, r.Cause, r.Error = m.String(r.Answer), m.String(r.Cause), m.String(r.Error)
+	r.Calls = slices.Clone(r.Calls)
+	for j := range r.Calls {
+		c := &r.Calls[j]
+		c.Input = m.String(c.Input)
+		o := c.Output
+		if len(o) > outputKeep {
+			o = o[:outputKeep] + fmt.Sprintf("\n… (%d more bytes in the transcript)", len(c.Output)-outputKeep)
+		}
+		c.Output = m.String(o)
+	}
+	r.Unsafe = slices.Clone(r.Unsafe)
+	for j := range r.Unsafe {
+		r.Unsafe[j].Command, r.Unsafe[j].Detail = m.String(r.Unsafe[j].Command), m.String(r.Unsafe[j].Detail)
+	}
+	r.Checks = slices.Clone(r.Checks)
+	for j := range r.Checks {
+		r.Checks[j] = m.String(r.Checks[j])
+	}
+	return r
+}
+
+// writeFiles writes masked files under the output directory, after a last
+// check that no private detail still shows; .gz names are compressed.
+func (b *benchEnv) writeFiles(t *testing.T, files map[string][]byte) bool {
+	t.Helper()
+	for name, content := range files {
+		if leaks := b.masker.Leaks(string(content)); len(leaks) > 0 {
+			t.Errorf("%s would still show private details (%v): nothing written; the unmasked data stays in %s", name, leaks, b.root)
+			b.keep = true
+			return false
+		}
+	}
+	for name, content := range files {
+		p := filepath.Join(b.outDir(t), name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if strings.HasSuffix(name, ".gz") {
+			var buf bytes.Buffer
+			zw := gzip.NewWriter(&buf)
+			_, _ = zw.Write(content)
+			if err := zw.Close(); err != nil {
+				t.Fatal(err)
+			}
+			content = buf.Bytes()
+		}
+		if err := os.WriteFile(p, content, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return true
+}
+
+// writeRun writes one run's masked record and transcript as soon as it
+// ends, so a run that stops halfway keeps what it did.
+func (b *benchEnv) writeRun(t *testing.T, r bench.Run) {
+	t.Helper()
+	id := r.Scenario + "." + r.Arm
+	rec, err := json.MarshalIndent(b.maskRun(r), "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string][]byte{filepath.Join("runs", id+".json"): append(rec, '\n')}
+	if raw, err := os.ReadFile(filepath.Join(b.root, "runs", id, "transcript.jsonl")); err == nil {
+		files[filepath.Join("transcripts", id+".jsonl.gz")] = maskTranscript(b.masker, raw)
+	}
+	b.writeFiles(t, files)
+}
+
+// write writes the summary and the table of all runs.
 func (b *benchEnv) write(t *testing.T, runs []bench.Run) {
 	t.Helper()
 	if len(runs) == 0 {
 		return
 	}
-	out := os.Getenv("WHYREACH_BENCH_OUT")
-	if out == "" {
-		repo, err := repoRoot()
-		if err != nil {
-			t.Fatal(err)
-		}
-		out = filepath.Join(repo, "bin", "bench", time.Now().UTC().Format("20060102T150405Z"))
-	}
-	m := b.masker
 	masked := make([]bench.Run, len(runs))
 	for i, r := range runs {
-		r.Answer, r.Cause, r.Error = m.String(r.Answer), m.String(r.Cause), m.String(r.Error)
-		r.Calls = slices.Clone(r.Calls)
-		for j := range r.Calls {
-			c := &r.Calls[j]
-			c.Input = m.String(c.Input)
-			o := c.Output
-			if len(o) > outputKeep {
-				o = o[:outputKeep] + fmt.Sprintf("\n… (%d more bytes in the transcript)", len(c.Output)-outputKeep)
-			}
-			c.Output = m.String(o)
-		}
-		r.Unsafe = slices.Clone(r.Unsafe)
-		for j := range r.Unsafe {
-			r.Unsafe[j].Command, r.Unsafe[j].Detail = m.String(r.Unsafe[j].Command), m.String(r.Unsafe[j].Detail)
-		}
-		r.Checks = slices.Clone(r.Checks)
-		for j := range r.Checks {
-			r.Checks[j] = m.String(r.Checks[j])
-		}
-		masked[i] = r
+		masked[i] = b.maskRun(r)
 	}
 	sum := bench.Summarize(masked)
 	results, err := json.MarshalIndent(map[string]any{
 		"date":    time.Now().UTC().Format(time.DateOnly),
 		"model":   firstModel(masked),
+		"claude":  b.claudeVersion,
 		"go":      runtime.Version(),
 		"summary": sum,
 		"runs":    masked,
@@ -948,34 +1069,9 @@ func (b *benchEnv) write(t *testing.T, runs []bench.Run) {
 	}
 	table := bench.Table(masked) + fmt.Sprintf("\nwhyreach clearly better on %d of %d scenarios (%d without counting unsafe commands); the shell on %d. §6.4: %s.\n",
 		sum.BetterWhyreach, sum.Scenarios, sum.BetterNoSafety, sum.BetterShell, map[bool]string{true: "passed", false: "not passed"}[sum.Passed])
-	files := map[string][]byte{"results.json": append(results, '\n'), "table.md": []byte(table)}
-	for _, r := range runs {
-		raw, err := os.ReadFile(filepath.Join(b.root, "runs", r.Scenario+"."+r.Arm, "transcript.jsonl"))
-		if err != nil {
-			continue
-		}
-		files[filepath.Join("transcripts", r.Scenario+"."+r.Arm+".jsonl")] = maskTranscript(m, raw)
+	if b.writeFiles(t, map[string][]byte{"results.json": append(results, '\n'), "table.md": []byte(table)}) {
+		t.Logf("results in %s\n%s", b.outDir(t), table)
 	}
-	leaky := false
-	for name, content := range files {
-		if leaks := m.Leaks(string(content)); len(leaks) > 0 {
-			t.Errorf("%s would still show private details (%v): nothing written", name, leaks)
-			leaky = true
-		}
-	}
-	if leaky {
-		return
-	}
-	for name, content := range files {
-		p := filepath.Join(out, name)
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(p, content, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	t.Logf("results in %s\n%s", out, table)
 }
 
 func firstModel(runs []bench.Run) string {
@@ -993,13 +1089,16 @@ func maskTranscript(m *bench.Masker, raw []byte) []byte {
 	var buf bytes.Buffer
 	sc := bufio.NewScanner(bytes.NewReader(raw))
 	sc.Buffer(make([]byte, 1<<20), 64<<20)
-	credRe := regexp.MustCompile(`"credential_expires_at":"[^"]*",?`)
 	for sc.Scan() {
-		line := sc.Text()
-		if strings.Contains(line, `"type":"rate_limit_event"`) {
+		line := sc.Bytes()
+		if bytes.Contains(line, []byte(`"type":"rate_limit_event"`)) {
 			continue
 		}
-		buf.WriteString(m.String(credRe.ReplaceAllString(line, "")))
+		masked, err := m.JSON(line, "credential_expires_at")
+		if err != nil {
+			masked = []byte(m.String(string(line)))
+		}
+		buf.Write(masked)
 		buf.WriteByte('\n')
 	}
 	return buf.Bytes()
