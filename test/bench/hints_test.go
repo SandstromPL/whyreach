@@ -144,6 +144,54 @@ func TestScenariosGiveNoHints(t *testing.T) {
 	}
 }
 
+// harnessPaths are the paths the agent checks and the benchmark show an
+// agent, with made-up numbers (test/e2e: agentenv_test.go, bench_test.go,
+// lab_test.go; keep them in step): its directories, the files Claude Code
+// and whyreach read for it, the Compose copies and the binaries.
+var harnessPaths = []string{
+	// make lab-agent: agentDirs, and the lab's whyreach binary.
+	"/tmp/whyreach-agent-2718281828/work", "/tmp/whyreach-agent-2718281828/home", "/tmp/whyreach-agent-2718281828/tmp",
+	"/tmp/whyreach-agent-2718281828/xdg/config/whyreach/config.toml", "/tmp/whyreach-agent-2718281828/xdg/state/whyreach/audit.jsonl",
+	"/tmp/whyreach-agent-2718281828/xdg/data/whyreach/reports", "/tmp/whyreach-agent-2718281828/mcp.json",
+	"/tmp/whyreach-agent-2718281828/server.log", "/tmp/whyreach-agent-2718281828/compose/whyreach-lab-1a2b3c/compose.api.yaml",
+	"/tmp/whyreach-agent-2718281828/home/.local/bin/whyreach", "/tmp/whyreach-lab-3141592653/whyreach",
+	// make lab-bench: a run's directory, the Compose copies and the guard.
+	"/var/tmp/whyreach-bench-2718281828/runs/run-3141592653/sandbox/work", "/var/tmp/whyreach-bench-2718281828/runs/run-3141592653/sandbox/home",
+	"/var/tmp/whyreach-bench-2718281828/runs/run-3141592653/sandbox/tmp", "/var/tmp/whyreach-bench-2718281828/runs/run-3141592653/xdg/config/whyreach/config.toml",
+	"/var/tmp/whyreach-bench-2718281828/runs/run-3141592653/shell-prefix", "/var/tmp/whyreach-bench-2718281828/runs/run-3141592653/settings.json",
+	"/var/tmp/whyreach-bench-2718281828/runs/run-3141592653/mcp.json", "/var/tmp/whyreach-bench-2718281828/runs/run-3141592653/server.log",
+	"/var/tmp/whyreach-bench-2718281828/runs/run-3141592653/shell.jsonl", "/var/tmp/whyreach-bench-2718281828/compose/whyreach-lab-1a2b3c",
+	"/var/tmp/whyreach-bench-2718281828/bin/benchguard",
+}
+
+// TestHarnessPathsGiveNoHints checks that no part of a path the harness
+// shows an agent is a word of a scenario's name: the first run of the
+// fixed benchmark kept its Compose copies in a projects folder, and its
+// own check stopped wr004-separate-projects before the agents started.
+func TestHarnessPathsGiveNoHints(t *testing.T) {
+	paths, err := filepath.Glob(filepath.Join("..", "lab", "*", "scenario.yaml"))
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("no scenarios: %v", err)
+	}
+	for _, p := range paths {
+		name := filepath.Base(filepath.Dir(p))
+		for _, hp := range harnessPaths {
+			if h := Hints(name, hp); len(h) > 0 {
+				t.Errorf("%s names %s: %v", hp, name, h)
+			}
+		}
+	}
+	// The old layouts are caught.
+	for _, old := range []struct{ scenario, path string }{
+		{"wr004-separate-projects", "/var/tmp/whyreach-bench-2718281828/projects/whyreach-lab-1a2b3c"},
+		{"wr002-loopback-bind", "/var/tmp/whyreach-bench-2718281828/runs/wr002-loopback-bind.shell/sandbox/work"},
+	} {
+		if len(Hints(old.scenario, old.path)) == 0 {
+			t.Errorf("%s should name %s", old.path, old.scenario)
+		}
+	}
+}
+
 // comments returns the comments a YAML document still has.
 func comments(t *testing.T, doc []byte) []string {
 	t.Helper()

@@ -73,7 +73,10 @@ func bringUpNeutral(t *testing.T, dir, root string) running {
 }
 
 // prepareCompose copies a scenario's Compose files without comments into
-// root/projects/<project>, and returns that directory.
+// root/compose/<project>, and returns that directory. Agents can see its
+// path (the shell agent reads it, and Compose's labels name it), so none
+// of its parts may be a word of a scenario's name: the first run of the
+// fixed benchmark used root/projects, and stopped at wr004-separate-projects.
 func prepareCompose(t *testing.T, dir, root, project string) string {
 	t.Helper()
 	var s scenario
@@ -87,7 +90,7 @@ func prepareCompose(t *testing.T, dir, root, project string) string {
 	if len(s.Projects) == 0 {
 		s.Projects = []string{"compose.yaml"}
 	}
-	out := filepath.Join(root, "projects", project)
+	out := filepath.Join(root, "compose", project)
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		t.Fatal(err)
 	}
