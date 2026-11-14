@@ -15,6 +15,7 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
   - each approval of a name or an address covers 3 uses;
   - through MCP, a private address outside Docker's networks and the host's own addresses needs the user's approval of that address and port.
 - M5: the agent benchmark (`INITIAL.md` §6.4, `make lab-bench`). For each lab scenario, one headless agent gets a shell and another gets whyreach's four tools. The shell agent is contained by bwrap, a read-only Docker proxy and a guard hook. Both agents were right on all 21 scenarios. whyreach's was clearly better on 18 (fewer calls, tokens, time and cost, and no unsafe command), so §6.4 passes. Method and results: `docs/research/agent-benchmark.md`. Launch drafts: `docs/launch/`.
+- After M5, `make lab-agent` and `TestAgentNewUser` got the benchmark's neutral project names, comment-free Compose copies and clean client, plus neutral directories (`test/e2e/agentenv_test.go`). Before each agent starts they check that nothing it is handed names its scenario or cause (`bench.Hints`; every scenario's prompt and Compose copies also in `make test`), and afterwards what Claude Code loaded (`checkClean`). Both pass, 21 of 21 (`INITIAL.md` §6.3).
 - Next is publishing and the launch, which are the owner's steps (tag, release, image, MCP Registry, the README results section and the launch post).
 
 **Source of truth:** `INITIAL.md` holds the current design: decisions, HLD, LLD, the rule catalog and the milestones. The original project proposal (not published) is background only.
