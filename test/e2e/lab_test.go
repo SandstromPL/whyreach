@@ -357,6 +357,9 @@ func runScenario(t *testing.T, dir string) {
 					t.Error(p)
 				}
 				readNoLocalPID(t, d)
+				if run.config == l.noProbe && len(d.SideEffects) != 0 {
+					t.Errorf("with probe containers off, whyreach must not write to Docker: %v", d.SideEffects)
+				}
 			})
 		}
 		return

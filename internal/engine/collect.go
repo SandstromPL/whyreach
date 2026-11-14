@@ -277,6 +277,7 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 	// may serve the port unpublished: one record says so, so the rules
 	// don't take their silence for "nothing listens".
 	var unread []evidence.Evidence
+	var cut []string
 	for _, ev := range scanned {
 		c := ev.Data.(evidence.Container)
 		if c.HostNetwork() || c.NetnsOwner() != "" {
@@ -284,6 +285,7 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 		}
 		if !r.engineHere && !r.takeProbeListener() {
 			unread = append(unread, r.listenersCut(c))
+			cut = append(cut, c.DisplayName())
 			continue
 		}
 		l := r.containerListeners(ctx, c)
@@ -302,6 +304,9 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 	if len(unread) > 0 {
 		r.store.Add(scanUnread(unread, port))
 	}
+	if len(cut) > 0 {
+		r.gaps = append(r.gaps, r.probeListenersGap(cut)) // a skipped record makes no gap of its own
+	}
 }
 
 // scanUnread sums up the running containers whose listening sockets the
@@ -309,6 +314,12 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 // the first one's status and reason, in a context that names how many.
 func scanUnread(unread []evidence.Evidence, port uint16) evidence.Evidence {
 	first := unread[0]
+	for _, e := range unread {
+		if e.Err == nil || e.Err.Code != evidence.CodeLimit {
+			first = e // a reason the gap can name, rather than the bound
+			break
+		}
+	}
 	names := make([]string, 0, len(unread))
 	for _, e := range unread {
 		names = append(names, e.Context.String())
