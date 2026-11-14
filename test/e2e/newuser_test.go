@@ -135,7 +135,7 @@ When all three are done, reply with the single line DONE.`,
 		}
 	}
 	first := runClaude(t, sandbox, env, 8*time.Minute, install, "--tools", "Bash,Read,Write", "--allowedTools", strings.Join(allowed, ","))
-	checkClean(t, first, []string{"Bash", "Read", "Write"})
+	checkClean(t, first.client, []string{"Bash", "Read", "Write"})
 	t.Logf("install: %d turns, $%.4f, %.0f s\ncommands:\n  %s\nanswer: %s", first.turns, first.cost, first.seconds,
 		strings.ReplaceAll(strings.Join(first.commands, "\n"), "\n", "\n  "), first.final)
 
@@ -189,7 +189,7 @@ When all three are done, reply with the single line DONE.`,
 	args := []string{"--mcp-config", mcpConfig, "--tools", "", "--allowedTools", strings.Join(tools, ",")}
 	noHints(t, demoScenario, demoTarget, append(append([]string{ask, project, work, string(b)}, args...), env...)...)
 	second := runClaude(t, work, env, 8*time.Minute, ask, args...)
-	checkClean(t, second, tools, "whyreach:connected")
+	checkClean(t, second.client, tools, "whyreach:connected")
 	t.Logf("diagnose: %d turns, $%.4f, %.0f s, tools %v\nanswer: %s", second.turns, second.cost, second.seconds, second.tools, second.final)
 	got := ""
 	if m := regexp.MustCompile(`(?m)^\W*RESULT:\s*\W*(WR\d{3}|none)\b`).FindAllStringSubmatch(second.final, -1); len(m) > 0 {

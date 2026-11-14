@@ -32,6 +32,7 @@ func TestHints(t *testing.T) {
 		{"wr009-default-bridge", "network_mode: bridge", []string{"bridge"}, nil},
 		// Words a report needs, a word inside a longer one, neutral names.
 		{"wr011-host-docker-internal", "On this machine (the host itself, not inside a container), a Docker Compose project", nil, nil},
+		{"wr019-ipv6-only", "Find out why. Only investigate: don't change, restart or create anything.", nil, nil},
 		{"wr003-wrong-port", "a report in a supported format", nil, nil},
 		{"inconclusive-app-closes", "an application's port closed", nil, nil},
 		{"wr002-loopback-bind", "/tmp/whyreach-agent-2718281828/work whyreach-lab-1a2b3c", nil, nil},

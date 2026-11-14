@@ -79,13 +79,14 @@ var (
 
 // reportWords are words of scenario names that a problem report needs
 // anyway: every report names Docker, a report from the host says so, and
-// "not" says nothing on its own.
-var reportWords = []string{"docker", "host", "not"}
+// "not" and "only" say nothing on their own (the benchmark's prompt says
+// "Only investigate").
+var reportWords = []string{"docker", "host", "not", "only"}
 
 // Hints returns what in text would tell an agent which scenario it faces,
 // sorted: a rule ID; the scenario's name, or what follows its rule ID, with
 // one of - _ . or a space between the words, or nothing; or a word of the
-// name standing alone, other than docker, host and not. text is something
+// name standing alone, other than docker, host, not and only. text is something
 // the harness hands the agent: its prompt, with the target left out (the
 // target is the problem itself), its arguments and environment, the names
 // of its Compose project and directories.

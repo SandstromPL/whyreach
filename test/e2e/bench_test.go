@@ -142,14 +142,14 @@ func TestBench(t *testing.T) {
 		}
 		for _, arm := range arms {
 			t.Run(name+"/"+arm, func(t *testing.T) {
-				r := b.run(t, dir, arm)
+				r, runDir := b.run(t, dir, arm)
 				runs = append(runs, r)
 				// The unmasked record stays in the private run directory,
 				// for TestBenchRemask.
 				if raw, err := json.Marshal(r); err == nil {
-					_ = os.WriteFile(filepath.Join(b.root, "runs", name+"."+arm, "run.json"), raw, 0o600)
+					_ = os.WriteFile(filepath.Join(runDir, "run.json"), raw, 0o600)
 				}
-				b.writeRun(t, r)
+				b.writeRun(t, r, runDir)
 				t.Logf("%s %s: want %s, got %q (right %v), %d calls, %d tokens, %.0f s, $%.4f, %d unsafe%s",
 					name, arm, r.Want, r.Got, r.Right, len(r.Calls), r.Tokens.Total(), r.Seconds, r.CostUSD, len(r.Unsafe), errSuffix(r))
 			})
@@ -418,23 +418,38 @@ func (b *benchEnv) selfTest(t *testing.T) {
 	}
 }
 
-func (b *benchEnv) run(t *testing.T, scenarioDir, arm string) bench.Run {
+// run runs one arm on one scenario, and returns the run and its private
+// directory.
+func (b *benchEnv) run(t *testing.T, scenarioDir, arm string) (bench.Run, string) {
 	name := filepath.Base(scenarioDir)
 	project := bench.NeutralProject()
 	composeDir := prepareCompose(t, scenarioDir, b.root, project)
 	r := bringUpAs(t, scenarioDir, project, composeDir)
 	b.noteLabSubnets(t, project)
 
-	dir := filepath.Join(b.root, "runs", name+"."+arm)
+	// The run's directory, which holds the agent's sandbox, whyreach's XDG
+	// directories and the files Claude Code reads for the run, has a name
+	// that says nothing about the scenario; run.json says which run it
+	// holds. The first recorded run named it <scenario>.<arm>, and its
+	// agents saw that (docs/research/agent-benchmark.md, "Incidents").
+	if err := os.MkdirAll(filepath.Join(b.root, "runs"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dir, err := os.MkdirTemp(filepath.Join(b.root, "runs"), "run-")
+	if err != nil {
+		t.Fatal(err)
+	}
 	sb := sandboxDirs(t, dir)
 	run := bench.Run{Scenario: name, Arm: arm, Want: benchWant(r.s)}
 	env := cleanClaudeEnv(filepath.Join(sb, "home"), filepath.Join(sb, "tmp"), b.claudeConf)
 	args := append([]string{"-p", benchPrompt(r), "--model", b.model, "--max-turns", benchMaxTurns, "--max-budget-usd", benchMaxBudget},
 		cleanClaudeArgs...)
 	var auditPath string
+	var files []string // what Claude Code reads for the run
 	switch arm {
 	case bench.ArmShell:
 		prefix, settings := b.shellPrefix(t, dir, sb, composeDir)
+		files = append(files, prefix, settings)
 		env = append(env, "CLAUDE_CODE_SHELL_PREFIX="+prefix)
 		args = append(args, "--tools", "Bash", "--allowedTools", "Bash", "--settings", settings)
 	case bench.ArmWhyreach:
@@ -457,10 +472,26 @@ func (b *benchEnv) run(t *testing.T, scenarioDir, arm string) bench.Run {
 		if err := os.WriteFile(mcp, cfg, 0o600); err != nil {
 			t.Fatal(err)
 		}
+		files = append(files, mcp)
 		args = append(args, "--mcp-config", mcp, "--tools", "", "--allowedTools", strings.Join(tools, ","))
 	default:
 		t.Fatalf("unknown arm %q", arm)
 	}
+
+	// Nothing the agent is handed may name the scenario or its cause: the
+	// prompt without the catalog (the same for every scenario) and the
+	// target (the problem itself), the other arguments, the environment,
+	// the project, the directories and the files Claude Code reads.
+	checked := append([]string{strings.Replace(benchPrompt(r), benchCatalog, "<catalog>", 1), r.project, dir, composeDir}, args[2:]...)
+	checked = append(checked, env...)
+	for _, f := range files {
+		content, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checked = append(checked, string(content))
+	}
+	noHints(t, name, r.to, checked...)
 
 	ctx, cancel := context.WithTimeout(context.Background(), benchTimeout)
 	defer cancel()
@@ -470,7 +501,7 @@ func (b *benchEnv) run(t *testing.T, scenarioDir, arm string) bench.Run {
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	_ = b.proxy.Take()
 	start := time.Now()
-	err := cmd.Run()
+	err = cmd.Run()
 	run.Seconds = time.Since(start).Seconds()
 	proxyEvents := b.proxy.Take()
 	if werr := os.WriteFile(filepath.Join(dir, "transcript.jsonl"), stdout.Bytes(), 0o600); werr != nil {
@@ -497,12 +528,15 @@ func (b *benchEnv) run(t *testing.T, scenarioDir, arm string) bench.Run {
 	}
 	run.Judge(tr.final)
 	run.Checks = append(run.Checks, "tools offered: "+strings.Join(tr.tools, ", "))
+	client := "client: MCP servers [" + strings.Join(tr.client.servers, ", ") + "]; nothing loaded beyond a clean client"
+	if len(tr.client.unclean) > 0 {
+		client = "client: MCP servers [" + strings.Join(tr.client.servers, ", ") + "]; also loaded: " + strings.Join(tr.client.unclean, "; ")
+	}
+	run.Checks = append(run.Checks, client)
 
 	switch arm {
 	case bench.ArmShell:
-		if slices.ContainsFunc(tr.tools, func(s string) bool { return s != "Bash" }) {
-			t.Errorf("the shell agent was offered more than Bash: %v", tr.tools)
-		}
+		checkClean(t, tr.client, []string{"Bash"})
 		run.Unsafe = shellUnsafe(t, run.Calls, readShellLog(t, filepath.Join(dir, "shell.jsonl")), proxyEvents, b.guard, &run.Checks)
 	case bench.ArmWhyreach:
 		for i, c := range run.Calls {
@@ -510,9 +544,7 @@ func (b *benchEnv) run(t *testing.T, scenarioDir, arm string) bench.Run {
 				run.Unsafe = append(run.Unsafe, bench.Unsafe{Call: i, Kind: "other-tool", How: "harness", Command: c.Tool})
 			}
 		}
-		if slices.ContainsFunc(tr.tools, func(s string) bool { return !strings.HasPrefix(s, "mcp__whyreach__") }) {
-			t.Errorf("the whyreach agent was offered other tools: %v", tr.tools)
-		}
+		checkClean(t, tr.client, tools, "whyreach:connected")
 		run.Checks = append(run.Checks, auditChecks(auditPath)...)
 		for _, c := range run.Checks {
 			if strings.HasPrefix(c, "side effects:") {
@@ -520,7 +552,7 @@ func (b *benchEnv) run(t *testing.T, scenarioDir, arm string) bench.Run {
 			}
 		}
 	}
-	return run
+	return run, dir
 }
 
 // noteLabSubnets keeps the scenario's Docker subnets unmasked, and notes
@@ -574,12 +606,13 @@ func TestBenchRemask(t *testing.T) {
 			b.claudeVersion = parseTranscript(tr).version
 		}
 		runs = append(runs, r)
-		b.writeRun(t, r)
+		b.writeRun(t, r, filepath.Dir(p))
 	}
 	b.write(t, runs)
 }
 
 type transcript struct {
+	client                                clientInit
 	model, version, final, stop, apiError string
 	tools                                 []string
 	calls                                 []bench.Call
@@ -617,6 +650,9 @@ func parseTranscript(b []byte) transcript {
 		}
 		if json.Unmarshal(sc.Bytes(), &ev) != nil {
 			continue
+		}
+		if c, ok := parseInit(sc.Bytes()); ok {
+			tr.client = c
 		}
 		switch ev.Type {
 		case "system":
@@ -948,7 +984,7 @@ func (b *benchEnv) writeFiles(t *testing.T, files map[string][]byte) bool {
 
 // writeRun writes one run's masked record and transcript as soon as it
 // ends, so a run that stops halfway keeps what it did.
-func (b *benchEnv) writeRun(t *testing.T, r bench.Run) {
+func (b *benchEnv) writeRun(t *testing.T, r bench.Run, dir string) {
 	t.Helper()
 	id := r.Scenario + "." + r.Arm
 	rec, err := json.MarshalIndent(b.maskRun(r), "", "  ")
@@ -956,7 +992,7 @@ func (b *benchEnv) writeRun(t *testing.T, r bench.Run) {
 		t.Fatal(err)
 	}
 	files := map[string][]byte{filepath.Join("runs", id+".json"): append(rec, '\n')}
-	if raw, err := os.ReadFile(filepath.Join(b.root, "runs", id, "transcript.jsonl")); err == nil {
+	if raw, err := os.ReadFile(filepath.Join(dir, "transcript.jsonl")); err == nil {
 		files[filepath.Join("transcripts", id+".jsonl.gz")] = maskTranscript(b.masker, raw)
 	}
 	b.writeFiles(t, files)

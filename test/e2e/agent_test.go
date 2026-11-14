@@ -127,7 +127,7 @@ func runAgent(t *testing.T, dir string) agentResult {
 	noHints(t, name, r.to, append(append([]string{prompt, r.project, work, string(cfg)}, args...), env...)...)
 	run := runClaude(t, work, env, 4*time.Minute, prompt, args...)
 	res.ToolCalls, res.Turns, res.Seconds, res.CostUSD = run.tools, run.turns, run.seconds, run.cost
-	checkClean(t, run, tools, "whyreach:connected")
+	checkClean(t, run.client, tools, "whyreach:connected")
 
 	if m := regexp.MustCompile(`(?m)^\W*RESULT:\s*\W*(WR\d{3}|none)\b`).FindAllStringSubmatch(run.final, -1); len(m) > 0 {
 		res.Got = m[len(m)-1][1]
