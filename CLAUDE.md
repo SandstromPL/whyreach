@@ -4,7 +4,7 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 
 **Who it's for:** backend developers whose Docker runs on Linux and who run multi-service Compose stacks with an AI coding agent. Docker Desktop users on Windows and macOS come later. Details: `INITIAL.md` §2.1 and §3.7.
 
-**Status:** M0 to M4 are done.
+**Status:** M0 to M5 are done.
 - M0: the repo is scaffolded (module path `github.com/SandstromPL/whyreach`); throwaway spikes are in `spikes/`, with results in `docs/adr/0001-execution-contexts.md`; the rule experiments (`spikes/experiments.sh`, results in `docs/research/rule-experiments.md`) decided the rule order in `docs/adr/0002-rule-order.md`.
 - M1, the vertical slice (`INITIAL.md` §2.3): the CLI `whyreach [--from SOURCE] HOST:PORT` diagnoses with WR008, WR007, WR004 and WR002.
 - M2: all 14 v0.1 rules; host↔container flows; `policy` (tiers, probe allowlist, rate limit, audit log); the MCP server (`whyreach mcp serve`, four tools, consent for probe containers: `docs/adr/0003-mcp-server.md`); `inspect`, `probe` and `doctor`. `make lab` passes 20 scenarios with probe containers on and off, and `make lab-agent` has a headless agent diagnose each one through the MCP tools alone.
@@ -14,7 +14,8 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
   - a blocked nameserver that is one of the host's own resolvers is asked, for DNS only;
   - each approval of a name or an address covers 3 uses;
   - through MCP, a private address outside Docker's networks and the host's own addresses needs the user's approval of that address and port.
-- Next is publishing, which is the owner's step (tag, release, image, MCP Registry), and M5: the benchmark (`INITIAL.md` §6.4) and the launch.
+- M5: the agent benchmark (`INITIAL.md` §6.4, `make lab-bench`). For each lab scenario, one headless agent gets a shell and another gets whyreach's four tools. The shell agent is contained by bwrap, a read-only Docker proxy and a guard hook. Both agents were right on all 21 scenarios. whyreach's was clearly better on 18 (fewer calls, tokens, time and cost, and no unsafe command), so §6.4 passes. Method and results: `docs/research/agent-benchmark.md`. Launch drafts: `docs/launch/`.
+- Next is publishing and the launch, which are the owner's steps (tag, release, image, MCP Registry, the README results section and the launch post).
 
 **Source of truth:** `INITIAL.md` holds the current design: decisions, HLD, LLD, the rule catalog and the milestones. The original project proposal (not published) is background only.
 - If the two disagree, `INITIAL.md` wins.
