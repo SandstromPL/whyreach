@@ -202,9 +202,9 @@ This is what an MCP client on Windows does: start whyreach through `wsl.exe`, ta
 l="powershell -NoProfile -ExecutionPolicy Bypass -File $(wslpath -w "$HOME/whyreach/test/wsl2/mcp-launch.ps1") -Distro $WSL_DISTRO_NAME -Whyreach $HOME/whyreach/bin/whyreach"; t="Tee-Object -FilePath C:\whyreach-lab\results\launch-$WSL_DISTRO_NAME.txt -Append"; echo "$l | $t; $l -Cold | $t"
 ```
 
-Copy the line it prints, paste it into **PowerShell** and run it. It runs the check twice: first with the distro running, then from a cold start. `-Cold` stops the distro first, so `wsl.exe` has to boot it, as when a client starts whyreach after WSL stopped the idle distro (WSL stops a distro about 15 seconds after its last terminal or `wsl.exe` command closes). Stopping it also closes the distro's open terminals.
+Copy the line it prints, paste it into **PowerShell** and run it. It runs the check twice: first with the distro running, then from a cold start. `-Cold` stops the distro first, so `wsl.exe` has to boot it, as when a client starts whyreach after WSL stopped the idle distro (WSL stops a distro about 15 seconds after its last terminal or `wsl.exe` command closes). Stopping it also closes the distro's open terminals. In run B the script skips the cold start: Docker Desktop keeps a `wsl.exe` session open in each distro it integrates with, so Debian doesn't go idle while Docker Desktop runs, and stopping it would cut the integration off.
 
-Each run must end in `PASS`: whyreach answered (the `initialize` line says how many ms after the start), listed its four tools, reported a WSL2 platform (`wsl2-engine` in run A, `wsl2-desktop` in run B), exited within 5 s of its input closing, and left no whyreach server of its own running in the distro (one started by another MCP client there doesn't count). Both outputs go to `C:\whyreach-lab\results\launch-<distro>.txt`.
+Each run must end in `PASS` (run B's second one in `SKIP`): whyreach answered (the `initialize` line says how many ms after the start), listed its four tools, reported a WSL2 platform (`wsl2-engine` in run A, `wsl2-desktop` in run B; while Docker doesn't answer yet, as right after a cold start, it asks again for up to 20 s), exited within 5 s of its input closing, and left no whyreach server of its own running in the distro (one started by another MCP client there doesn't count). Both outputs go to `C:\whyreach-lab\results\launch-<distro>.txt`.
 
 ## 6. Optional: the netns executor in run A
 
@@ -253,3 +253,5 @@ rm -rf ~/whyreach
 | `git clone` says the destination already exists | There's an earlier clone: `rm -rf ~/whyreach`, then step 3 again. |
 | `run-lab.sh` prints `STOPPED: …` | The line says what's missing and which step installs it. |
 | PowerShell: "running scripts is disabled on this system" | The line from step 5 passes `-ExecutionPolicy Bypass`; check that it was pasted whole. |
+| Step 5: `FAIL: want platform wsl2-engine or wsl2-desktop, got 'other'` | whyreach found no Docker within 20 s. Run A: `ps -p 1 -o comm=` must print `systemd`, and `systemctl is-enabled docker` must print `enabled` (step 1). Run B: Docker Desktop must say Engine running, with its integration on for Debian (step 1). |
+| Docker Desktop says its WSL integration with `Debian` unexpectedly stopped, or that a WSL distro terminated abruptly | WSL was stopped under it (`wsl --terminate Debian` or `wsl --shutdown` while Docker Desktop ran). Use its restart button, or quit Docker Desktop and start it again, then wait for Engine running. |
