@@ -199,12 +199,12 @@ What passing means:
 This is what an MCP client on Windows does: start whyreach through `wsl.exe`, talk to it over its input and output, then go away. In the distro, print this run's command:
 
 ```bash
-echo "powershell -NoProfile -ExecutionPolicy Bypass -File $(wslpath -w "$HOME/whyreach/test/wsl2/mcp-launch.ps1") -Distro $WSL_DISTRO_NAME -Whyreach $HOME/whyreach/bin/whyreach | Tee-Object -FilePath C:\whyreach-lab\results\launch-$WSL_DISTRO_NAME.txt -Append"
+l="powershell -NoProfile -ExecutionPolicy Bypass -File $(wslpath -w "$HOME/whyreach/test/wsl2/mcp-launch.ps1") -Distro $WSL_DISTRO_NAME -Whyreach $HOME/whyreach/bin/whyreach"; t="Tee-Object -FilePath C:\whyreach-lab\results\launch-$WSL_DISTRO_NAME.txt -Append"; echo "$l | $t; $l -Cold | $t"
 ```
 
-Copy the line it prints, paste it into **PowerShell** and run it. Then run it once more from a cold start, as when a client starts whyreach after the distro went idle (WSL stops a distro about 15 seconds after its last terminal or `wsl.exe` command closes): in PowerShell, `wsl --terminate Ubuntu-24.04` for run A or `wsl --terminate Debian` for run B, then press ↑ twice and Enter.
+Copy the line it prints, paste it into **PowerShell** and run it. It runs the check twice: first with the distro running, then from a cold start. `-Cold` stops the distro first, so `wsl.exe` has to boot it, as when a client starts whyreach after WSL stopped the idle distro (WSL stops a distro about 15 seconds after its last terminal or `wsl.exe` command closes). Stopping it also closes the distro's open terminals.
 
-Both must end in `PASS`: whyreach answered, listed its four tools, reported its platform (`wsl2-engine` or `wsl2-desktop`), exited within 5 s of its input closing, and left no whyreach server of its own running in the distro (one started by another MCP client there doesn't count). Both outputs go to `C:\whyreach-lab\results\launch-<distro>.txt`.
+Each run must end in `PASS`: whyreach answered (the `initialize` line says how many ms after the start), listed its four tools, reported a WSL2 platform (`wsl2-engine` in run A, `wsl2-desktop` in run B), exited within 5 s of its input closing, and left no whyreach server of its own running in the distro (one started by another MCP client there doesn't count). Both outputs go to `C:\whyreach-lab\results\launch-<distro>.txt`.
 
 ## 6. Optional: the netns executor in run A
 

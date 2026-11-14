@@ -2,15 +2,19 @@
 .SYNOPSIS
 Checks, from Windows, that an MCP client can run whyreach inside a WSL2
 distro (docs/wsl2-lab.md, step 5): wsl.exe starts it, it answers
-initialize, tools/list and one read-only tool call, and it exits as soon
-as its input closes, leaving nothing running in the distro.
+initialize, tools/list and one read-only tool call, which must report a
+WSL2 platform, and it exits as soon as its input closes, leaving nothing
+running in the distro. With -Cold, it stops the distro first, so wsl.exe
+has to boot it, as when a client starts whyreach after WSL stopped the
+idle distro.
 
 .EXAMPLE
-powershell -NoProfile -ExecutionPolicy Bypass -File \\wsl.localhost\Ubuntu-24.04\home\you\whyreach\test\wsl2\mcp-launch.ps1 -Distro Ubuntu-24.04 -Whyreach /home/you/whyreach/bin/whyreach
+powershell -NoProfile -ExecutionPolicy Bypass -File \\wsl.localhost\Ubuntu-24.04\home\you\whyreach\test\wsl2\mcp-launch.ps1 -Distro Ubuntu-24.04 -Whyreach /home/you/whyreach/bin/whyreach -Cold
 #>
 param(
     [Parameter(Mandatory = $true)][string]$Distro,
-    [Parameter(Mandatory = $true)][string]$Whyreach
+    [Parameter(Mandatory = $true)][string]$Whyreach,
+    [switch]$Cold
 )
 $ErrorActionPreference = 'Stop'
 $utf8 = New-Object System.Text.UTF8Encoding($false) # no byte-order mark
@@ -21,7 +25,18 @@ function Count-Servers {
     $n = & wsl.exe -d $Distro --exec pgrep -fc 'whyreach mcp serve'
     if ($n) { return [int]($n | Select-Object -First 1) } else { return 0 }
 }
-$before = Count-Servers
+
+# Counting starts the distro, so a cold start counts nothing first: a
+# stopped distro runs no whyreach server.
+if ($Cold) {
+    & wsl.exe --terminate $Distro | Out-Null
+    $before = 0
+    "cold start: $Distro stopped first, so wsl.exe boots it"
+}
+else {
+    $before = Count-Servers
+    "warm start: $Distro running"
+}
 
 # Windows PowerShell 5.1 gives the child's input a writer in the console's
 # input encoding, which writes a UTF-8 byte-order mark first when the code
@@ -46,6 +61,7 @@ $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
 $psi.StandardOutputEncoding = $utf8
 $psi.StandardErrorEncoding = $utf8
+$clock = [System.Diagnostics.Stopwatch]::StartNew()
 $proc = [System.Diagnostics.Process]::Start($psi)
 if ($null -ne $savedInput) { try { [Console]::InputEncoding = $savedInput } catch {} }
 $stdin = $proc.StandardInput.BaseStream
@@ -69,7 +85,7 @@ function Receive-Line([int]$timeoutMs) {
 try {
     Send-Line '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"wsl-launch-check","version":"1"}}}'
     $init = Receive-Line 20000 | ConvertFrom-Json
-    "initialize: $($init.result.serverInfo.name) $($init.result.serverInfo.version), protocol $($init.result.protocolVersion)"
+    "initialize: $($init.result.serverInfo.name) $($init.result.serverInfo.version), protocol $($init.result.protocolVersion), $($clock.ElapsedMilliseconds) ms after the start"
     if ($init.result.serverInfo.name -ne 'whyreach') { $ok = $false; 'FAIL: the server is not whyreach' }
 
     Send-Line '{"jsonrpc":"2.0","method":"notifications/initialized"}'
@@ -82,8 +98,10 @@ try {
     # Read-only: what whyreach sees of the platform from here.
     Send-Line '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"inspect_environment","arguments":{"scope":"host"}}}'
     $insp = Receive-Line 30000 | ConvertFrom-Json
-    "inspect_environment: platform $($insp.result.structuredContent.host.platform)"
+    $platform = $insp.result.structuredContent.host.platform
+    "inspect_environment: platform $platform"
     "  $($insp.result.structuredContent.summary)"
+    if ($platform -notin @('wsl2-engine', 'wsl2-desktop')) { $ok = $false; 'FAIL: want platform wsl2-engine or wsl2-desktop' }
 }
 catch {
     $ok = $false
