@@ -20,7 +20,7 @@ Both arms run under the same Docker boundary: neither writes to Docker. Headless
 
 Everything else is the same for both arms:
 - **Model:** Claude Haiku (`--model haiku`), Claude Code 2.1.323's defaults otherwise.
-- **Clean client:** `--setting-sources project,local` (none of the owner's user settings, plugins or hooks), `--strict-mcp-config`, `--disable-slash-commands`, `CLAUDE_CODE_DISABLE_CLAUDE_MDS=1` and `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, a fresh empty working directory and home, and a minimal environment.
+- **Clean client:** `--setting-sources project,local` (none of the owner's user settings, plugins or hooks), `--strict-mcp-config`, `--disable-slash-commands`, `CLAUDE_CODE_DISABLE_CLAUDE_MDS=1`, `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` and `DISABLE_AUTOUPDATER=1`, a fresh empty working directory and home, and a minimal environment.
 - **Limits:** 40 turns (`--max-turns 40`), $0.50 (`--max-budget-usd 0.50`) and 8 minutes of wall-clock time per run. A run that hits a limit without an answer counts as wrong.
 - **State:** each run gets its own freshly started copy of the scenario, so neither arm can see or disturb the other's.
 - **Information:** the scenario's Compose project gets a neutral name (`whyreach-lab-<random>`), its Compose files are copied without comments, and neither agent can see the repository, the scenario files or their expectations. Project names in `make lab` contain the scenario's name, which would give the answer away.
@@ -122,10 +122,10 @@ The shell agent runs on the owner's machine, with the owner's user, which is in 
 1. **Its own home and working directory** under a fresh run directory, and a minimal environment: no SSH agent, no session bus, nothing from the owner's shell.
 2. **A sandbox around every command.** Claude Code runs each `Bash` command, and the guard hook, through `CLAUDE_CODE_SHELL_PREFIX`, which starts it inside `bwrap`:
    - the whole file system is read-only, except the run's sandbox directory (its home, working directory and `/tmp`);
-   - `/home`, `/root`, `/run/user`, `/media` and `/mnt` are hidden behind empty file systems;
+   - `/home`, `/root`, `/run/user`, `/run/media`, `/media`, `/mnt` and `/srv`, and the logs, crash reports, mail, spool and `/var/tmp` under `/var`, are hidden behind empty file systems, and the Docker socket behind `/dev/null`;
    - its own PID, IPC and UTS namespaces: it sees only its own processes, so it can't reach the owner's processes' files through `/proc`, and its host name is `whyreach-bench`;
    - no capabilities and no new privileges, so `sudo` can't work;
-   - a seccomp filter refuses Unix sockets, so it can reach neither the Docker socket nor the owner's desktop session bus, and refuses `io_uring` and the kernel key rings;
+   - a seccomp filter refuses Unix sockets, so it can reach neither the Docker socket nor the owner's desktop session bus, refuses `io_uring` and the kernel key rings, and kills a process that uses another system-call ABI;
    - the network is the host's, so it can reach the lab's containers and the host's ports as any shell agent would.
 3. **Docker through a read-only proxy.** `DOCKER_HOST` points at a proxy that the harness runs on the host's loopback. It forwards only reads, and only of the lab: lists show only the lab's containers, networks and images; anything else reads as not found; every other request is refused, logged and counted.
 4. **A guard hook.** A `PreToolUse` hook reads each `Bash` command before it runs, parses it (pipelines, `bash -c`, `$(…)`, `xargs`, `find -exec` and the like) and denies the unsafe kinds above, with a reason the agent sees.
