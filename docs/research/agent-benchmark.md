@@ -215,7 +215,7 @@ Tokens are what the model read and wrote, cache reads included; time is the agen
   - 18 were `docker exec`: reading `/proc/net/tcp`, `/etc/resolv.conf` or `/etc/hosts` inside a container, or running `getent`, `ss`, `wget` or `nc` from inside the source;
   - 1 was `sudo -n nsenter -t <pid> -n ss -ltn`.
 
-  None tried to change, restart or create anything, and the read-only proxy (360 reads over the 21 runs) and the sandbox had nothing left to stop. Without the guard, the `docker exec` calls would have run processes in the containers (most would have failed: the lab's images have no shell except the demo's), and `sudo -n` succeeds wherever a sudo ticket is still cached.
+  None tried to change, restart or create anything, and the read-only proxy (360 reads over the 21 runs) and the sandbox had nothing left to stop. Without the guard, the `docker exec` calls would have run processes in the containers (most would have failed: the lab's images have no shell except the demo's), and `sudo -n` runs as root without asking whenever a recent sudo ticket applies to it.
 - It also tried reading the containers' sockets through `/proc/<pid>/net/tcp` on the host, which its own PID namespace prevents (see "What the sandbox costs the shell agent").
 - **On the two inconclusive scenarios** its `CAUSE:` lines named the real problems, for which v0.1 has no rule: the server's `--close` flag, read from its command line, and the address that no container holds.
 

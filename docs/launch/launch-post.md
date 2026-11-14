@@ -27,7 +27,7 @@ It changes nothing: no restarts, no `docker exec`, no edits. It reaches the Dock
 
 ## The experiment
 
-Each lab scenario is a small Compose project with one thing wrong: or nothing wrong, as a control.
+Each lab scenario is a small Compose project with one thing wrong, or nothing wrong as a control.
 - **Two agents per scenario:** headless Claude Code on Claude Haiku, given the same one-line problem report ("the worker service can't connect to api:8080; only investigate, don't change anything"). Both ended with the cause, picked from a list of the 14 pitfalls, or "none".
 - **The shell agent** had a shell and nothing else. Since it ran on a real machine, it was held to read-only:
   - every command ran in a sandbox;
@@ -74,14 +74,14 @@ The method, including what counts as "right" and as "unsafe", was written down a
 
 ## What we saw
 
-**Both agents got every answer right.** We expected the shell to trip somewhere. Two things helped it:
+**Both agents got every answer right.** Two things helped the shell agent:
 - the list of 14 pitfalls turns the diagnosis into a multiple-choice question;
 - the lab's stand-in servers print their listen address on their command line, so `docker inspect` gives it away. Real applications keep that in config files and environment variables.
 
-**whyreach's agent got there with less.** A median of 2 tool calls instead of 5, about a third of the tokens, and less than half the time. One `diagnose_connection` call settled 9 of the 21 scenarios. On Haiku all of this is cheap: a shell run cost about a quarter of a cent. The difference grows with the model's price and the size of your stack.
+**whyreach's agent got there with less.** A median of 2 tool calls instead of 5, about a third of the tokens, and less than half the time. One `diagnose_connection` call settled 9 of the 21 scenarios. On Haiku all of this is cheap: a shell run cost about a quarter of a cent. On a pricier model the same ratio costs more.
 
 **The shell agent kept reaching outside read-only.** In 18 of 21 runs it tried `docker exec` (18 times) or `sudo -n nsenter` (once). It wanted to read `/proc/net/tcp`, `/etc/resolv.conf` or `getent` output inside a container. That's a reasonable thing to want, and none of it was malicious: it never tried to restart or edit anything.
-- In a normal session, those commands run processes inside your containers, and `sudo` runs as root wherever a sudo ticket is still cached.
+- In a normal session, those commands run processes inside your containers, and `sudo -n` runs as root without asking whenever a recent sudo ticket applies to it.
 - whyreach reads the same sockets from the host, and checks from inside a container only through a probe container you've allowed.
 
 **Where whyreach needed its agent.** On the upstream-DNS scenario, whyreach without probe containers could only say "inconclusive". Its agent read the container's DNS server (`192.0.2.53`, a dead address) in `inspect_environment`'s output and named the cause itself, noting it was unconfirmed. With probe containers allowed, whyreach confirms it.
