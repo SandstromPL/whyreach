@@ -56,10 +56,15 @@ func (e *Engine) SelfCheck(ctx context.Context) []Check {
 		}
 		out = append(out, c)
 	}
-	if r.platform.Name == "" {
-		r.platform = e.platformFor(platform.Daemon{})
+	switch {
+	case r.platform.Name != "":
+		out = append(out, platformChecks(r.platform)...)
+	case e.d.Platform.WSL:
+		// Without the daemon's answer the setup is unknown, but whyreach's
+		// own side isn't.
+		out = append(out, Check{Name: "platform", Status: CheckInfo,
+			Detail: "whyreach runs in WSL2, so host-side checks describe the WSL2 VM, not Windows; which Docker runs the containers is unknown until Docker answers"})
 	}
-	out = append(out, platformChecks(r.platform)...)
 
 	if e.d.Interfaces == nil {
 		out = append(out, Check{Name: "interfaces", Status: CheckWarn, Detail: "no interface reader on this platform"})
@@ -89,7 +94,7 @@ const dockerFix = "Start Docker, or let this user use its socket: add it to the 
 
 // WSLIdle is doctor's warning on wsl2-engine: WSL stops idle distros, and
 // dockerd with them (INITIAL.md §3.7).
-const WSLIdle = "WSL stops a distro soon after its last process exits (instanceIdleTimeout, 15 s by default) and the WSL2 VM once every distro has stopped (vmIdleTimeout, 60 s by default): that stops dockerd and every container in this distro. When the distro starts again (an MCP client's wsl.exe launch does), dockerd restarts only if a service manager starts it, and only containers with a restart policy come back"
+const WSLIdle = "WSL stops a distro soon after its last process exits (instanceIdleTimeout, 15 s by default) and the WSL2 VM once every distro has stopped (vmIdleTimeout, 60 s by default): that stops dockerd and every container in this distro. When the distro starts again (an MCP client's wsl.exe launch starts it), dockerd runs again only if systemd or a [boot] command in /etc/wsl.conf starts it, and only containers with a restart policy come back"
 
 // WSLIdleFix says how to keep the distro running. Docker itself
 // recommends Docker Desktop over Docker Engine in WSL2.

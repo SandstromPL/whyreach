@@ -68,6 +68,9 @@ func TestLabPrivateAddresses(t *testing.T) {
 	cmd := exec.CommandContext(ctx, l.bin, "mcp", "serve")
 	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+l.noProbe,
 		"XDG_STATE_HOME="+filepath.Join(l.home, "state"), "XDG_DATA_HOME="+filepath.Join(l.home, "data"))
+	if l.dockerHost != "" {
+		cmd.Env = append(cmd.Env, "DOCKER_HOST="+l.dockerHost)
+	}
 	cs, err := client.Connect(ctx, &mcp.CommandTransport{Command: cmd}, nil)
 	if err != nil {
 		t.Fatal(err)

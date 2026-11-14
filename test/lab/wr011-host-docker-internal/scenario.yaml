@@ -14,3 +14,12 @@ expect_without_probe:
   top_rule: WR011
   confidence: medium
   fix_contains: host.docker.internal:host-gateway
+# Docker Desktop provides host.docker.internal (INITIAL.md §3.7), so the
+# premise doesn't exist there: WR011 must never fire. The name reaches
+# Windows, whose listeners whyreach can't read from WSL (a gap); whether the
+# connect lands depends on Windows forwarding it into WSL.
+expect_on:
+  wsl2-desktop:
+    why: Docker Desktop provides host.docker.internal, and the host it reaches is Windows
+    verdict_in: [no_problem_reproduced, inconclusive]
+    must_not_fire: [WR011, WR012, WR005, WR020]

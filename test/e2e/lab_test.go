@@ -44,6 +44,8 @@ import (
 	"github.com/SandstromPL/whyreach/internal/engine"
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
+	"github.com/SandstromPL/whyreach/internal/platform"
+	"github.com/SandstromPL/whyreach/internal/rules"
 )
 
 const (
@@ -73,6 +75,24 @@ type scenario struct {
 	To                 string   `yaml:"to"`
 	Expect             *expect  `yaml:"expect"`               // with probe containers on
 	ExpectWithoutProbe *expect  `yaml:"expect_without_probe"` // with the default config
+	// ExpectOn replaces both expectations on a platform where the
+	// scenario's premise doesn't hold (WR011's on Docker Desktop, which
+	// provides host.docker.internal), keyed by platform name (INITIAL.md
+	// §3.7). SkipOn skips the scenario on a platform, with the reason.
+	ExpectOn map[string]*expectOn `yaml:"expect_on"`
+	SkipOn   map[string]string    `yaml:"skip_on"`
+	// ExpectDesktopWithoutProbe replaces the generic check of the default
+	// config where Docker's PIDs aren't this machine's (Docker Desktop),
+	// for a scenario whose honest answer there is another rule.
+	ExpectDesktopWithoutProbe *expect `yaml:"expect_desktop_without_probe"`
+}
+
+// expectOn is what must hold on one platform, with probe containers on and
+// off: the verdict is one of VerdictIn, and none of MustNotFire fires.
+type expectOn struct {
+	Why         string   `yaml:"why"`
+	VerdictIn   []string `yaml:"verdict_in"`
+	MustNotFire []string `yaml:"must_not_fire"`
 }
 
 type expect struct {
@@ -86,6 +106,13 @@ type expect struct {
 }
 
 type lab struct {
+	// platform is where the lab runs, as whyreach classifies it
+	// (INITIAL.md §3.7): linux-engine, wsl2-engine, wsl2-desktop, …
+	platform   string
+	dockerHost string // DOCKER_HOST for whyreach: the -lab.desktop proxy, or "" for the default
+	// expectOn is the platform whose expect_on and skip_on entries apply:
+	// the platform itself, or wsl2-desktop's in the -lab.desktop rehearsal.
+	expectOn   string
 	bin        string // the whyreach binary under test
 	image      string // the lab server image
 	probeImage string // the probe image the binary imports
@@ -102,6 +129,11 @@ var l lab
 var (
 	prebuiltBin    = flag.String("lab.bin", "", "whyreach binary to test, built with -ldflags '-X main.version="+labVersion+"' (default: build it)")
 	prebuiltServer = flag.String("lab.server", "", "test/labserver binary (default: build it)")
+	// A dev-box stand-in for Docker Desktop (ADR 0004): whyreach reaches
+	// Docker through a proxy whose GET /version says Docker Desktop, so it
+	// treats Docker's PIDs as another machine's and reads every listener
+	// in a probe container, as on Docker Desktop's WSL integration.
+	labDesktop = flag.Bool("lab.desktop", false, "simulate Docker Desktop: whyreach talks to Docker through a proxy whose /version says Docker Desktop")
 )
 
 func TestMain(m *testing.M) {
@@ -124,6 +156,7 @@ func run(m *testing.M) int {
 		fmt.Fprintln(os.Stderr, "lab setup:", err)
 		return 1
 	}
+	fmt.Fprintln(os.Stderr, "lab: platform", l.platform)
 	code := m.Run()
 	if left := leftoverProbes(); left != "" {
 		fmt.Fprintln(os.Stderr, "lab: probe containers were left behind:\n"+left)
@@ -134,7 +167,40 @@ func run(m *testing.M) int {
 	return code
 }
 
+// labPlatform classifies where the lab runs, as whyreach does: from this
+// process's environment and the daemon's answer.
+func labPlatform() (string, error) {
+	out, err := exec.CommandContext(context.Background(), "docker", "version", "--format", "{{.Server.Os}}|{{.Server.Platform.Name}}|{{.Server.KernelVersion}}").Output()
+	if err != nil {
+		return "", fmt.Errorf("docker version: %w", err)
+	}
+	f := strings.SplitN(strings.TrimSpace(string(out)), "|", 3)
+	if len(f) != 3 {
+		return "", fmt.Errorf("docker version said %q", out)
+	}
+	return platform.Classify(platform.Detect(), platform.Daemon{OS: f[0], Platform: f[1], Kernel: f[2]}), nil
+}
+
 func setup(dir string) error {
+	var err error
+	if l.platform, err = labPlatform(); err != nil {
+		return err
+	}
+	if *labDesktop {
+		if !platform.EngineHere(l.platform) {
+			return fmt.Errorf("-lab.desktop simulates Docker Desktop over Docker Engine, and this is %s", l.platform)
+		}
+		sock := filepath.Join(dir, "desktop.sock")
+		if err := desktopProxy(sock); err != nil {
+			return err
+		}
+		l.dockerHost = "unix://" + sock
+		l.platform = platform.Classify(platform.Detect(), platform.Daemon{OS: "linux", Platform: simulatedDesktop})
+	}
+	l.expectOn = l.platform
+	if *labDesktop {
+		l.expectOn = platform.WSL2Desktop // the rehearsal stands in for Docker Desktop's WSL integration
+	}
 	l.bin = *prebuiltBin
 	server := *prebuiltServer
 	if l.bin == "" || server == "" {
@@ -275,16 +341,46 @@ func scenarioDirs(t *testing.T) []string {
 	return dirs
 }
 
+// runScenario runs a scenario with probe containers on, then with the
+// default config. Where Docker's PIDs aren't this machine's (Docker
+// Desktop's WSL integration), containers' listening sockets can be read
+// only in probe containers, so the default config can't meet the same
+// expectations: it must degrade honestly instead (checkDegraded; ADR 0004).
 func runScenario(t *testing.T, dir string) {
 	r := bringUp(t, dir)
+	if eo := r.s.ExpectOn[l.expectOn]; eo != nil {
+		t.Logf("on %s: %s", l.expectOn, eo.Why)
+		for _, run := range []struct{ name, config string }{{"probe-containers", l.withProbe}, {"default-config", l.noProbe}} {
+			t.Run(run.name, func(t *testing.T) {
+				d := diagnose(t, run.config, r.from, r.to)
+				for _, p := range onProblems(d, *eo) {
+					t.Error(p)
+				}
+				readNoLocalPID(t, d)
+			})
+		}
+		return
+	}
 	t.Run("probe-containers", func(t *testing.T) {
 		d := diagnose(t, l.withProbe, r.from, r.to)
 		check(t, d, *r.s.Expect)
+		readNoLocalPID(t, d)
 	})
 	if r.s.ExpectWithoutProbe != nil {
 		t.Run("default-config", func(t *testing.T) {
 			d := diagnose(t, l.noProbe, r.from, r.to)
-			check(t, d, *r.s.ExpectWithoutProbe)
+			switch {
+			case platform.EngineHere(l.platform):
+				check(t, d, *r.s.ExpectWithoutProbe)
+			case r.s.ExpectDesktopWithoutProbe != nil:
+				check(t, d, *r.s.ExpectDesktopWithoutProbe)
+				readNoLocalPID(t, d)
+			default:
+				for _, p := range degradedProblems(d, *r.s.Expect) {
+					t.Error(p)
+				}
+				readNoLocalPID(t, d)
+			}
 			if len(d.SideEffects) != 0 {
 				t.Errorf("with probe containers off, whyreach must not write to Docker: %v", d.SideEffects)
 			}
@@ -325,6 +421,9 @@ func bringUpAs(t *testing.T, dir, project, composeDir string) running {
 	}
 	if s.Expect == nil {
 		t.Fatal("scenario.yaml has no expect")
+	}
+	if why, ok := s.SkipOn[l.expectOn]; ok {
+		t.Skipf("skipped on %s: %s", l.expectOn, why)
 	}
 	if s.Image != "" {
 		if err := exec.CommandContext(context.Background(), "docker", "image", "inspect", s.Image).Run(); err != nil {
@@ -409,7 +508,10 @@ func hostListen(t *testing.T, where []string) string {
 	port := "0"
 	for _, w := range where {
 		addr := "127.0.0.1"
-		if w == "docker0" {
+		// The default bridge's gateway is an address of this machine only
+		// where Docker Engine runs here; Docker Desktop's bridges are in
+		// its own VM, so there the listener stays on loopback.
+		if w == "docker0" && platform.EngineHere(l.platform) {
 			addr = bridgeGateway(t)
 		}
 		ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp4", net.JoinHostPort(addr, port))
@@ -485,6 +587,9 @@ func diagnose(t *testing.T, configHome, from, to string) *engine.Diagnosis {
 	cmd := exec.CommandContext(ctx, l.bin, "--from", from, to, "--json")
 	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+configHome,
 		"XDG_STATE_HOME="+filepath.Join(l.home, "state"), "XDG_DATA_HOME="+filepath.Join(l.home, "data"))
+	if l.dockerHost != "" {
+		cmd.Env = append(cmd.Env, "DOCKER_HOST="+l.dockerHost)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	start := time.Now()
@@ -564,6 +669,95 @@ func check(t *testing.T, d *engine.Diagnosis, e expect) {
 			}
 		}
 	}
+}
+
+// strength orders the verdicts that name a cause, weakest first.
+var strength = map[string]int{engine.VerdictInconclusive: 0, engine.VerdictLikelyCause: 1, engine.VerdictCause: 2}
+
+// degradedProblems checks a diagnosis made without probe containers where
+// Docker's PIDs aren't this machine's (Docker Desktop): containers'
+// listening sockets can't be read there, so the cause may be weaker than
+// with probe containers, but never another one. The verdict is the
+// expected one or weaker (no problem reproduced may only become
+// inconclusive), the primary finding, if any, is the expected rule at no
+// higher confidence, nothing in must_not_fire fires, and a weaker verdict
+// comes with a gap that says how to allow probe containers.
+func degradedProblems(d *engine.Diagnosis, e expect) []string {
+	var out []string
+	weaker := d.Verdict != e.Verdict
+	switch {
+	case !weaker:
+	case e.Verdict == engine.VerdictNoProblem:
+		if d.Verdict != engine.VerdictInconclusive {
+			out = append(out, fmt.Sprintf("verdict %s, want %s or, without probe containers, %s", d.Verdict, e.Verdict, engine.VerdictInconclusive))
+		}
+	default:
+		ws, okW := strength[e.Verdict]
+		gs, okG := strength[d.Verdict]
+		if !okW || !okG || gs > ws {
+			out = append(out, fmt.Sprintf("verdict %s, want %s or weaker", d.Verdict, e.Verdict))
+		}
+	}
+	if p := d.Primary(); p != nil && d.Verdict != engine.VerdictNoProblem && d.Verdict != engine.VerdictInconclusive {
+		conf := map[string]int{"low": 0, "medium": 1, "high": 2}
+		if e.TopRule == "" || p.RuleID != e.TopRule || conf[string(p.Confidence)] > conf[e.Confidence] {
+			out = append(out, fmt.Sprintf("primary %s (%s), want %s at %s or lower, or none", p.RuleID, p.Confidence, e.TopRule, e.Confidence))
+		}
+	}
+	for _, f := range append(slices.Clone(d.Findings), suppressedAsFindings(d)...) {
+		if slices.Contains(e.MustNotFire, f.RuleID) {
+			out = append(out, fmt.Sprintf("%s must not fire: %s", f.RuleID, f.Title))
+		}
+	}
+	if weaker && !slices.ContainsFunc(d.Gaps, func(g engine.Gap) bool { return strings.Contains(g.HowToEnable, "probe_containers = true") }) {
+		out = append(out, fmt.Sprintf("a weaker verdict (%s, want %s) needs a gap that says how to allow probe containers: %+v", d.Verdict, e.Verdict, d.Gaps))
+	}
+	if d.ChangesMade {
+		out = append(out, "changes_made must always be false")
+	}
+	return out
+}
+
+// onProblems checks a diagnosis against a platform's own expectation.
+func onProblems(d *engine.Diagnosis, e expectOn) []string {
+	var out []string
+	if len(e.VerdictIn) > 0 && !slices.Contains(e.VerdictIn, d.Verdict) {
+		out = append(out, fmt.Sprintf("verdict %s, want one of %v", d.Verdict, e.VerdictIn))
+	}
+	for _, f := range append(slices.Clone(d.Findings), suppressedAsFindings(d)...) {
+		if slices.Contains(e.MustNotFire, f.RuleID) {
+			out = append(out, fmt.Sprintf("%s must not fire: %s", f.RuleID, f.Title))
+		}
+	}
+	if d.ChangesMade {
+		out = append(out, "changes_made must always be false")
+	}
+	return out
+}
+
+// readNoLocalPID checks, where Docker's PIDs aren't this machine's, that
+// every container's listening sockets whyreach read came from a probe
+// container, never through /proc/<pid> on this machine.
+func readNoLocalPID(t *testing.T, d *engine.Diagnosis) {
+	t.Helper()
+	if platform.EngineHere(l.platform) {
+		return
+	}
+	for _, ev := range d.Evidence {
+		if ev.Kind == evidence.KindListeners && ev.Context.Kind == evidence.ContextContainer && ev.OK() && ev.Context.Executor != evidence.ExecutorProbeContainer {
+			t.Errorf("on %s, %s's listeners were read by %q (%s), not in a probe container", l.platform, ev.Context.Name, ev.Context.Executor, ev.Source)
+		}
+	}
+}
+
+// suppressedAsFindings lists the suppressed findings' rules and titles,
+// which must_not_fire covers too.
+func suppressedAsFindings(d *engine.Diagnosis) []rules.Finding {
+	var out []rules.Finding
+	for _, s := range d.Suppressed {
+		out = append(out, rules.Finding{RuleID: s.RuleID, Title: s.Title})
+	}
+	return out
 }
 
 func randHex(n int) string {

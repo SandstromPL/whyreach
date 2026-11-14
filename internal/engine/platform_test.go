@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strconv"
 	"strings"
@@ -273,5 +274,90 @@ func TestProbeListenersBounded(t *testing.T) {
 	}
 	if !slices.ContainsFunc(r.d.Gaps, func(g Gap) bool { return g.Why == "skipped" && strings.Contains(g.What, "listening sockets in") }) {
 		t.Errorf("no gap names the containers left unread: %+v", r.d.Gaps)
+	}
+}
+
+// TestDoctorPlatform: doctor names the setup it found, and on wsl2-engine
+// warns that WSL stops idle distros, and dockerd with them.
+func TestDoctorPlatform(t *testing.T) {
+	tests := []struct {
+		name     string
+		info     platform.Info
+		desktop  bool
+		docker   bool
+		want     string // in the platform line
+		idleWarn bool
+	}{
+		{"linux-engine", linuxHost, false, true, "linux-engine: Docker Engine on this Linux machine", false},
+		{"wsl2-engine", wslRoot, false, true, "wsl2-engine: Docker Engine in this WSL2 distro", true},
+		{"wsl2-desktop", wslRoot, true, true, "wsl2-desktop: Docker Desktop's WSL integration", false},
+		{"WSL2 without Docker", wslRoot, false, false, "whyreach runs in WSL2", false},
+		{"Linux without Docker", linuxHost, false, false, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := shopWorld()
+			w.desktop = tt.desktop
+			deps := Deps{Listeners: w, Platform: tt.info, Interfaces: func() (evidence.HostAddrs, error) { return evidence.HostAddrs{}, nil }}
+			if tt.docker {
+				deps.Docker = w
+			} else {
+				deps.DockerErr = errors.New("no Docker here")
+			}
+			var line, idle *Check
+			checks := New(deps).SelfCheck(context.Background())
+			for i, c := range checks {
+				switch c.Name {
+				case "platform":
+					line = &checks[i]
+				case "wsl idle shutdown":
+					idle = &checks[i]
+				}
+			}
+			switch {
+			case tt.want == "" && line != nil:
+				t.Errorf("platform line %+v, want none", line)
+			case tt.want != "" && (line == nil || !strings.Contains(line.Detail, tt.want)):
+				t.Errorf("platform line %+v, want %q", line, tt.want)
+			}
+			if (idle != nil) != tt.idleWarn {
+				t.Errorf("idle-shutdown line %+v, want one: %v", idle, tt.idleWarn)
+			}
+			if idle != nil && (idle.Status != CheckWarn || !strings.Contains(idle.Detail, "dockerd") || !strings.Contains(idle.Fix, "instanceIdleTimeout")) {
+				t.Errorf("idle-shutdown line %+v", idle)
+			}
+			for _, c := range checks {
+				if c.Name == "container listeners" && tt.desktop && !strings.Contains(c.Detail, "inside probe containers") {
+					t.Errorf("container listeners on Docker Desktop: %+v", c)
+				}
+			}
+		})
+	}
+}
+
+// TestUnpublishedServerOnDesktop: from the host, nothing answers a port
+// that a container serves without publishing it (WR019). On Docker Desktop
+// the containers' sockets are read in probe containers; without them the
+// search can't look inside, which is a gap, and "nothing on the host
+// listens" (WR001) is only likely, never settled.
+func TestUnpublishedServerOnDesktop(t *testing.T) {
+	w := shopWorld()
+	w.desktop = true
+	w.tcp["127.0.0.1:8080"] = evidence.OutcomeRefused
+	r := diagnoseOn(t, w, wslRoot, true, "host", "localhost:8080")
+	if p := r.d.Primary(); p == nil || p.RuleID != "WR019" || p.Confidence != "high" {
+		t.Errorf("with probe containers: primary %+v, want WR019 (high)", p)
+	}
+	if len(r.pids.pids) != 0 {
+		t.Errorf("read /proc/<pid> for %v", r.pids.pids)
+	}
+	r = diagnoseOn(t, w, wslRoot, false, "host", "localhost:8080")
+	if p := r.d.Primary(); p == nil || p.RuleID != "WR001" || p.Confidence != "medium" {
+		t.Errorf("without probe containers: primary %+v, want WR001 (medium)", p)
+	}
+	if !slices.ContainsFunc(r.d.Gaps, func(g Gap) bool {
+		return strings.Contains(g.What, "running containers") && strings.Contains(g.HowToEnable, "probe_containers = true")
+	}) {
+		t.Errorf("no gap for the containers whose sockets went unread: %+v", r.d.Gaps)
 	}
 }

@@ -13,3 +13,11 @@ expect_without_probe:
   verdict: cause_identified
   top_rule: WR012
   confidence: high
+# On Docker Desktop's WSL integration the host the client reaches is
+# Windows, not the WSL2 VM where the harness listens: whyreach can't read
+# Windows' listeners, so WR012 must stay quiet and leave a gap.
+expect_on:
+  wsl2-desktop:
+    why: the host Docker Desktop's containers reach is Windows, whose listeners whyreach can't read
+    verdict_in: [no_problem_reproduced, inconclusive]
+    must_not_fire: [WR011, WR012, WR001]

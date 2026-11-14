@@ -13,3 +13,12 @@ expect_without_probe:
   verdict: cause_identified
   top_rule: WR019
   confidence: high
+# On Docker Desktop without probe containers, whyreach can't read web's
+# sockets, so it can't see that web serves the port: "nothing on the host
+# listens" is only likely (a gap says why), and the fix still says to
+# publish the port if the service runs in a container.
+expect_desktop_without_probe:
+  verdict: likely_cause
+  top_rule: WR001
+  confidence: medium
+  fix_contains: publish its port

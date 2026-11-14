@@ -1,0 +1,87 @@
+{
+  "description": "from the host, nothing on it listens on 8080, and every running container's listening sockets were read: nothing listens",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "localhost",
+      "port": 8080,
+      "proto": "tcp",
+      "class": "loopback"
+    }
+  },
+  "evidence": [
+    {
+      "id": "ev-01",
+      "kind": "platform",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "platform",
+      "status": "ok",
+      "data": {
+        "name": "linux-desktop",
+        "desktop": true
+      },
+      "source": "whyreach's own environment and the daemon's GET /version",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "id": "ev-02",
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:22"
+          }
+        ]
+      },
+      "source": "/proc/thread-self/net/tcp{,6} in whyreach's own network namespace",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "id": "ev-03",
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "localhost:8080",
+      "status": "ok",
+      "data": {
+        "target": "localhost:8080",
+        "addr": "127.0.0.1:8080",
+        "via": "hosts",
+        "outcome": "refused",
+        "errno": "ECONNREFUSED",
+        "rtt_ns": 100000
+      },
+      "source": "connect",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR001",
+      "confidence": "high",
+      "supporting": [
+        "ev-02",
+        "ev-03"
+      ]
+    }
+  ]
+}

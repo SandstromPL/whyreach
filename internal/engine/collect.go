@@ -272,26 +272,52 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 		r.metadataIncomplete = true
 		r.store.Add(failed...)
 	}
-	var cut []string
+	// Containers whose sockets couldn't be read (Docker Desktop without
+	// probe containers, whyreach's image without --pid host, the bound)
+	// may serve the port unpublished: one record says so, so the rules
+	// don't take their silence for "nothing listens".
+	var unread []evidence.Evidence
 	for _, ev := range scanned {
 		c := ev.Data.(evidence.Container)
 		if c.HostNetwork() || c.NetnsOwner() != "" {
 			continue // its sockets are the host's, or another container's
 		}
 		if !r.engineHere && !r.takeProbeListener() {
-			cut = append(cut, c.DisplayName())
+			unread = append(unread, r.listenersCut(c))
 			continue
 		}
 		l := r.containerListeners(ctx, c)
+		if !l.OK() {
+			if l.Status != evidence.StatusSkipped || l.Err == nil || l.Err.Code != evidence.CodeNotFound {
+				unread = append(unread, l)
+			}
+			continue
+		}
 		socks, ok := l.Data.(evidence.Listeners)
-		if !ok || !l.OK() || len(socks.OnPort(port)) == 0 {
+		if !ok || len(socks.OnPort(port)) == 0 {
 			continue
 		}
 		r.store.Add(ev, l)
 	}
-	if len(cut) > 0 {
-		r.metadataIncomplete = true
-		r.gaps = append(r.gaps, r.probeListenersGap(cut))
+	if len(unread) > 0 {
+		r.store.Add(scanUnread(unread, port))
+	}
+}
+
+// scanUnread sums up the running containers whose listening sockets the
+// search for an unpublished server (WR019) couldn't read, as one record:
+// the first one's status and reason, in a context that names how many.
+func scanUnread(unread []evidence.Evidence, port uint16) evidence.Evidence {
+	first := unread[0]
+	names := make([]string, 0, len(unread))
+	for _, e := range unread {
+		names = append(names, e.Context.String())
+	}
+	return evidence.Evidence{
+		Kind: evidence.KindListeners, Subject: "listeners", Status: first.Status, Err: first.Err,
+		Context:    evidence.ContextRef{Kind: evidence.ContextContainer, Name: fmt.Sprintf("%d running %s", len(unread), plural(len(unread), "container", "containers"))},
+		ObservedAt: time.Now(), Source: first.Source,
+		Limitations: []string{fmt.Sprintf("read to find a container that serves port %d without publishing it (%s); one of these may", port, strings.Join(names, ", "))},
 	}
 }
 

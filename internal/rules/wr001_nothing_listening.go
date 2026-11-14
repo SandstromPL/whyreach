@@ -84,6 +84,13 @@ func (r wr001) Evaluate(v evidence.View) []Finding {
 		Title:      fmt.Sprintf("nothing on %s listens on port %d", v.HostLabel(), port),
 	}
 	f.Explanation = fmt.Sprintf("The target is %s itself, and nothing on it listens on TCP port %d.", v.HostLabel(), port)
+	if v.HostSource() && v.UnreadContainerListeners() {
+		// A container may serve the port without publishing it (WR019),
+		// and whyreach couldn't read every container's sockets to rule
+		// that out.
+		f.Confidence = Medium
+		f.Explanation += " whyreach couldn't read every running container's listening sockets, so one of them may serve the port without publishing it."
+	}
 	contradictedByPath(v, &f)
 	f.Fix = fmt.Sprintf("Start the service on %s, or check its port. If the service runs in a container, publish its port (ports: [\"%d:<container port>\"]) or connect to the container directly.", v.HostLabel(), port)
 	return []Finding{f}

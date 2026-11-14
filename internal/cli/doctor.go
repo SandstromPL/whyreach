@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"os"
@@ -58,10 +59,18 @@ Exit codes: 0 nothing failed, 1 something failed, 3 usage error, 4 internal erro
 				}
 				r.Checks = append(r.Checks, p.Doctor(cmd.Context())...)
 			}
+			pl := platform.Detect()
 			switch exe, err := os.Executable(); {
-			case platform.Detect().InContainer:
+			case pl.InContainer:
 				r.Checks = append(r.Checks, engine.Check{Name: "mcp", Status: engine.CheckInfo,
 					Detail: "add the image to Claude Code: claude mcp add whyreach -- docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock IMAGE mcp serve"})
+			case err == nil && pl.WSL:
+				// An MCP client on Windows starts it through wsl.exe, as the
+				// distro's default user; --exec skips the shell, whose
+				// profile files a non-login shell wouldn't read anyway.
+				distro := cmp.Or(o.Getenv("WSL_DISTRO_NAME"), "DISTRO")
+				r.Checks = append(r.Checks, engine.Check{Name: "mcp", Status: engine.CheckInfo,
+					Detail: "add it to Claude Code in this distro: claude mcp add whyreach -- " + exe + " mcp serve; from an MCP client on Windows, the command is: wsl.exe -d " + distro + " --exec " + exe + " mcp serve (settings as flags, such as --log-level: the client's environment doesn't reach WSL)"})
 			case err == nil:
 				r.Checks = append(r.Checks, engine.Check{Name: "mcp", Status: engine.CheckInfo,
 					Detail: "add it to Claude Code: claude mcp add whyreach -- " + exe + " mcp serve"})

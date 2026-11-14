@@ -129,6 +129,22 @@ func (v View) ListenersIn(containerID string) (ListenersEv, bool) {
 	return ListenersEv{}, false
 }
 
+// UnreadContainerListeners reports a running container whose listening
+// sockets whyreach tried and failed to read (or left unread at a bound):
+// "nothing listens" then holds only for the sockets it did read.
+func (v View) UnreadContainerListeners() bool {
+	for _, e := range v.items {
+		if e.Kind != KindListeners || e.Context.Kind != ContextContainer || e.OK() {
+			continue
+		}
+		if e.Status == StatusSkipped && e.Err != nil && e.Err.Code == CodeNotFound {
+			continue // a stopped container: it has no sockets
+		}
+		return true
+	}
+	return false
+}
+
 // HostListeners returns the listeners observed in the host's network namespace.
 func (v View) HostListeners() (ListenersEv, bool) {
 	for _, e := range v.items {

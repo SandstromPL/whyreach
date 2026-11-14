@@ -1,0 +1,107 @@
+{
+  "description": "from the host, nothing on it listens on 8080, but the running containers' listening sockets couldn't be read (Docker Desktop without probe containers): one may serve the port unpublished (WR019), so WR001 drops to medium",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "localhost",
+      "port": 8080,
+      "proto": "tcp",
+      "class": "loopback"
+    }
+  },
+  "evidence": [
+    {
+      "id": "ev-01",
+      "kind": "platform",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "platform",
+      "status": "ok",
+      "data": {
+        "name": "linux-desktop",
+        "desktop": true
+      },
+      "source": "whyreach's own environment and the daemon's GET /version",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "id": "ev-02",
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:22"
+          }
+        ]
+      },
+      "source": "/proc/thread-self/net/tcp{,6} in whyreach's own network namespace",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "id": "ev-03",
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "localhost:8080",
+      "status": "ok",
+      "data": {
+        "target": "localhost:8080",
+        "addr": "127.0.0.1:8080",
+        "via": "hosts",
+        "outcome": "refused",
+        "errno": "ECONNREFUSED",
+        "rtt_ns": 100000
+      },
+      "source": "connect",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "id": "ev-04",
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "name": "3 running containers"
+      },
+      "subject": "listeners",
+      "status": "unsupported",
+      "error": {
+        "code": "unsupported",
+        "message": "Docker runs these containers outside whyreach's machine (in Docker Desktop's VM), so Docker's PIDs aren't processes whyreach can see: it reads containers' listening sockets only inside probe containers, which are off (tier 2b)"
+      },
+      "source": "/proc/net/tcp{,6} read inside a probe container joined to the container's network namespace",
+      "limitations": [
+        "read to find a container that serves port 8080 without publishing it (WR019); one of these may"
+      ],
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR001",
+      "confidence": "medium",
+      "supporting": [
+        "ev-02",
+        "ev-03"
+      ]
+    }
+  ]
+}
