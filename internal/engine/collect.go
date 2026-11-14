@@ -323,7 +323,7 @@ func scanUnread(unread []evidence.Evidence, port uint16) evidence.Evidence {
 
 // hostAddrs reads the host's interfaces.
 func (r *run) hostAddrs() evidence.Evidence {
-	ev := evidence.Evidence{Kind: evidence.KindHostAddrs, Context: r.e.host(), Subject: "interfaces", Source: "the kernel's interface list (netlink), in whyreach's own network namespace"}
+	ev := evidence.Evidence{Kind: evidence.KindHostAddrs, Context: r.host(), Subject: "interfaces", Source: "the kernel's interface list (netlink), in whyreach's own network namespace"}
 	start := time.Now()
 	addrs, err := r.e.d.Interfaces()
 	ev.Duration, ev.ObservedAt = time.Since(start), time.Now()
@@ -603,7 +603,7 @@ func (r *run) listenersElsewhere(ctx context.Context, c evidence.Container) evid
 // is the host's when whyreach runs natively.
 func (r *run) hostListeners() evidence.Evidence {
 	ev := evidence.Evidence{
-		Kind: evidence.KindListeners, Context: r.e.host(), Subject: "listeners",
+		Kind: evidence.KindListeners, Context: r.host(), Subject: "listeners",
 		Source: "/proc/thread-self/net/tcp{,6} in whyreach's own network namespace",
 	}
 	start := time.Now()

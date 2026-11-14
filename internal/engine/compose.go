@@ -158,11 +158,15 @@ func facts(v evidence.View, complete bool) []Fact {
 	dests := v.Destinations()
 	src, haveSrc := v.Source()
 	owner, haveOwner := v.NetnsOwner()
-	if p, ok := v.Platform(); ok && p.P.WSL {
+	if p, ok := v.Platform(); ok && p.P.HostIsWSL2VM() {
 		// Under WSL2 the host's side is the WSL2 VM: say so once, when the
 		// question involves it (INITIAL.md §3.7).
 		if _, hostTarget := v.HostTarget(); hostTarget || v.HostSource() {
-			add("whyreach runs in WSL2 ("+p.P.Name+"): the host's side here is the WSL2 VM, not Windows", p.ID)
+			who := "whyreach runs in WSL2"
+			if !p.P.WSL {
+				who = "Docker runs in a WSL2 distro"
+			}
+			add(who+" ("+p.P.Name+"): the host's side here is the WSL2 VM, not Windows", p.ID)
 		}
 	}
 	if haveSrc && haveOwner && owner.C.ID != src.C.ID {
@@ -363,6 +367,7 @@ func (r *run) gapsFrom(v evidence.View) []Gap {
 	var order []key
 	byKey := map[key]*Gap{}
 	kinds := map[key][]string{}
+	places := map[key][]string{} // the contexts of a gap that spans several
 	for _, e := range v.Items() {
 		why, ok := gapWhy(e)
 		if !ok {
@@ -370,6 +375,14 @@ func (r *run) gapsFrom(v evidence.View) []Gap {
 		}
 		ctx := e.Context.Where()
 		k := key{ctx, string(e.Status), e.Err.Message}
+		if e.Err.Message == executor.PIDsElsewhere {
+			// On Docker Desktop every container's sockets are out of
+			// reach for the same reason: one gap names them all.
+			k.ctx = ""
+			if !slices.Contains(places[k], ctx) {
+				places[k] = append(places[k], ctx)
+			}
+		}
 		g, seen := byKey[k]
 		if !seen {
 			g = &Gap{Why: why, Detail: e.Err.Message, HowToEnable: r.howToEnable(e)}
@@ -379,6 +392,17 @@ func (r *run) gapsFrom(v evidence.View) []Gap {
 		g.Evidence = append(g.Evidence, e.ID)
 		if label := kindLabel(e.Kind); !slices.Contains(kinds[k], label) {
 			kinds[k] = append(kinds[k], label)
+		}
+	}
+	for k, ps := range places {
+		k2 := k
+		k2.ctx = joinAnd(ps)
+		byKey[k2] = byKey[k]
+		kinds[k2] = kinds[k]
+		for i := range order {
+			if order[i] == k {
+				order[i] = k2
+			}
 		}
 	}
 	var out []Gap

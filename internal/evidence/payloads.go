@@ -52,6 +52,13 @@ func (p Platform) EngineHere() bool {
 // host", or under WSL2 "the WSL2 VM".
 func (p Platform) HostLabel() string { return HostOn(p).Where() }
 
+// HostIsWSL2VM reports that the host's side whyreach sees is a WSL2 VM:
+// whyreach runs in a WSL2 distro, or in a container on Docker Engine in
+// one (whose host, with --network host, is that VM).
+func (p Platform) HostIsWSL2VM() bool {
+	return p.WSL || p.Name == PlatformWSL2Engine || p.Name == PlatformWSL2Desktop
+}
+
 // WindowsHost reports Docker Desktop's WSL integration, where the host the
 // containers reach (host.docker.internal) is Windows, whose state whyreach
 // can't read from inside WSL: host-side evidence there describes the WSL2

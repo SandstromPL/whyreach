@@ -68,7 +68,12 @@ func (p *Policy) netnsCheck(ctx context.Context, pl platform.Info) engine.Check 
 	_, why := pl.NetnsExecutor()
 	switch {
 	case p.d.Netns != nil:
-		c.Detail = "on (root): on Linux Docker Engine, DNS and TCP checks from containers enter their network namespaces directly, with no Docker write (a probe container stands in only if entering fails and they are allowed). Run whyreach as root for the CLI only; as an MCP server, prefer a regular user"
+		c.Detail = "on (root): where Docker Engine runs on this machine, DNS and TCP checks from containers enter their network namespaces directly, with no Docker write (a probe container stands in only if entering fails and they are allowed). Run whyreach as root for the CLI only; as an MCP server, prefer a regular user"
+		if pl := p.engine.Platform(ctx); p.d.Docker != nil && !pl.EngineHere() {
+			c.Status = engine.CheckWarn
+			c.Detail += "; not used here (" + pl.Name + "): Docker Engine doesn't run on this machine, so Docker's PIDs aren't processes whyreach can enter, and probe containers run container checks instead"
+			return c
+		}
 		p.tryNetns(ctx, &c)
 	case p.d.Settings.NetnsOff && why == "":
 		c.Detail = "off: netns = false under [permissions] in " + p.d.Settings.ConfigPath
@@ -89,14 +94,8 @@ func (p *Policy) tryNetns(ctx context.Context, c *engine.Check) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	v, err := p.d.Docker.Negotiate(ctx)
-	if err != nil {
+	if _, err := p.d.Docker.Negotiate(ctx); err != nil {
 		return // the docker check reports it
-	}
-	if name := platform.Classify(p.d.Platform, platform.Daemon{OS: v.Os, Platform: v.Platform.Name, Kernel: v.KernelVersion}); !platform.EngineHere(name) {
-		c.Status = engine.CheckWarn
-		c.Detail += "; not used here (" + name + "): Docker Engine doesn't run on this machine, so Docker's PIDs aren't processes whyreach can enter, and probe containers run container checks instead"
-		return
 	}
 	list, err := p.d.Docker.ListContainers(ctx, false)
 	if err != nil || len(list) == 0 {
@@ -115,14 +114,18 @@ func (p *Policy) tryNetns(ctx context.Context, c *engine.Check) {
 
 func (p *Policy) probeContainerCheck(ctx context.Context) engine.Check {
 	c := engine.Check{Name: "probe containers"}
-	if p.d.Netns != nil && !p.ProbeContainers() {
+	pl := p.engine.Platform(ctx)
+	if p.d.Netns != nil && !p.ProbeContainers() && pl.EngineHere() {
 		c.Status = engine.CheckInfo
-		c.Detail = "off (tier 2b), and not needed on Linux Docker Engine while whyreach runs as root: the netns executor runs container checks"
+		c.Detail = "off (tier 2b), and not needed while whyreach runs as root on Docker Engine here: the netns executor runs container checks"
 		return c
 	}
 	if !p.ProbeContainers() {
 		c.Status = engine.CheckWarn
 		c.Detail = "off (tier 2b): DNS and TCP checks from inside containers are skipped; metadata and listeners still settle most causes"
+		if !pl.EngineHere() && pl.Name != platform.Other {
+			c.Detail = "off (tier 2b): on Docker Desktop they are the only way into containers, so containers' listening sockets and DNS and TCP checks from inside them are all skipped; metadata alone settles few causes"
+		}
 		c.Fix = "Set probe_containers = true under [permissions] in " + p.d.Settings.ConfigPath + ", or approve them when an MCP client asks."
 		if !p.CanUseProbeContainers() {
 			c.Fix = "They need the Docker API."

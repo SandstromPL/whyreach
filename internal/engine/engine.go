@@ -116,6 +116,15 @@ func (e *Engine) host() evidence.ContextRef {
 	return evidence.HostOn(evidence.Platform{WSL: e.d.Platform.WSL})
 }
 
+// host is the run's ContextRef for whyreach's own network namespace, from
+// the classified platform once the daemon has answered.
+func (r *run) host() evidence.ContextRef {
+	if r.platform.Name != "" {
+		return evidence.HostOn(r.platform)
+	}
+	return r.e.host()
+}
+
 // Error is a diagnosis that could not start: the question itself is wrong.
 type Error struct {
 	Code    string // evidence.Code*: invalid_argument, not_found, policy_denied, internal

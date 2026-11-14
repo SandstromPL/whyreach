@@ -84,7 +84,7 @@ const HostWSL = "WSL2 VM"
 // HostOn is the ContextRef of whyreach's own network namespace on a
 // platform: under WSL2 it is named the WSL2 VM (INITIAL.md §3.7).
 func HostOn(p Platform) ContextRef {
-	if p.WSL {
+	if p.HostIsWSL2VM() {
 		return ContextRef{Kind: ContextHost, Name: HostWSL}
 	}
 	return Host()

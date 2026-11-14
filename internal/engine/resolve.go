@@ -35,7 +35,7 @@ func (r *run) resolve(ctx context.Context) error {
 	}
 	r.setDaemon(v)
 	r.store.Add(evidence.Evidence{
-		Kind: evidence.KindDockerVersion, Context: r.e.host(), Subject: "docker", Status: evidence.StatusOK,
+		Kind: evidence.KindDockerVersion, Context: r.host(), Subject: "docker", Status: evidence.StatusOK,
 		ObservedAt: time.Now(), Duration: time.Since(start), Source: "docker GET /version",
 		Data: evidence.DockerVersion{
 			Version: v.Version, APIVersion: dk.APIVersion(), DaemonMaxAPI: v.APIVersion, Os: v.Os, Arch: v.Arch,
@@ -76,7 +76,7 @@ const platformSource = "whyreach's own environment (/proc/sys/kernel/osrelease, 
 // only where whyreach runs.
 func (r *run) recordPlatform() {
 	ev := evidence.Evidence{
-		Kind: evidence.KindPlatform, Context: r.e.host(), Subject: "platform", Status: evidence.StatusOK,
+		Kind: evidence.KindPlatform, Context: r.host(), Subject: "platform", Status: evidence.StatusOK,
 		ObservedAt: time.Now(), Source: platformSource,
 	}
 	if r.platform.Name == "" {

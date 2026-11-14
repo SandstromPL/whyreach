@@ -18,8 +18,10 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
+	"github.com/SandstromPL/whyreach/internal/engine"
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
+	"github.com/SandstromPL/whyreach/internal/platform"
 	"github.com/SandstromPL/whyreach/internal/probe"
 )
 
@@ -655,5 +657,45 @@ func TestDesktopListenersNeedProbeContainers(t *testing.T) {
 		Err: &evidence.Error{Code: evidence.CodeUnsupported, Message: executor.HostNotHere}}
 	if NeedsProbeContainers([]evidence.Evidence{hidden, windows}) {
 		t.Error("probe containers help neither whyreach's image without --pid host nor the Windows host")
+	}
+}
+
+// desktopDocker is fakeDocker answering as Docker Desktop.
+type desktopDocker struct{ fakeDocker }
+
+func (desktopDocker) Negotiate(context.Context) (docker.Version, error) {
+	v := docker.Version{Version: "29.9.3", APIVersion: "1.56", Os: "linux", Arch: "amd64", KernelVersion: "6.6.87.2-microsoft-standard-WSL2"}
+	v.Platform.Name = "Docker Desktop 4.50.0 (209931)"
+	return v, nil
+}
+
+// TestDoctorProbeContainersOnDesktop: on Docker Desktop's WSL integration,
+// probe containers are the only way into containers, even as root (the
+// netns executor can't enter Docker Desktop's VM), and doctor says so.
+func TestDoctorProbeContainersOnDesktop(t *testing.T) {
+	p, err := New(Deps{
+		Settings: Settings{Docker: true, RatePerMinute: 30}, Docker: desktopDocker{}, Listeners: fakeDocker{}, Host: &recorder{},
+		Netns:    &recorder{}, // as root
+		NewProbe: func() (executor.Executor, error) { return &recorder{}, nil },
+		Platform: platform.Info{OS: "linux", WSL: true, Root: true, Netns: true, Openat2: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range p.Doctor(context.Background()) {
+		switch c.Name {
+		case "probe containers":
+			if c.Status != engine.CheckWarn || !strings.Contains(c.Detail, "only way into containers") {
+				t.Errorf("probe containers line %+v", c)
+			}
+		case "platform":
+			if !strings.Contains(c.Detail, "wsl2-desktop") {
+				t.Errorf("platform line %+v", c)
+			}
+		case "netns executor":
+			if !strings.Contains(c.Detail, "not used here (wsl2-desktop)") {
+				t.Errorf("netns line %+v", c)
+			}
+		}
 	}
 }

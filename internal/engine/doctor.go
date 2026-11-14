@@ -100,6 +100,18 @@ const WSLIdle = "WSL stops a distro soon after its last process exits (instanceI
 // recommends Docker Desktop over Docker Engine in WSL2.
 const WSLIdleFix = "Keep a terminal open on this distro while you work, or set instanceIdleTimeout=-1 under [general] in %UserProfile%\\.wslconfig on Windows (then wsl --shutdown once); Docker recommends Docker Desktop's WSL integration over Docker Engine in WSL2."
 
+// Platform classifies where whyreach and the containers run, asking the
+// daemon (INITIAL.md §3.7); without its answer only whyreach's side is
+// known (Name other).
+func (e *Engine) Platform(ctx context.Context) evidence.Platform {
+	if e.d.Docker != nil {
+		if v, err := negotiate(ctx, e.d.Docker); err == nil {
+			return e.platformFor(platform.Daemon{OS: v.Os, Platform: v.Platform.Name, Kernel: v.KernelVersion})
+		}
+	}
+	return e.platformFor(platform.Daemon{})
+}
+
 // platformChecks are doctor's lines about the platform: which setup
 // whyreach found (INITIAL.md §3.7) and what that means for its checks.
 func platformChecks(p evidence.Platform) []Check {

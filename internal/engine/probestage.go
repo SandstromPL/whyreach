@@ -26,7 +26,7 @@ func (r *run) probe(ctx context.Context) error {
 	var where, stamp evidence.ContextRef
 	switch r.q.From.Kind {
 	case evidence.SourceHost:
-		ex, where, stamp = r.e.d.Host, r.e.host(), r.e.host()
+		ex, where, stamp = r.e.d.Host, r.host(), r.host()
 	default:
 		src, ok := view.Source()
 		if !ok {

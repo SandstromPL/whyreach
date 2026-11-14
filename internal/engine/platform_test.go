@@ -386,3 +386,21 @@ func TestInspectWritesNothingOnDesktop(t *testing.T) {
 		t.Errorf("gaps %+v, want one that points at run_probe", in.Gaps)
 	}
 }
+
+// TestDesktopListenerGapsMerge: on Docker Desktop without probe
+// containers, every container's sockets are out of reach for the same
+// reason, so one gap names them all instead of one gap each.
+func TestDesktopListenerGapsMerge(t *testing.T) {
+	w := shopWorld()
+	w.desktop = true
+	r := diagnoseOn(t, w, wslRoot, false, "container:shop-worker-1", "localhost:8080")
+	var merged []Gap
+	for _, g := range r.d.Gaps {
+		if g.Detail == executor.PIDsElsewhere {
+			merged = append(merged, g)
+		}
+	}
+	if len(merged) != 1 || merged[0].What != "listening sockets in api and worker" || len(merged[0].Evidence) != 2 {
+		t.Errorf("gaps %+v, want one for api and worker", merged)
+	}
+}
