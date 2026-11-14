@@ -217,6 +217,7 @@ make cross      # compile check for macOS and Windows
 make lab        # the failure lab in test/lab (needs Docker)
 make lab-root   # the same lab as root, where whyreach enters network namespaces itself (asks for your sudo password)
 make lab-agent  # a headless agent diagnoses each lab scenario through MCP (needs the claude CLI)
+make lab-bench  # the agent benchmark: a sandboxed shell-only agent against a whyreach-only one (needs the claude CLI and bwrap)
 make release-snapshot  # the release archives and checksums in dist/, publishing nothing
 ```
 
