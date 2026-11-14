@@ -361,3 +361,28 @@ func TestUnpublishedServerOnDesktop(t *testing.T) {
 		t.Errorf("no gap for the containers whose sockets went unread: %+v", r.d.Gaps)
 	}
 }
+
+// TestInspectWritesNothingOnDesktop: inspect_environment's tool says
+// read-only, so on Docker Desktop, where a container's listening sockets
+// take a probe container, an inspection doesn't read them (run_probe can).
+func TestInspectWritesNothingOnDesktop(t *testing.T) {
+	w := shopWorld()
+	w.desktop = true
+	pids := &watchedPIDs{world: w}
+	probes := &scripted{w: w, name: evidence.ExecutorProbeContainer}
+	e := New(Deps{Docker: w, Listeners: pids, Probe: probes, Platform: wslRoot})
+	scope, err := target.ParseScope("container:shop-api-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := e.Inspect(context.Background(), scope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(probes.ran) != 0 || len(pids.pids) != 0 {
+		t.Errorf("an inspection ran probe containers %v and read PIDs %v", probes.ran, pids.pids)
+	}
+	if !slices.ContainsFunc(in.Gaps, func(g Gap) bool { return g.Detail == InspectNoProbe && strings.Contains(g.HowToEnable, "run_probe") }) {
+		t.Errorf("gaps %+v, want one that points at run_probe", in.Gaps)
+	}
+}

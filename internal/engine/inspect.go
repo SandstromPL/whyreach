@@ -17,6 +17,12 @@ import (
 	"github.com/SandstromPL/whyreach/internal/target"
 )
 
+// InspectNoProbe is the reason an inspection doesn't list a container's
+// listening sockets where Docker's PIDs aren't this machine's (Docker
+// Desktop): only a probe container could read them, and an inspection
+// never starts one.
+const InspectNoProbe = "Docker runs this container outside whyreach's machine (in Docker Desktop's VM), so its listening sockets can be read only inside a probe container, which an inspection doesn't start"
+
 // Bounds on what an inspection lists, so its output stays compact.
 const (
 	maxInspectContainers = 40
@@ -331,20 +337,27 @@ func (e *Engine) inspectContainer(ctx context.Context, scope target.Scope, in *I
 			f.NetnsOwner = o.Name
 		}
 	}
-	ev := r.containerListeners(ctx, netns)
-	if netns.HostNetwork() {
+	var ev evidence.Evidence
+	switch {
+	case !r.engineHere:
+		// Docker's PIDs aren't this machine's (Docker Desktop): only a probe
+		// container could read the sockets, and an inspection writes
+		// nothing to Docker (its tool says read-only). run_probe can.
+		in.Gaps = append(in.Gaps, Gap{What: "its listening sockets", Why: "unsupported", Detail: InspectNoProbe,
+			HowToEnable: fmt.Sprintf("Read them with run_probe (kind listeners, from container:%s), which runs a probe container when they are allowed.", c.Name)})
+	case netns.HostNetwork():
 		ev = r.hostListeners() // its sockets are the host's
+	default:
+		ev = r.containerListeners(ctx, netns)
 	}
-	{
-		if ev.OK() {
-			for _, s := range ev.Data.(evidence.Listeners).Sockets {
-				if !s.IsDockerDNS() && len(f.Listening) < maxInspectListeners {
-					f.Listening = append(f.Listening, s.Local.String())
-				}
+	if ev.OK() {
+		for _, s := range ev.Data.(evidence.Listeners).Sockets {
+			if !s.IsDockerDNS() && len(f.Listening) < maxInspectListeners {
+				f.Listening = append(f.Listening, s.Local.String())
 			}
-		} else if ev.Err != nil && ev.Status != evidence.StatusSkipped {
-			in.Gaps = append(in.Gaps, Gap{What: "its listening sockets", Why: string(ev.Status), Detail: ev.Err.Message})
 		}
+	} else if ev.Err != nil && ev.Status != evidence.StatusSkipped {
+		in.Gaps = append(in.Gaps, Gap{What: "its listening sockets", Why: string(ev.Status), Detail: ev.Err.Message})
 	}
 	in.Container = f
 	in.Summary = containerSummary(c, f)
