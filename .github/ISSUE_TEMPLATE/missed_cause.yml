@@ -1,0 +1,39 @@
+name: A cause whyreach missed
+description: A container couldn't reach something, and whyreach didn't name the cause, or named the wrong one.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New rules come from real problems like yours. Issues are public, so please use made-up names and remove anything private.
+  - type: textarea
+    id: symptom
+    attributes:
+      label: What your app saw
+      description: The error, for example `Connection refused`, a timeout, or a name that didn't resolve, and between which containers or services.
+    validations:
+      required: true
+  - type: textarea
+    id: cause
+    attributes:
+      label: The real cause
+      description: What was actually wrong, and how you found it.
+    validations:
+      required: true
+  - type: textarea
+    id: whyreach
+    attributes:
+      label: What whyreach said
+      description: The command you ran and its answer.
+      render: text
+  - type: textarea
+    id: setup
+    attributes:
+      label: How to reproduce it
+      description: A small Compose file or the docker commands that set it up.
+      render: yaml
+  - type: input
+    id: version
+    attributes:
+      label: whyreach version
+      description: The output of `whyreach --version`.

@@ -207,7 +207,7 @@ For Claude Code: `claude mcp add whyreach -- docker run --rm -i --network host -
 
 ## Development
 
-The design is in [INITIAL.md](INITIAL.md), and the rules for contributors and coding agents are in [CLAUDE.md](CLAUDE.md).
+The design is in [INITIAL.md](INITIAL.md). To contribute, start with [CONTRIBUTING.md](CONTRIBUTING.md); coding agents also follow [CLAUDE.md](CLAUDE.md).
 
 ```bash
 make build      # static binary in bin/whyreach
@@ -220,6 +220,10 @@ make lab-agent  # a headless agent diagnoses each lab scenario through MCP (need
 make lab-bench  # the agent benchmark: a sandboxed shell-only agent against a whyreach-only one (needs the claude CLI and bwrap)
 make release-snapshot  # the release archives and checksums in dist/, publishing nothing
 ```
+
+## Contributing
+
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first. Report security problems privately, as [SECURITY.md](SECURITY.md) explains.
 
 ## License
 
