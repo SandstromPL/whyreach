@@ -6,7 +6,7 @@
 
 **Who is it for?** Developers who run several services with Docker Compose on Linux, often together with an AI coding agent such as Claude Code, Codex or Cursor. Docker Desktop on macOS and Windows comes later.
 
-**Why was it needed?** Finding the cause by hand takes many commands, and you need to know Docker networking well. Small images often don't have the tools to check from inside. AI agents doing the same take many steps, often guess, and may run commands that change things.
+**Why was it needed?** Finding the cause by hand takes many commands, and you need to know Docker networking well. Small images often don't have the tools to check from inside. AI agents doing the same take many steps and may run commands that change things.
 
 **Why use it?**
 - **One step:** one command gives you the cause, the proof and the fix.
