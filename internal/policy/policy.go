@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net/netip"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -26,6 +27,7 @@ import (
 	"github.com/SandstromPL/whyreach/internal/engine"
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
+	"github.com/SandstromPL/whyreach/internal/platform"
 	"github.com/SandstromPL/whyreach/internal/probe"
 	"github.com/SandstromPL/whyreach/internal/target"
 )
@@ -89,6 +91,10 @@ type Deps struct {
 	Interfaces func() (evidence.HostAddrs, error)
 	Host       executor.Executor // runs probes in the host's network namespace
 	Self       string            // the ID of the Docker container whyreach runs in, if any
+	// Platform is where whyreach runs (platform.Detect): the engine
+	// classifies the platform from it and the daemon's answer (INITIAL.md
+	// §3.7). The zero value means natively, outside WSL and containers.
+	Platform platform.Info
 	// HostResolvers reads the host's own resolvers, which a probe may ask
 	// even on the block list, for DNS only (INITIAL.md §10 Q13); nil when
 	// whyreach can't see the host's resolver files.
@@ -142,6 +148,9 @@ func New(d Deps) (*Policy, error) {
 	if d.Client == "" {
 		d.Client = ClientCLI
 	}
+	if d.Platform.OS == "" {
+		d.Platform.OS, d.Platform.Arch = runtime.GOOS, runtime.GOARCH
+	}
 	if !d.Settings.Docker {
 		d.Docker, d.DockerErr = nil, nil
 	}
@@ -194,6 +203,7 @@ func New(d Deps) (*Policy, error) {
 		Interfaces: d.Interfaces,
 		ConfigPath: d.Settings.ConfigPath,
 		Self:       d.Self,
+		Platform:   d.Platform,
 		Deadline:   d.Deadline,
 		Logger:     d.Logger,
 	})
@@ -558,6 +568,9 @@ func NeedsProbeContainers(evs []evidence.Evidence) bool {
 	for _, e := range evs {
 		if e.Status == evidence.StatusPermissionDenied && e.Err != nil && e.Err.Message == executor.ProbeContainersOff {
 			return true
+		}
+		if e.Err != nil && e.Err.Message == executor.PIDsElsewhere {
+			return true // Docker Desktop: listening sockets are read only in probe containers
 		}
 		if executor.CannotEnter(e.Err) {
 			return true

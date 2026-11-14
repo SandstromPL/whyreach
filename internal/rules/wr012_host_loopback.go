@@ -10,8 +10,11 @@ import (
 // WR012: a service on the host listens only on 127.0.0.1 (or ::1), so
 // containers can't reach it: their connections to the host arrive on a
 // bridge address such as docker0's, where nothing listens. The host's
-// listeners settle it (Linux Docker Engine; Docker Desktop forwards
-// host.docker.internal differently). Frequency rank 5.
+// listeners settle it, where Docker Engine runs on whyreach's machine (a
+// Linux host, or a WSL2 distro, whose host is the WSL2 VM). Docker Desktop
+// forwards host.docker.internal its own way, and on its WSL integration the
+// host the containers reach is Windows, whose listeners whyreach can't read
+// (the engine records that gap). Frequency rank 5.
 type wr012 struct{}
 
 func (wr012) ID() string                { return "WR012" }
@@ -31,7 +34,7 @@ func (r wr012) Evaluate(v evidence.View) []Finding {
 	if d.Host == nil || d.Host.Via == evidence.HostViaLoopback {
 		return nil
 	}
-	if ver, ok := dockerVersion(v); ok && !ver.LinuxEngine {
+	if p, _, ok := platformOf(v); ok && !p.EngineHere() {
 		return nil // Docker Desktop reaches host services its own way (INITIAL.md §3.7)
 	}
 	port := v.Question().To.Port
@@ -64,31 +67,55 @@ func (r wr012) Evaluate(v evidence.View) []Finding {
 	}
 	f.Supporting = ids(f.Supporting...)
 	srcName := src.C.DisplayName()
-	arrives := "the host's address"
+	host := v.HostLabel()
+	arrives := host + "'s address"
 	reachable := "an address containers can reach"
 	if d.Host.Addr.IsValid() {
-		arrives = "the host's " + d.Host.Addr.String()
+		arrives = host + "'s " + d.Host.Addr.String()
 		reachable = d.Host.Addr.String()
 		if d.Host.Iface != "" {
 			arrives += " (" + d.Host.Iface + ")"
 		}
 	}
-	f.Title = fmt.Sprintf("the host service on port %d listens only on %s", port, socketList(socks))
-	f.Explanation = fmt.Sprintf("On the host, port %d is served only on %s, which accepts connections from the host itself. %s's connection to %s arrives at %s, where nothing listens.",
-		port, socketList(socks), srcName, v.Question().To.String(), arrives)
+	service := "the host service"
+	if host != "the host" {
+		service = "the service in " + host
+	}
+	f.Title = fmt.Sprintf("%s on port %d listens only on %s", service, port, socketList(socks))
+	f.Explanation = fmt.Sprintf("On %s, port %d is served only on %s, which accepts connections from %s itself. %s's connection to %s arrives at %s, where nothing listens.",
+		host, port, socketList(socks), host, srcName, v.Question().To.String(), arrives)
 	switch {
 	case d.Host.Via == evidence.HostViaName:
 		// host.docker.internal without a mapping doesn't resolve on Docker
 		// Engine (WR011): this is what happens once it does.
-		f.Explanation = fmt.Sprintf("On the host, port %d is served only on %s, which accepts connections from the host itself. Once %s resolves in %s (WR011), its connections will arrive at the host's address, where nothing listens.",
-			port, socketList(socks), v.Question().To.Host, srcName)
+		f.Explanation = fmt.Sprintf("On %s, port %d is served only on %s, which accepts connections from %s itself. Once %s resolves in %s (WR011), its connections will arrive at %s's address, where nothing listens.",
+			host, port, socketList(socks), host, v.Question().To.Host, srcName, host)
 	case refused:
 		f.Explanation = strings.TrimSuffix(f.Explanation, ".") + ", so it is refused."
 	}
 	contradictedByPath(v, &f)
-	f.Fix = fmt.Sprintf("Make the host service listen on %s too, or on 0.0.0.0 (then mind the host firewall), and restart it. For PostgreSQL, for example: listen_addresses = 'localhost,%s' and a host line for the containers' subnet in pg_hba.conf.",
-		reachable, reachable)
+	f.Fix = fmt.Sprintf("Make %s listen on %s too, or on 0.0.0.0 (then mind the firewall), and restart it. For PostgreSQL, for example: listen_addresses = 'localhost,%s' and a host line for the containers' subnet in pg_hba.conf.",
+		service, reachable, reachable)
 	return []Finding{f}
+}
+
+// platformOf returns where whyreach and Docker's containers run, and the
+// records that show it: the platform record (INITIAL.md §3.7), or, in
+// evidence made before it existed, what the daemon's identity implies.
+func platformOf(v evidence.View) (evidence.Platform, []string, bool) {
+	if p, ok := v.Platform(); ok {
+		return p.P, []string{p.ID}, true
+	}
+	for _, e := range v.Of(evidence.KindDockerVersion) {
+		if dv, ok := e.Data.(evidence.DockerVersion); ok && e.OK() {
+			p := evidence.Platform{Name: "other", Desktop: strings.Contains(dv.PlatformName, "Desktop")}
+			if dv.LinuxEngine {
+				p.Name = evidence.PlatformLinuxEngine
+			}
+			return p, []string{e.ID}, true
+		}
+	}
+	return evidence.Platform{}, nil, false
 }
 
 // dockerVersion returns the daemon's identity, when it was observed.

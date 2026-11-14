@@ -8,7 +8,6 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -56,10 +55,7 @@ func (p *Policy) Doctor(ctx context.Context) []engine.Check {
 		out = append(out, engine.Check{Name: "environment", Status: engine.CheckInfo,
 			Detail: "whyreach runs inside a container: it sees the host's network only with --network host, and containers' listening sockets only with --pid host"})
 	}
-	if pl.WSL {
-		out = append(out, engine.Check{Name: "environment", Status: engine.CheckWarn,
-			Detail: "WSL2: host checks describe the WSL2 VM, not Windows (support arrives in v0.2)"})
-	}
+	// Under WSL2 the engine's platform line says what the host's side is.
 	return append(out, p.auditCheck())
 }
 
@@ -97,9 +93,9 @@ func (p *Policy) tryNetns(ctx context.Context, c *engine.Check) {
 	if err != nil {
 		return // the docker check reports it
 	}
-	if runtime.GOOS != "linux" || v.Os != "linux" || v.Desktop() {
+	if name := platform.Classify(p.d.Platform, platform.Daemon{OS: v.Os, Platform: v.Platform.Name, Kernel: v.KernelVersion}); !platform.EngineHere(name) {
 		c.Status = engine.CheckWarn
-		c.Detail += "; not used here: the daemon is not a Linux Docker Engine on this host, so its PIDs aren't this machine's"
+		c.Detail += "; not used here (" + name + "): Docker Engine doesn't run on this machine, so Docker's PIDs aren't processes whyreach can enter, and probe containers run container checks instead"
 		return
 	}
 	list, err := p.d.Docker.ListContainers(ctx, false)

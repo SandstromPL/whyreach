@@ -369,6 +369,30 @@ type HostAddrsEv struct {
 	H  HostAddrs
 }
 
+// PlatformEv is the platform record with its ID.
+type PlatformEv struct {
+	ID string
+	P  Platform
+}
+
+// Platform returns where whyreach and Docker's containers run, when the
+// engine recorded it.
+func (v View) Platform() (PlatformEv, bool) {
+	for _, e := range v.items {
+		if p, ok := e.Data.(Platform); ok && e.Kind == KindPlatform && e.OK() {
+			return PlatformEv{ID: e.ID, P: p}, true
+		}
+	}
+	return PlatformEv{}, false
+}
+
+// HostLabel names whyreach's host-side network namespace in prose: "the
+// host", or under WSL2 "the WSL2 VM" (INITIAL.md §3.7).
+func (v View) HostLabel() string {
+	p, _ := v.Platform()
+	return p.P.HostLabel()
+}
+
 // HostAddrs returns the observed host interfaces.
 func (v View) HostAddrs() (HostAddrsEv, bool) {
 	for _, e := range v.items {

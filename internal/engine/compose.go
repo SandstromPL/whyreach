@@ -83,7 +83,7 @@ func sourceName(v evidence.View) string {
 		return src.C.DisplayName()
 	}
 	if v.Question().From.Kind == evidence.SourceHost {
-		return "the host"
+		return v.HostLabel()
 	}
 	return strings.TrimPrefix(strings.TrimPrefix(v.Question().From.Ref, "container:"), "service:")
 }
@@ -158,6 +158,13 @@ func facts(v evidence.View, complete bool) []Fact {
 	dests := v.Destinations()
 	src, haveSrc := v.Source()
 	owner, haveOwner := v.NetnsOwner()
+	if p, ok := v.Platform(); ok && p.P.WSL {
+		// Under WSL2 the host's side is the WSL2 VM: say so once, when the
+		// question involves it (INITIAL.md §3.7).
+		if _, hostTarget := v.HostTarget(); hostTarget || v.HostSource() {
+			add("whyreach runs in WSL2 ("+p.P.Name+"): the host's side here is the WSL2 VM, not Windows", p.ID)
+		}
+	}
 	if haveSrc && haveOwner && owner.C.ID != src.C.ID {
 		add(fmt.Sprintf("%s uses the network namespace of %s", src.C.DisplayName(), owner.C.DisplayName()), src.ID, owner.ID)
 	}
@@ -172,7 +179,7 @@ func facts(v evidence.View, complete bool) []Fact {
 		case dests.Host != nil:
 			// The target is the host: say which of its addresses, and what
 			// publishes the port there.
-			hostFact(dests.Host, q, owner.C, add)
+			hostFact(dests.Host, q, owner.C, v.HostLabel(), add)
 		case len(dests.OnSourceNets) > 0:
 			m := dests.OnSourceNets[0]
 			add(fmt.Sprintf("%s and %s share network %s", owner.C.DisplayName(), m.C.DisplayName(), strings.Join(m.Shared, ", ")), owner.ID, m.ID)
@@ -184,7 +191,7 @@ func facts(v evidence.View, complete bool) []Fact {
 		}
 	}
 	if !haveOwner && dests.Host != nil {
-		hostFact(dests.Host, q, evidence.Container{}, add)
+		hostFact(dests.Host, q, evidence.Container{}, v.HostLabel(), add)
 	}
 	for _, m := range dests.Published {
 		add(fmt.Sprintf("%s publishes %s → its port %d", m.C.DisplayName(), m.Published.HostAddr(), m.Port), m.ID)
@@ -237,10 +244,7 @@ func facts(v evidence.View, complete bool) []Fact {
 			}
 		}
 		socks := l.OnPort(port)
-		where := e.Context.String()
-		if e.Context.Kind == evidence.ContextHost {
-			where = "the host"
-		}
+		where := e.Context.Where()
 		if len(socks) == 0 {
 			if relevantListenerContext(v, e.Context) {
 				add(fmt.Sprintf("nothing listens on port %d in %s", port, where), e.ID)
@@ -259,8 +263,9 @@ func facts(v evidence.View, complete bool) []Fact {
 	return out
 }
 
-// hostFact says how the target reaches the host.
-func hostFact(h *evidence.HostTarget, q evidence.Question, owner evidence.Container, add func(string, ...string)) {
+// hostFact says how the target reaches the host; host names it ("the
+// host", or under WSL2 "the WSL2 VM").
+func hostFact(h *evidence.HostTarget, q evidence.Question, owner evidence.Container, host string, add func(string, ...string)) {
 	where := ""
 	if h.Addr.IsValid() {
 		where = h.Addr.String()
@@ -271,10 +276,10 @@ func hostFact(h *evidence.HostTarget, q evidence.Question, owner evidence.Contai
 	switch h.Via {
 	case evidence.HostViaGateway:
 		if where != "" {
-			add(fmt.Sprintf("%q is the host for %s: extra_hosts map it to host-gateway, the host's %s", q.To.Host, owner.DisplayName(), where), h.Evidence...)
+			add(fmt.Sprintf("%q is the host for %s: extra_hosts map it to host-gateway, %s's %s", q.To.Host, owner.DisplayName(), host, where), h.Evidence...)
 		}
 	case evidence.HostViaAddress:
-		add(fmt.Sprintf("%s is the host's own address", where), h.Evidence...)
+		add(fmt.Sprintf("%s is %s's own address", where, host), h.Evidence...)
 	case evidence.HostViaName:
 		add(fmt.Sprintf("%s has no extra_hosts entry for %s", owner.DisplayName(), q.To.Host))
 	}
@@ -363,10 +368,7 @@ func (r *run) gapsFrom(v evidence.View) []Gap {
 		if !ok {
 			continue
 		}
-		ctx := e.Context.String()
-		if e.Context.Kind == evidence.ContextHost {
-			ctx = "the host"
-		}
+		ctx := e.Context.Where()
 		k := key{ctx, string(e.Status), e.Err.Message}
 		g, seen := byKey[k]
 		if !seen {
@@ -427,6 +429,10 @@ func (r *run) howToEnable(e evidence.Evidence) string {
 		return executor.HostHiddenAdvice + "."
 	case e.Err.Message == executor.PIDsHidden:
 		return executor.PIDsHiddenAdvice + "."
+	case e.Err.Message == executor.HostNotHere:
+		return executor.HostNotHereAdvice + "."
+	case e.Err.Message == executor.PIDsElsewhere:
+		return fmt.Sprintf("Allow probe containers (the user's decision, not an agent's): approve them when an MCP client asks, or set probe_containers = true under [permissions] in %s. On Docker Desktop they are the only way whyreach reads containers' listening sockets: each read is a short-lived, hardened container joined to the container's network namespace, labeled io.whyreach.probe=1 and removed afterwards.", cfg)
 	case executor.CannotEnter(e.Err):
 		return fmt.Sprintf("whyreach runs as root, so it enters containers' network namespaces itself, and couldn't here. Allow probe containers for whyreach to use one instead (the user's decision: approve them when an MCP client asks, or set probe_containers = true under [permissions] in %s), or run whyreach as a regular user.", cfg)
 	case e.Status == evidence.StatusPermissionDenied && e.Err.Message == executor.ProbeContainersOff:
@@ -446,7 +452,7 @@ func (r *run) howToEnable(e evidence.Evidence) string {
 	case e.Status == evidence.StatusPermissionDenied && e.Kind == evidence.KindListeners:
 		return "Run whyreach as root, or as a user in the docker group on Linux Docker Engine, which can read /proc/<pid>/net/tcp."
 	case e.Status == evidence.StatusUnsupported && e.Kind == evidence.KindListeners:
-		return "On Docker Desktop and non-Linux hosts, listeners will be read inside a probe container (planned for v0.3)."
+		return "whyreach reads listening sockets through /proc on Linux; on macOS and Windows hosts, native builds arrive in v0.3."
 	case e.Status == evidence.StatusTimeout:
 		return fmt.Sprintf("The diagnosis deadline passed first. Run it again, or raise diagnosis under [timeouts] in %s.", cfg)
 	default:

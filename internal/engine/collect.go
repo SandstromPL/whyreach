@@ -13,6 +13,7 @@ import (
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/probe"
 )
 
@@ -152,32 +153,54 @@ func (r *run) collect(ctx context.Context) error {
 			}
 		}
 	}
-	var listenFor []evidence.Container
+	var listenFor, peerListen []evidence.Container
 	for _, ev := range inspected {
 		c := ev.Data.(evidence.Container)
 		if allPeers || record[c.ID] {
 			r.store.Add(ev)
 		}
 		if loopback && c.NetnsOwner() != ownerID {
-			listenFor = append(listenFor, c)
+			peerListen = append(peerListen, c)
 		}
 	}
 	// The destinations' listeners, even when the destination is the source's
 	// own netns: a name resolves to the network address, which a
-	// loopback-bound socket refuses there too (WR002).
+	// loopback-bound socket refuses there too (WR002). Then, for a loopback
+	// target, the peers' (WR007 looks for the service among them).
 	for i, m := range dests {
 		if i == maxDestinations {
 			break
 		}
 		listenFor = append(listenFor, m.C)
 	}
+	listenFor = append(listenFor, peerListen...)
 	if loopback && haveOwner && !owner.C.HostNetwork() {
-		listenFor = append(listenFor, owner.C)
+		// The source's own listeners first: where each read is a probe
+		// container, the bound keeps the ones that matter.
+		listenFor = append([]evidence.Container{owner.C}, listenFor...)
 		// WR007 chooses host.docker.internal when the host serves the port.
-		r.store.Add(r.hostListeners())
+		r.store.Add(r.hostListenersFor(nil))
 	}
 	r.readListeners(ctx, listenFor)
 	return nil
+}
+
+// hostListenersFor reads the listening sockets of the host a container
+// source reaches; ht is how the target refers to it (nil for WR007's
+// question whether the host serves the port at all). On Docker Desktop's
+// WSL integration that host isn't the WSL2 distro whyreach runs in, unless
+// the container aims at one of the WSL2 VM's own addresses: the record then
+// says so (executor.HostNotHere) instead of passing the VM's sockets off as
+// the host's, and rules that need them leave a gap (INITIAL.md §3.7).
+func (r *run) hostListenersFor(ht *evidence.HostTarget) evidence.Evidence {
+	if r.q.From.Kind == evidence.SourceContainer && r.platform.WindowsHost() && (ht == nil || ht.Via != evidence.HostViaAddress) {
+		return evidence.Evidence{
+			Kind: evidence.KindListeners, Context: evidence.Host(), Subject: "listeners", Status: evidence.StatusUnsupported,
+			ObservedAt: time.Now(), Source: "the listening sockets of the host Docker Desktop's containers reach",
+			Err: &evidence.Error{Code: evidence.CodeUnsupported, Message: executor.HostNotHere},
+		}
+	}
+	return r.hostListeners()
 }
 
 // maxScan bounds the running containers whose listeners are read to find
@@ -194,6 +217,10 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 	r.hostDone = true
 	port := r.q.To.Port
 	hostL := r.hostListeners()
+	if r.q.From.Kind == evidence.SourceContainer {
+		ht, _ := evidence.NewView(r.q, r.store.Snapshot()).HostTarget()
+		hostL = r.hostListenersFor(&ht)
+	}
 	r.store.Add(hostL)
 	hostAccepts := false
 	if l, ok := hostL.Data.(evidence.Listeners); ok && hostL.OK() {
@@ -245,10 +272,15 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 		r.metadataIncomplete = true
 		r.store.Add(failed...)
 	}
+	var cut []string
 	for _, ev := range scanned {
 		c := ev.Data.(evidence.Container)
 		if c.HostNetwork() || c.NetnsOwner() != "" {
 			continue // its sockets are the host's, or another container's
+		}
+		if !r.engineHere && !r.takeProbeListener() {
+			cut = append(cut, c.DisplayName())
+			continue
 		}
 		l := r.containerListeners(ctx, c)
 		socks, ok := l.Data.(evidence.Listeners)
@@ -257,11 +289,15 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 		}
 		r.store.Add(ev, l)
 	}
+	if len(cut) > 0 {
+		r.metadataIncomplete = true
+		r.gaps = append(r.gaps, r.probeListenersGap(cut))
+	}
 }
 
 // hostAddrs reads the host's interfaces.
 func (r *run) hostAddrs() evidence.Evidence {
-	ev := evidence.Evidence{Kind: evidence.KindHostAddrs, Context: evidence.Host(), Subject: "interfaces", Source: "the kernel's interface list (netlink), in whyreach's own network namespace"}
+	ev := evidence.Evidence{Kind: evidence.KindHostAddrs, Context: r.e.host(), Subject: "interfaces", Source: "the kernel's interface list (netlink), in whyreach's own network namespace"}
 	start := time.Now()
 	addrs, err := r.e.d.Interfaces()
 	ev.Duration, ev.ObservedAt = time.Since(start), time.Now()
@@ -385,16 +421,33 @@ func (r *run) inspectFailure(id, name string, err error) evidence.Evidence {
 	return ev
 }
 
-// readListeners reads each container's listening sockets, once per netns.
+// readListeners reads each container's listening sockets, once per
+// container. Where Docker's PIDs aren't this machine's (Docker Desktop),
+// each read is a probe container, so a diagnosis makes at most
+// maxProbeListeners of them, in the order given (callers list the source
+// and the destinations first); the rest become skipped records and a gap.
 func (r *run) readListeners(ctx context.Context, cs []evidence.Container) {
 	seen := map[string]bool{}
-	g, _ := errgroup.WithContext(ctx)
-	g.SetLimit(collectParallel)
+	var read []evidence.Container
+	var cut []string
 	for _, c := range cs {
 		if seen[c.ID] {
 			continue
 		}
 		seen[c.ID] = true
+		if !r.engineHere && c.Running() && !r.takeProbeListener() {
+			cut = append(cut, c.DisplayName())
+			r.store.Add(r.listenersCut(c))
+			continue
+		}
+		read = append(read, c)
+	}
+	if len(cut) > 0 {
+		r.gaps = append(r.gaps, r.probeListenersGap(cut))
+	}
+	g, _ := errgroup.WithContext(ctx)
+	g.SetLimit(collectParallel)
+	for _, c := range read {
 		g.Go(func() error {
 			r.store.Add(r.containerListeners(ctx, c))
 			return nil
@@ -403,8 +456,49 @@ func (r *run) readListeners(ctx context.Context, cs []evidence.Container) {
 	_ = g.Wait() // the goroutines never return errors
 }
 
-const listenerSource = "/proc/<pid>/net/tcp{,6} read from the host, after /proc/<pid>/cgroup named the container"
+// maxProbeListeners bounds the containers whose listening sockets one
+// diagnosis reads inside probe containers, where Docker's PIDs aren't this
+// machine's: each read is a container run and a probe token.
+const maxProbeListeners = 6
 
+// takeProbeListener takes one of the diagnosis's probe-container listener
+// reads; false when none is left. Callers take them in order, before any
+// read starts, so which containers get read doesn't depend on timing.
+func (r *run) takeProbeListener() bool {
+	if r.probeListeners >= maxProbeListeners {
+		return false
+	}
+	r.probeListeners++
+	return true
+}
+
+// listenersCut is the record of a container whose listeners went unread
+// because the diagnosis used its probe-container reads up.
+func (r *run) listenersCut(c evidence.Container) evidence.Evidence {
+	return evidence.Evidence{
+		Kind: evidence.KindListeners, Context: evidence.InContainer(c), Subject: "listeners",
+		Status: evidence.StatusSkipped, ObservedAt: time.Now(), Source: probeListenerSource,
+		Err: &evidence.Error{Code: evidence.CodeLimit, Message: fmt.Sprintf(
+			"whyreach reads at most %d containers' listening sockets through probe containers in one diagnosis", maxProbeListeners)},
+	}
+}
+
+func (r *run) probeListenersGap(names []string) Gap {
+	return Gap{
+		What:   "listening sockets in " + strings.Join(names, ", "),
+		Why:    "skipped",
+		Detail: fmt.Sprintf("where Docker's PIDs aren't this machine's (Docker Desktop), each container's listening sockets take a probe container, and whyreach reads at most %d in one diagnosis", maxProbeListeners),
+	}
+}
+
+const (
+	listenerSource      = "/proc/<pid>/net/tcp{,6} read from the host, after /proc/<pid>/cgroup named the container"
+	probeListenerSource = "/proc/net/tcp{,6} read inside a probe container joined to the container's network namespace"
+)
+
+// containerListeners reads a running container's listening sockets: from
+// the host through /proc/<pid> where Docker Engine runs on this machine,
+// otherwise inside a probe container (listenersElsewhere).
 func (r *run) containerListeners(ctx context.Context, c evidence.Container) evidence.Evidence {
 	ev := evidence.Evidence{
 		Kind: evidence.KindListeners, Context: evidence.InContainer(c), Subject: "listeners",
@@ -415,15 +509,12 @@ func (r *run) containerListeners(ctx context.Context, c evidence.Container) evid
 		ev.Status = evidence.StatusTimeout
 		ev.Err = &evidence.Error{Code: evidence.CodeTimeout, Message: "the diagnosis deadline passed before the listeners were read"}
 		return ev
-	case !r.linux:
-		ev.Status = evidence.StatusUnsupported
-		ev.Err = &evidence.Error{Code: evidence.CodeUnsupported, Message: fmt.Sprintf(
-			"container listeners are read through /proc only on Linux Docker Engine (daemon %q on %s)", r.version.Platform.Name, r.version.Os)}
-		return ev
 	case !c.Running() || c.Pid <= 0:
 		ev.Status = evidence.StatusSkipped
 		ev.Err = &evidence.Error{Code: evidence.CodeNotFound, Message: fmt.Sprintf("%s is %s, so it has no sockets to read", c.DisplayName(), c.State)}
 		return ev
+	case !r.engineHere:
+		return r.listenersElsewhere(ctx, c)
 	}
 	start := time.Now()
 	socks, err := r.e.d.Listeners.Container(c.Pid, c.ID)
@@ -437,11 +528,56 @@ func (r *run) containerListeners(ctx context.Context, c evidence.Container) evid
 	return ev
 }
 
+// listenersElsewhere reads a container's listening sockets where Docker's
+// PIDs aren't this machine's (Docker Desktop, its WSL integration
+// included): never through /proc/<pid> or setns, which would reach an
+// unrelated local process, but inside a probe container joined to its
+// network namespace (tier 2b; never the netns executor, which needs this
+// machine's PIDs). Without probe containers the record says why and how
+// to allow them (executor.PIDsElsewhere).
+func (r *run) listenersElsewhere(ctx context.Context, c evidence.Container) evidence.Evidence {
+	where := evidence.InContainer(c)
+	elsewhere := func() evidence.Evidence {
+		return evidence.Evidence{
+			Kind: evidence.KindListeners, Context: where, Subject: "listeners", Status: evidence.StatusUnsupported,
+			ObservedAt: time.Now(), Source: probeListenerSource,
+			Err: &evidence.Error{Code: evidence.CodeUnsupported, Message: executor.PIDsElsewhere},
+		}
+	}
+	if r.e.d.Probe == nil {
+		return elsewhere()
+	}
+	evs, err := r.e.d.Probe.Run(ctx, where, []probe.Spec{{Kind: probe.SpecListeners}})
+	if err != nil {
+		r.e.d.Logger.Warn("listeners through a probe container failed", "container", c.DisplayName(), "err", err)
+	}
+	for _, ev := range evs {
+		if ev.Kind != evidence.KindListeners {
+			continue
+		}
+		if ev.Status == evidence.StatusPermissionDenied && ev.Err != nil && ev.Err.Message == executor.ProbeContainersOff {
+			return elsewhere()
+		}
+		if ev.ObservedAt.IsZero() {
+			ev.ObservedAt = time.Now()
+		}
+		if ev.Source == "" {
+			ev.Source = probeListenerSource
+		}
+		return ev
+	}
+	return evidence.Evidence{
+		Kind: evidence.KindListeners, Context: where, Subject: "listeners", Status: evidence.StatusFailed,
+		ObservedAt: time.Now(), Source: probeListenerSource,
+		Err: &evidence.Error{Code: evidence.CodeInternal, Message: "the probe container returned no listening sockets record"},
+	}
+}
+
 // hostListeners reads the listening sockets of whyreach's own netns, which
 // is the host's when whyreach runs natively.
 func (r *run) hostListeners() evidence.Evidence {
 	ev := evidence.Evidence{
-		Kind: evidence.KindListeners, Context: evidence.Host(), Subject: "listeners",
+		Kind: evidence.KindListeners, Context: r.e.host(), Subject: "listeners",
 		Source: "/proc/thread-self/net/tcp{,6} in whyreach's own network namespace",
 	}
 	start := time.Now()

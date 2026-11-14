@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/platform"
 	"github.com/SandstromPL/whyreach/internal/target"
 )
 
@@ -37,6 +37,10 @@ type Inspection struct {
 
 // HostFacts describe the machine whyreach runs on.
 type HostFacts struct {
+	// Platform is where whyreach and the containers run (INITIAL.md §3.7):
+	// linux-engine, wsl2-engine, wsl2-desktop, …; under WSL2 the host's
+	// side here is the WSL2 VM, not Windows.
+	Platform    string           `json:"platform"`
 	Docker      *DockerFacts     `json:"docker,omitempty"`
 	Permissions *PermissionFacts `json:"permissions,omitempty"` // filled in by the policy package
 	Interfaces  []IfaceFacts     `json:"interfaces"`
@@ -51,7 +55,7 @@ type DockerFacts struct {
 	Version     string `json:"version"`
 	API         string `json:"api"`
 	Platform    string `json:"platform"`
-	LinuxEngine bool   `json:"linux_engine"` // containers share whyreach's kernel: /proc reads work
+	LinuxEngine bool   `json:"linux_engine"` // Docker Engine on whyreach's own machine (a Linux host or this WSL2 distro): /proc reads work
 }
 
 // PermissionFacts are the tiers in effect (INITIAL.md §4.9).
@@ -160,9 +164,10 @@ func (e *Engine) inspectHost(ctx context.Context, in *Inspection) {
 		r.dockerGap(err)
 		r.docker = nil
 	} else {
+		r.setDaemon(v)
 		h.Docker = &DockerFacts{
 			Endpoint: r.docker.Endpoint(), Version: v.Version, API: r.docker.APIVersion(), Platform: v.Platform.Name,
-			LinuxEngine: runtime.GOOS == "linux" && v.Os == "linux" && !v.Desktop(),
+			LinuxEngine: r.engineHere,
 		}
 		lctx, lcancel := context.WithTimeout(ctx, dockerTimeout)
 		nets, err := r.docker.ListNetworks(lctx)
@@ -220,6 +225,10 @@ func (e *Engine) inspectHost(ctx context.Context, in *Inspection) {
 		r.gaps = append(r.gaps, Gap{What: "the host's listening sockets", Why: string(ev.Status), Detail: ev.Err.Message})
 	}
 	in.Gaps = append(in.Gaps, r.gaps...)
+	if r.platform.Name == "" {
+		r.platform = e.platformFor(platform.Daemon{})
+	}
+	h.Platform = r.platform.Name
 
 	running := 0
 	for _, c := range h.Containers {
@@ -239,7 +248,10 @@ func (e *Engine) inspectHost(ctx context.Context, in *Inspection) {
 		parts = append(parts, "no Docker API")
 	}
 	parts = append(parts, fmt.Sprintf("%d interfaces with addresses", len(h.Interfaces)), fmt.Sprintf("%d TCP listeners", len(h.Listening)))
-	in.Summary = "Host: " + strings.Join(parts, "; ") + "."
+	in.Summary = "Host (" + h.Platform + "): " + strings.Join(parts, "; ") + "."
+	if r.platform.WSL {
+		in.Summary = "WSL2 VM (" + h.Platform + "; whyreach runs in WSL2, so the host's side here is the WSL2 VM, not Windows): " + strings.Join(parts, "; ") + "."
+	}
 }
 
 func brief(s docker.Summary) ContainerBrief {
@@ -278,8 +290,7 @@ func (e *Engine) inspectContainer(ctx context.Context, scope target.Scope, in *I
 	if err != nil {
 		return &Error{Code: evidence.CodeDockerUnavailable, Message: err.Error()}
 	}
-	r.version = v
-	r.linux = runtime.GOOS == "linux" && v.Os == "linux" && !v.Desktop()
+	r.setDaemon(v)
 	c, err := r.findSource(ctx)
 	if err != nil {
 		return err

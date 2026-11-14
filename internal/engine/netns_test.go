@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
@@ -11,7 +12,8 @@ import (
 
 // TestNetnsExecutorReplacesProbeContainers: with the netns executor (root),
 // container checks enter the namespace on a Linux Docker Engine, whatever
-// tier 2b says; on Docker Desktop, whose PIDs live in a VM, they don't.
+// tier 2b says; on Docker Desktop, whose PIDs live in a VM, they don't, and
+// the destination's listeners are read in a probe container too.
 func TestNetnsExecutorReplacesProbeContainers(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -54,9 +56,31 @@ func TestNetnsExecutorReplacesProbeContainers(t *testing.T) {
 			if !tt.wantNetns {
 				want, other = pc, netns
 			}
-			if len(want.ran) != 2 || len(other.ran) != 0 {
-				t.Fatalf("%s ran %d batches and %s %d; want 2 and 0", want.name, len(want.ran), other.name, len(other.ran))
+			// Listener batches: on Docker Desktop, api's sockets are read in
+			// a probe container joined to api; elsewhere through /proc.
+			var probes, listeners [][]probe.Spec
+			var listenWhere []evidence.ContextRef
+			for i, b := range want.ran {
+				if len(b) == 1 && b[0].Kind == probe.SpecListeners {
+					listeners = append(listeners, b)
+					listenWhere = append(listenWhere, want.where[i])
+					continue
+				}
+				probes = append(probes, b)
 			}
+			wantListeners := 0
+			if tt.desktop {
+				wantListeners = 1
+			}
+			if len(probes) != 2 || len(listeners) != wantListeners || len(other.ran) != 0 {
+				t.Fatalf("%s ran %d probe and %d listener batches, %s %d; want 2, %d and 0", want.name, len(probes), len(listeners), other.name, len(other.ran), wantListeners)
+			}
+			for _, where := range listenWhere {
+				if where.Container != evidence.ShortID(w.containers[1].ID) {
+					t.Errorf("listeners read in %+v, want api's namespace", where)
+				}
+			}
+			want.where = slices.DeleteFunc(slices.Clone(want.where), func(c evidence.ContextRef) bool { return slices.Contains(listenWhere, c) })
 			if tt.wantNetns {
 				if len(d.SideEffects) != 0 || len(res.SideEffects) != 0 {
 					t.Errorf("the netns executor writes nothing to Docker: %v %v", d.SideEffects, res.SideEffects)

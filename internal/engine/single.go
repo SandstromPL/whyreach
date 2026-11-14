@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -28,9 +27,10 @@ type ProbeResult struct {
 
 // Probe runs one check from the source's network namespace: in-process for
 // the host, through the probe executor (tier 2b) for a container's DNS and
-// TCP, and through /proc for a container's listeners on Linux Docker
-// Engine. A source that can't be found is an error; a check that can't run
-// is a record with that status.
+// TCP, and for a container's listeners through /proc where Docker Engine
+// runs on this machine (elsewhere inside a probe container). A source that
+// can't be found is an error; a check that can't run is a record with that
+// status.
 func (e *Engine) Probe(ctx context.Context, from target.From, spec probe.Spec) (*ProbeResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, e.d.Deadline)
 	defer cancel()
@@ -48,7 +48,7 @@ func (e *Engine) Probe(ctx context.Context, from target.From, spec probe.Spec) (
 				known, _ := e.knownName(ctx, nil, name)
 				return known
 			})
-			out, err := ex.Run(ctx, evidence.Host(), []probe.Spec{spec})
+			out, err := ex.Run(ctx, e.host(), []probe.Spec{spec})
 			if err != nil {
 				e.d.Logger.Warn("probe failed", "executor", ex.Name(), "err", err)
 			}
@@ -84,8 +84,7 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 	if err != nil {
 		return nil, &Error{Code: evidence.CodeDockerUnavailable, Message: err.Error()}
 	}
-	r.version = v
-	r.linux = runtime.GOOS == "linux" && v.Os == "linux" && !v.Desktop()
+	r.setDaemon(v)
 	src, err := r.findSource(ctx)
 	if err != nil {
 		return nil, err
@@ -107,9 +106,13 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 		}
 		return evs
 	}
-	if spec.Kind == probe.SpecListeners && r.linux {
+	if spec.Kind == probe.SpecListeners {
+		// Through /proc where Docker Engine runs here, else inside a probe
+		// container (Docker Desktop): never through a PID that isn't this
+		// machine's. A host-network container's sockets are the host's,
+		// except on Docker Desktop, where its host is Docker Desktop's VM.
 		ev := r.containerListeners(ctx, owner)
-		if owner.HostNetwork() {
+		if owner.HostNetwork() && r.engineHere {
 			ev = r.hostListeners()
 		}
 		return restamp([]evidence.Evidence{ev}), nil

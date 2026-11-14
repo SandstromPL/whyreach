@@ -57,11 +57,11 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 		name := c.C.DisplayName()
 		f.Supporting = r.confirm(v, c.ID)
 		f.Title = fmt.Sprintf("%s publishes port %d only on %s", name, port, strings.Join(where, ", "))
-		f.Explanation = fmt.Sprintf("%s publishes its port %d on the host as %s, which accepts connections only to that address, and %s goes to %s.",
-			containerLabel(c.C), b[0].ContainerPort, strings.Join(where, ", "), target, d.Host.Addr)
+		f.Explanation = fmt.Sprintf("%s publishes its port %d on %s as %s, which accepts connections only to that address, and %s goes to %s.",
+			containerLabel(c.C), b[0].ContainerPort, v.HostLabel(), strings.Join(where, ", "), target, d.Host.Addr)
 		if !d.Host.Addr.IsValid() {
-			f.Explanation = fmt.Sprintf("%s publishes its port %d on the host as %s, which accepts connections only to that address, not to %s.",
-				containerLabel(c.C), b[0].ContainerPort, strings.Join(where, ", "), target)
+			f.Explanation = fmt.Sprintf("%s publishes its port %d on %s as %s, which accepts connections only to that address, not to %s.",
+				containerLabel(c.C), b[0].ContainerPort, v.HostLabel(), strings.Join(where, ", "), target)
 		}
 		instead := b[0].HostAddr()
 		if a, err := netip.ParseAddr(b[0].HostIP); err == nil && a.IsUnspecified() && a.Is6() {
@@ -97,8 +97,8 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 			host = pm.HostIP
 		}
 		f.Title = fmt.Sprintf("%s's port %d is published as %d, not %d", name, port, pm.HostPort, port)
-		f.Explanation = fmt.Sprintf("%s publishes its port %d on the host as %s. Port %d on the host is the container port's number, which nothing publishes.",
-			containerLabel(c.C), port, publishedList(b), port)
+		f.Explanation = fmt.Sprintf("%s publishes its port %d on %s as %s. Port %d on %s is the container port's number, which nothing publishes.",
+			containerLabel(c.C), port, v.HostLabel(), publishedList(b), port, v.HostLabel())
 		f.Fix = fmt.Sprintf("Connect to %s instead of %s, or change the mapping to ports: [\"%d:%d\"] for %s.",
 			hostPort(host, pm.HostPort), target, port, port, name)
 		r.others(&f, pubs)
@@ -124,10 +124,14 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 	f.Supporting = r.confirm(v, append([]string{s.ID}, listenIDs...)...)
 	f.Title = fmt.Sprintf("%s listens on port %d but doesn't publish it", name, port)
 	addrHint := ""
+	// Where Docker Engine runs on whyreach's machine, its bridges are
+	// there too; Docker Desktop's container addresses live in its VM.
 	if a := s.C.Addrs(); len(a) > 0 {
-		addrHint = fmt.Sprintf(" On Linux the host can also reach it directly at %s.", hostPort(a[0].String(), port))
+		if p, _, ok := platformOf(v); !ok || p.EngineHere() {
+			addrHint = fmt.Sprintf(" From %s it can also be reached directly at %s.", v.HostLabel(), hostPort(a[0].String(), port))
+		}
 	}
-	f.Explanation = fmt.Sprintf("%s listens on port %d inside its container, but publishes no host port for it, so nothing on the host accepts %s.", containerLabel(s.C), port, target)
+	f.Explanation = fmt.Sprintf("%s listens on port %d inside its container, but publishes no port for it, so nothing on %s accepts %s.", containerLabel(s.C), port, v.HostLabel(), target)
 	if len(servers) > 1 {
 		f.Confidence = Medium
 		var others []string

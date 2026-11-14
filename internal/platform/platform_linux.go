@@ -3,7 +3,6 @@
 package platform
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -24,19 +23,10 @@ const (
 // needs the interop entry and no container (INITIAL.md §3.7, item 4).
 func Detect() Info {
 	i := Info{OS: runtime.GOOS, Arch: runtime.GOARCH, Root: os.Geteuid() == 0}
-	for _, marker := range []string{"/.dockerenv", "/run/.containerenv"} { // Docker's, Podman's
-		if _, err := os.Stat(marker); err == nil {
-			i.InContainer = true
-		}
-	}
-	if b, err := os.ReadFile("/proc/1/cgroup"); err == nil && (bytes.Contains(b, []byte("docker")) || bytes.Contains(b, []byte("containerd"))) {
-		i.InContainer = true
-	}
-	if b, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil && bytes.Contains(bytes.ToLower(b), []byte("microsoft")) {
-		if _, err := os.Stat("/proc/sys/fs/binfmt_misc/WSLInterop"); err == nil && !i.InContainer {
-			i.WSL = true
-		}
-	}
+	i.InContainer, i.WSL = environment(os.ReadFile, func(path string) bool {
+		_, err := os.Stat(path)
+		return err == nil
+	})
 	if caps, ok := effectiveCaps(); ok {
 		i.Netns = caps&(1<<capSysAdmin) != 0 && caps&(1<<capSysPtrace) != 0 && initialUserNS()
 	}

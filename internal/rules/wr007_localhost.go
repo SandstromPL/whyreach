@@ -129,11 +129,11 @@ func (r wr007) Evaluate(v evidence.View) []Finding {
 	}
 	switch {
 	case len(cands) > 0 && hostListen != "":
-		fmt.Fprintf(&expl, ", while %s and the host (%s) do.", quoteList(names), hostListen)
+		fmt.Fprintf(&expl, ", while %s and %s (%s) do.", quoteList(names), v.HostLabel(), hostListen)
 	case len(cands) > 0:
 		fmt.Fprintf(&expl, ", while %s %s.", quoteList(names), plural(len(cands), "does", "do"))
 	case hostListen != "":
-		fmt.Fprintf(&expl, ", while the host does (%s).", hostListen)
+		fmt.Fprintf(&expl, ", while %s does (%s).", v.HostLabel(), hostListen)
 	default:
 		expl.WriteString(".")
 	}

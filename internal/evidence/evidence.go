@@ -34,6 +34,7 @@ type Kind string
 // Evidence kinds and their payload types.
 const (
 	KindDockerVersion Kind = "docker.version"   // DockerVersion
+	KindPlatform      Kind = "platform"         // Platform
 	KindContainer     Kind = "docker.container" // Container
 	KindListeners     Kind = "netns.listeners"  // Listeners
 	KindDNS           Kind = "probe.dns"        // DNSProbe
@@ -45,11 +46,12 @@ const (
 // evidence always gets the same IDs.
 var kindOrder = map[Kind]int{
 	KindDockerVersion: 0,
-	KindContainer:     1,
-	KindHostAddrs:     2,
-	KindListeners:     3,
-	KindDNS:           4,
-	KindTCP:           5,
+	KindPlatform:      1,
+	KindContainer:     2,
+	KindHostAddrs:     3,
+	KindListeners:     4,
+	KindDNS:           5,
+	KindTCP:           6,
 }
 
 // Context kinds and executor names for ContextRef.
@@ -75,9 +77,34 @@ type ContextRef struct {
 // Host is the ContextRef of the machine whyreach runs on.
 func Host() ContextRef { return ContextRef{Kind: ContextHost, Name: "host"} }
 
+// HostWSL is the display name of the host's side under WSL2: whyreach's
+// network namespace there is the WSL2 VM's, not Windows'.
+const HostWSL = "WSL2 VM"
+
+// HostOn is the ContextRef of whyreach's own network namespace on a
+// platform: under WSL2 it is named the WSL2 VM (INITIAL.md §3.7).
+func HostOn(p Platform) ContextRef {
+	if p.WSL {
+		return ContextRef{Kind: ContextHost, Name: HostWSL}
+	}
+	return Host()
+}
+
 // InContainer is the ContextRef of a container's network namespace.
 func InContainer(c Container) ContextRef {
 	return ContextRef{Kind: ContextContainer, Container: ShortID(c.ID), Name: c.DisplayName()}
+}
+
+// Where names the context in prose: a container's name, or "the host"
+// ("the WSL2 VM" under WSL2).
+func (c ContextRef) Where() string {
+	if c.Kind == ContextHost {
+		if c.Name == "" || c.Name == "host" {
+			return "the host"
+		}
+		return "the " + c.Name
+	}
+	return c.String()
 }
 
 // String is the name used in prose: "worker", "host".
@@ -189,6 +216,8 @@ func decodePayload(k Kind, raw json.RawMessage) (any, error) {
 	switch k {
 	case KindDockerVersion:
 		return decodeAs[DockerVersion](raw)
+	case KindPlatform:
+		return decodeAs[Platform](raw)
 	case KindContainer:
 		return decodeAs[Container](raw)
 	case KindListeners:

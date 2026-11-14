@@ -59,9 +59,9 @@ func (r wr006) Evaluate(v evidence.View) []Finding {
 		}
 		f.Supporting = refusedFrom(v, f.Supporting)
 		name := m.C.DisplayName()
-		f.Title = fmt.Sprintf("%d is %s's port on the host; between containers use %d", port, name, cport)
-		f.Explanation = fmt.Sprintf("%s publishes its port %d on the host as %s. That mapping applies only to connections arriving at the host; %s reaches %s directly over network %s, where the port is %d.",
-			containerLabel(m.C), cport, publishedList(b), src.C.DisplayName(), name, strings.Join(m.Shared, ", "), cport)
+		f.Title = fmt.Sprintf("%d is %s's port on %s; between containers use %d", port, name, v.HostLabel(), cport)
+		f.Explanation = fmt.Sprintf("%s publishes its port %d on %s as %s. That mapping applies only to connections arriving at %s; %s reaches %s directly over network %s, where the port is %d.",
+			containerLabel(m.C), cport, v.HostLabel(), publishedList(b), v.HostLabel(), src.C.DisplayName(), name, strings.Join(m.Shared, ", "), cport)
 		f.Fix = fmt.Sprintf("Connect to %s instead of %s: containers on a shared network use the container port.", hostPort(v.Question().To.Host, cport), v.Question().To.String())
 		return []Finding{f}
 	}
@@ -74,7 +74,7 @@ func (r wr006) throughHost(v evidence.View, src evidence.ContainerEv, d evidence
 	if len(d.Published) > 0 {
 		return nil // published where the connection arrives
 	}
-	if ver, ok := dockerVersion(v); ok && !ver.LinuxEngine {
+	if p, _, ok := platformOf(v); ok && p.Desktop {
 		return nil // Docker Desktop forwards the host's loopback to containers (INITIAL.md §3.7)
 	}
 	port := v.Question().To.Port
@@ -95,9 +95,9 @@ func (r wr006) throughHost(v evidence.View, src evidence.ContainerEv, d evidence
 		f.Supporting = refusedFrom(v, f.Supporting)
 		name := c.C.DisplayName()
 		cport := b[0].ContainerPort
-		f.Title = fmt.Sprintf("%s publishes %d only on the host's loopback", name, port)
-		f.Explanation = fmt.Sprintf("%s publishes its port %d on the host as %s: only the host itself can use that. %s's connection to %s arrives at another host address, where nothing publishes it.",
-			containerLabel(c.C), cport, publishedList(b), src.C.DisplayName(), v.Question().To.String())
+		f.Title = fmt.Sprintf("%s publishes %d only on %s's loopback", name, port, v.HostLabel())
+		f.Explanation = fmt.Sprintf("%s publishes its port %d on %s as %s: only %s itself can use that. %s's connection to %s arrives at another of its addresses, where nothing publishes it.",
+			containerLabel(c.C), cport, v.HostLabel(), publishedList(b), v.HostLabel(), src.C.DisplayName(), v.Question().To.String())
 		owner, _ := v.NetnsOwner()
 		if shared := sharedNetworks(owner.C, c.C); len(shared) > 0 {
 			f.Fix = fmt.Sprintf("Connect to %s directly over network %s instead of through the host.", hostPort(name, cport), shared[0])

@@ -81,11 +81,11 @@ func (r wr001) Evaluate(v evidence.View) []Finding {
 	f := Finding{
 		RuleID: r.ID(), Layer: r.Layer(), DocURL: DocURL(r.ID()), Confidence: High,
 		Supporting: refusedFrom(v, append([]string{hl.ID}, d.Host.Evidence...)),
-		Title:      fmt.Sprintf("nothing on the host listens on port %d", port),
+		Title:      fmt.Sprintf("nothing on %s listens on port %d", v.HostLabel(), port),
 	}
-	f.Explanation = fmt.Sprintf("The target is the host itself, and nothing on the host listens on TCP port %d.", port)
+	f.Explanation = fmt.Sprintf("The target is %s itself, and nothing on it listens on TCP port %d.", v.HostLabel(), port)
 	contradictedByPath(v, &f)
-	f.Fix = fmt.Sprintf("Start the service on the host, or check its port. If the service runs in a container, publish its port (ports: [\"%d:<container port>\"]) or connect to the container directly.", port)
+	f.Fix = fmt.Sprintf("Start the service on %s, or check its port. If the service runs in a container, publish its port (ports: [\"%d:<container port>\"]) or connect to the container directly.", v.HostLabel(), port)
 	return []Finding{f}
 }
 

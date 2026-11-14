@@ -13,11 +13,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"log/slog"
+	"runtime"
 	"time"
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
+	"github.com/SandstromPL/whyreach/internal/platform"
 	"github.com/SandstromPL/whyreach/internal/rules"
 	"github.com/SandstromPL/whyreach/internal/target"
 )
@@ -59,10 +61,12 @@ type Listeners interface {
 // containers; the policy package hands the engine a guarded one that
 // answers with permission-denied records while tier 2b is off, and nil
 // means the same. Netns runs them by entering the container's network
-// namespace (tier 3, root); when set, the engine prefers it on a Linux
-// Docker Engine on this host, the only place where Docker's PIDs are this
-// machine's, and nil means whyreach lacks the privilege. Interfaces reads
-// the host's addresses; nil means unsupported.
+// namespace (tier 3, root); when set, the engine prefers it where Docker
+// Engine runs on whyreach's own machine (linux-engine, wsl2-engine), the
+// only places where Docker's PIDs are this machine's, and nil means
+// whyreach lacks the privilege. Interfaces reads the host's addresses; nil
+// means unsupported. Platform is where whyreach runs (platform.Detect);
+// its zero value means natively on this OS, outside WSL and containers.
 type Deps struct {
 	Docker     Docker
 	DockerErr  error
@@ -75,6 +79,7 @@ type Deps struct {
 	// Self is the ID of the Docker container whyreach runs in, if any:
 	// doctor doesn't try its listeners, which its own cgroup can't name.
 	Self     string
+	Platform platform.Info
 	Deadline time.Duration
 	Logger   *slog.Logger
 }
@@ -92,7 +97,23 @@ func New(d Deps) *Engine {
 	if d.Logger == nil {
 		d.Logger = slog.New(slog.DiscardHandler)
 	}
+	if d.Platform.OS == "" {
+		d.Platform.OS, d.Platform.Arch = runtime.GOOS, runtime.GOARCH
+	}
 	return &Engine{d: d}
+}
+
+// platformFor classifies the platform from where whyreach runs and what the
+// daemon says (INITIAL.md §3.7); a zero Daemon means Docker didn't answer.
+func (e *Engine) platformFor(d platform.Daemon) evidence.Platform {
+	i := e.d.Platform
+	return evidence.Platform{Name: platform.Classify(i, d), WSL: i.WSL, InContainer: i.InContainer, Desktop: d.Desktop()}
+}
+
+// host is the ContextRef of whyreach's own network namespace: the host, or
+// under WSL2 the WSL2 VM, whatever runs the containers.
+func (e *Engine) host() evidence.ContextRef {
+	return evidence.HostOn(evidence.Platform{WSL: e.d.Platform.WSL})
 }
 
 // Error is a diagnosis that could not start: the question itself is wrong.
@@ -124,9 +145,18 @@ type run struct {
 	q       evidence.Question
 	from    target.From
 	version docker.Version
-	linux   bool // the daemon is Linux Docker Engine on this host: /proc/<pid> works
-	gaps    []Gap
-	timing  map[string]time.Duration
+	// platform is where whyreach and the containers run; engineHere is set
+	// when Docker Engine runs on whyreach's own machine (linux-engine,
+	// wsl2-engine), so its PIDs are this machine's: /proc/<pid> and setns
+	// reach the containers. Elsewhere (Docker Desktop) they would reach an
+	// unrelated local process.
+	platform   evidence.Platform
+	engineHere bool
+	// probeListeners counts the listener reads made inside probe
+	// containers (where engineHere is false); maxProbeListeners bounds it.
+	probeListeners int
+	gaps           []Gap
+	timing         map[string]time.Duration
 	// metadataIncomplete is set when some containers' metadata could not be
 	// read or was skipped: "no container has that name" can't be claimed then.
 	metadataIncomplete bool
@@ -194,13 +224,21 @@ func (e *Engine) Diagnose(ctx context.Context, from target.From, to evidence.Tar
 }
 
 // containerExecutor runs checks inside containers: the netns executor where
-// it can work (root, and a Linux Docker Engine on this host), otherwise
-// probe containers. It is nil when neither is available.
+// it can work (root, and Docker Engine on whyreach's own machine),
+// otherwise probe containers. It is nil when neither is available.
 func (r *run) containerExecutor() executor.Executor {
-	if r.e.d.Netns != nil && r.linux {
+	if r.e.d.Netns != nil && r.engineHere {
 		return r.e.d.Netns
 	}
 	return r.e.d.Probe
+}
+
+// setDaemon records what the daemon said about itself and classifies the
+// platform from it.
+func (r *run) setDaemon(v docker.Version) {
+	r.version = v
+	r.platform = r.e.platformFor(platform.Daemon{OS: v.Os, Platform: v.Platform.Name, Kernel: v.KernelVersion})
+	r.engineHere = platform.EngineHere(r.platform.Name)
 }
 
 func newID(t time.Time) string {

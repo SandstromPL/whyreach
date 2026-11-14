@@ -5,6 +5,7 @@
 package platform
 
 import (
+	"bytes"
 	"regexp"
 	"strings"
 )
@@ -24,8 +25,9 @@ type Info struct {
 // containers' network namespaces (the netns executor, INITIAL.md §4.7), and
 // why not. It needs the privileges (Netns: root, as a rule), and whyreach
 // must run on the host itself: inside a container, Docker's PIDs aren't its
-// own, and it uses probe containers instead (§3.5). The engine also needs a
-// Linux Docker Engine on this machine, which it checks per diagnosis.
+// own, and it uses probe containers instead (§3.5). The engine also needs
+// Docker Engine on this machine (linux-engine or wsl2-engine), which it
+// checks per diagnosis: Docker Desktop's PIDs live in its own VM.
 func (i Info) NetnsExecutor() (bool, string) {
 	switch {
 	case i.OS != "linux":
@@ -38,6 +40,128 @@ func (i Info) NetnsExecutor() (bool, string) {
 		return false, "the kernel lacks openat2 (Linux 5.6 or later), which reading a container's files safely needs"
 	}
 	return true, ""
+}
+
+// Platform names (INITIAL.md §3.7, item 4): where Docker runs its
+// containers, seen from where whyreach runs.
+const (
+	LinuxEngine    = "linux-engine"    // Docker Engine on this Linux machine
+	WSL2Engine     = "wsl2-engine"     // Docker Engine installed in this WSL2 distro
+	WSL2Desktop    = "wsl2-desktop"    // Docker Desktop's WSL integration: the containers run in Docker Desktop's VM
+	LinuxDesktop   = "linux-desktop"   // Docker Desktop for Linux: the containers run in its VM (v0.3)
+	MacOSDesktop   = "macos-desktop"   // v0.3
+	WindowsDesktop = "windows-desktop" // v0.3
+	// Other is none of these: no Docker API, a daemon for Windows
+	// containers, or whyreach inside a container on Docker Desktop (M7).
+	Other = "other"
+)
+
+// Daemon is what the Docker daemon says about itself (GET /version). The
+// zero value means whyreach couldn't ask it.
+type Daemon struct {
+	OS       string // "linux"
+	Platform string // "Docker Engine - Community", "Docker Desktop 4.50.0 (…)"
+	Kernel   string // the daemon's kernel
+}
+
+// Desktop reports Docker Desktop's daemon, whose containers live in a VM
+// of its own: its PIDs are processes in that VM.
+func (d Daemon) Desktop() bool { return strings.Contains(d.Platform, "Desktop") }
+
+// Classify names the platform from where whyreach runs and what the daemon
+// says (INITIAL.md §3.7, item 4). Only Docker Engine on whyreach's own
+// machine (LinuxEngine, WSL2Engine) runs containers whose PIDs are
+// whyreach's to read; see EngineHere.
+//
+// WSL2 comes from Info.WSL, which needs more than the kernel's name. The
+// one exception: whyreach inside a container, which can't see WSL's
+// marker, on Docker Engine whose kernel is WSL2's (Docker Engine in a WSL2
+// distro: Docker Desktop's daemon says so in its name). Its view of the
+// host, when it has one (--network host), is the WSL2 VM's.
+func Classify(i Info, d Daemon) string {
+	if d.OS != "linux" {
+		return Other
+	}
+	desktop := d.Desktop()
+	switch i.OS {
+	case "linux":
+		switch {
+		case i.WSL && desktop:
+			return WSL2Desktop
+		case i.WSL:
+			return WSL2Engine
+		case i.InContainer && desktop:
+			return Other
+		case desktop:
+			return LinuxDesktop
+		case i.InContainer && wslKernel(d.Kernel):
+			return WSL2Engine
+		default:
+			return LinuxEngine
+		}
+	case "darwin":
+		if desktop {
+			return MacOSDesktop
+		}
+	case "windows":
+		if desktop {
+			return WindowsDesktop
+		}
+	}
+	return Other
+}
+
+// EngineHere reports a platform where Docker Engine runs on whyreach's own
+// machine (a Linux host or a WSL2 distro), so Docker's PIDs are processes
+// in whyreach's /proc: listeners can be read through /proc/<pid>, and as
+// root the netns executor can enter them. Everywhere else a PID from
+// Docker names a process in another machine's or VM's PID namespace, and a
+// /proc/<pid> read or setns would reach an unrelated local process.
+func EngineHere(name string) bool { return name == LinuxEngine || name == WSL2Engine }
+
+// wslKernel reports a kernel release with WSL's marker: current WSL2
+// kernels end in -microsoft-standard-WSL2. Only a hint: containers on a
+// WSL2 kernel report it too, and a custom kernel may not.
+func wslKernel(release string) bool {
+	return strings.Contains(strings.ToLower(release), "microsoft")
+}
+
+// WSL's marker files: the interop entry WSL registers with binfmt_misc to
+// run Windows programs, under either name (with systemd, WSL registers it
+// again as WSLInterop-late).
+var wslInterop = []string{"/proc/sys/fs/binfmt_misc/WSLInterop", "/proc/sys/fs/binfmt_misc/WSLInterop-late"}
+
+// environment decides, from the files Detect reads, whether whyreach runs
+// inside a container or in a WSL2 distro. read and exists read the real
+// filesystem, or a test's fixtures.
+//
+// A container has Docker's /.dockerenv, Podman's /run/.containerenv, or a
+// container runtime in PID 1's cgroup. WSL2 needs three things (INITIAL.md
+// §3.7, item 4): the kernel's name says microsoft (only a hint), WSL's
+// interop entry is there, and whyreach isn't in a container, where the
+// kernel's name is the same.
+func environment(read func(string) ([]byte, error), exists func(string) bool) (inContainer, wsl bool) {
+	for _, marker := range []string{"/.dockerenv", "/run/.containerenv"} {
+		if exists(marker) {
+			inContainer = true
+		}
+	}
+	if b, err := read("/proc/1/cgroup"); err == nil && (bytes.Contains(b, []byte("docker")) || bytes.Contains(b, []byte("containerd"))) {
+		inContainer = true
+	}
+	if inContainer {
+		return true, false
+	}
+	b, err := read("/proc/sys/kernel/osrelease")
+	if err != nil || !wslKernel(string(b)) {
+		return false, false
+	}
+	for _, f := range wslInterop {
+		if exists(f) {
+			return false, true
+		}
+	}
+	return false, false
 }
 
 // containerFile matches a file Docker mounts into a container from the

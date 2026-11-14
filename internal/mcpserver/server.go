@@ -450,6 +450,11 @@ func (s *Server) advice(e evidence.Evidence, canAsk bool) string {
 		return executor.HostHiddenAdvice + "."
 	case e.Err != nil && e.Err.Message == executor.PIDsHidden:
 		return executor.PIDsHiddenAdvice + "."
+	case e.Err != nil && e.Err.Message == executor.HostNotHere:
+		return executor.HostNotHereAdvice + "."
+	case e.Err != nil && e.Err.Message == executor.PIDsElsewhere:
+		return "On Docker Desktop whyreach reads containers' listening sockets only inside probe containers, which are off. Turning them on is the user's decision: " +
+			"approve probe containers when whyreach asks, or set probe_containers = true under [permissions] in " + s.p.ConfigPath() + "."
 	case e.Status == evidence.StatusPermissionDenied:
 		return "This check runs inside the container through a probe container, which is off. Turning them on is the user's decision: " +
 			"approve probe containers when whyreach asks, or set probe_containers = true under [permissions] in " + s.p.ConfigPath() + "."

@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/platform"
 	"github.com/SandstromPL/whyreach/internal/target"
 )
 
@@ -20,6 +20,7 @@ func (r *run) resolve(ctx context.Context) error {
 	dk := r.docker
 	if dk == nil {
 		r.dockerGap(r.e.d.DockerErr)
+		r.recordPlatform()
 		return nil
 	}
 	vctx, cancel := context.WithTimeout(ctx, dockerTimeout)
@@ -29,18 +30,19 @@ func (r *run) resolve(ctx context.Context) error {
 	if err != nil {
 		r.docker = nil // nothing else will work in this diagnosis either
 		r.dockerGap(err)
+		r.recordPlatform()
 		return nil
 	}
-	r.version = v
-	r.linux = runtime.GOOS == "linux" && v.Os == "linux" && !v.Desktop()
+	r.setDaemon(v)
 	r.store.Add(evidence.Evidence{
-		Kind: evidence.KindDockerVersion, Context: evidence.Host(), Subject: "docker", Status: evidence.StatusOK,
+		Kind: evidence.KindDockerVersion, Context: r.e.host(), Subject: "docker", Status: evidence.StatusOK,
 		ObservedAt: time.Now(), Duration: time.Since(start), Source: "docker GET /version",
 		Data: evidence.DockerVersion{
 			Version: v.Version, APIVersion: dk.APIVersion(), DaemonMaxAPI: v.APIVersion, Os: v.Os, Arch: v.Arch,
-			PlatformName: v.Platform.Name, Endpoint: dk.Endpoint(), LinuxEngine: r.linux, KernelVersion: v.KernelVersion,
+			PlatformName: v.Platform.Name, Endpoint: dk.Endpoint(), LinuxEngine: r.engineHere, KernelVersion: v.KernelVersion,
 		},
 	})
+	r.recordPlatform()
 	if r.from.Kind == target.FromHost {
 		return nil
 	}
@@ -64,6 +66,25 @@ func (r *run) resolve(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// platformSource is where the platform record comes from.
+const platformSource = "whyreach's own environment (/proc/sys/kernel/osrelease, WSL's interop entry in /proc/sys/fs/binfmt_misc, container markers) and the daemon's GET /version"
+
+// recordPlatform records where whyreach and the containers run (INITIAL.md
+// §3.7): rules read it from the view. Without the daemon's answer, it says
+// only where whyreach runs.
+func (r *run) recordPlatform() {
+	ev := evidence.Evidence{
+		Kind: evidence.KindPlatform, Context: r.e.host(), Subject: "platform", Status: evidence.StatusOK,
+		ObservedAt: time.Now(), Source: platformSource,
+	}
+	if r.platform.Name == "" {
+		r.platform = r.e.platformFor(platform.Daemon{})
+		ev.Limitations = []string{"the Docker daemon didn't answer, so which Docker runs the containers is unknown"}
+	}
+	ev.Data = r.platform
+	r.store.Add(ev)
 }
 
 // findSource resolves "container:<name|id>" or "service:<name>[@<project>]".

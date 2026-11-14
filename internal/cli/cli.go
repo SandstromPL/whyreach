@@ -53,6 +53,9 @@ type Options struct {
 	// ServeMCP runs the MCP server until the client disconnects; main wires
 	// it in, so that nothing else imports the mcpserver package.
 	ServeMCP func(ctx context.Context, p *policy.Policy, mo MCPOptions) error
+
+	// logLevel is the --log-level flag, shared by every command.
+	logLevel *string
 }
 
 // exitError carries an exit code out of a command.
@@ -83,6 +86,7 @@ func Execute(ctx context.Context, args []string, o Options) int {
 	if o.NewPolicy == nil {
 		o.NewPolicy = buildPolicy
 	}
+	o.logLevel = new(string)
 	code := ExitNoProblem
 	root := newRoot(o, &code)
 	if args == nil {
@@ -137,6 +141,17 @@ rules, without changing anything.
 	}
 	root.SetVersionTemplate("whyreach {{.Version}}\n")
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageErr(err) })
+	// A flag, not only WHYREACH_LOG: an MCP client on Windows launches
+	// whyreach through wsl.exe, and its environment doesn't reach WSL
+	// unless WSLENV lists it (INITIAL.md §3.7, item 6).
+	root.PersistentFlags().StringVar(o.logLevel, "log-level", "", "log level on stderr: debug, info or warn (default: $WHYREACH_LOG, else warn)")
+	root.PersistentPreRunE = func(*cobra.Command, []string) error {
+		switch strings.ToLower(*o.logLevel) {
+		case "", "debug", "info", "warn":
+			return nil
+		}
+		return usageErr(fmt.Errorf("--log-level %q: use debug, info or warn", *o.logLevel))
+	}
 	addDiagnoseFlags(root, &f)
 
 	var df diagnoseFlags
@@ -349,7 +364,10 @@ func probeHowTo(p *policy.Policy) func(evidence.Evidence) string {
 		if e.Err != nil && e.Err.Message == executor.PIDsHidden {
 			return executor.PIDsHiddenAdvice + "."
 		}
-		if e.Status != evidence.StatusPermissionDenied {
+		if e.Err != nil && e.Err.Message == executor.HostNotHere {
+			return executor.HostNotHereAdvice + "."
+		}
+		if e.Status != evidence.StatusPermissionDenied && (e.Err == nil || e.Err.Message != executor.PIDsElsewhere) {
 			return ""
 		}
 		return "Checks from inside a container need probe containers: set probe_containers = true under [permissions] in " +
@@ -364,10 +382,15 @@ func writeJSON(w io.Writer, v any) error {
 }
 
 // newLogger writes JSON logs to stderr only; stdout carries results and,
-// in mcp serve, the MCP protocol. WHYREACH_LOG=debug|info|warn sets the level.
+// in mcp serve, the MCP protocol. --log-level, or else
+// WHYREACH_LOG=debug|info|warn, sets the level.
 func newLogger(o Options) *slog.Logger {
 	level := slog.LevelWarn
-	switch strings.ToLower(o.Getenv("WHYREACH_LOG")) {
+	name := o.Getenv("WHYREACH_LOG")
+	if o.logLevel != nil && *o.logLevel != "" {
+		name = *o.logLevel
+	}
+	switch strings.ToLower(name) {
 	case "debug":
 		level = slog.LevelDebug
 	case "info":
@@ -386,8 +409,10 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 	if err != nil {
 		return nil, err
 	}
+	pl := platform.Detect()
 	deps := policy.Deps{
 		Settings:   policy.SettingsFrom(cfg, path),
+		Platform:   pl,
 		Listeners:  procListeners{},
 		Interfaces: host.Addrs,
 		Host:       executor.NewHost(),
@@ -427,7 +452,7 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 			// As root on the host itself, container checks enter the
 			// containers' network namespaces: no Docker write (tier 3),
 			// unless the config turns it off.
-			if ok, _ := platform.Detect().NetnsExecutor(); ok && cfg.Permissions.Netns {
+			if ok, _ := pl.NetnsExecutor(); ok && cfg.Permissions.Netns {
 				deps.Netns = executor.NewNetns(deps.Docker, logger)
 			}
 		}
@@ -436,7 +461,7 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 	// namespace would pass for the host's: host-side checks become
 	// unsupported records, which the diagnosis reports as gaps. Without
 	// --pid host, containers' PIDs aren't its own to read.
-	if platform.Detect().InContainer {
+	if pl.InContainer {
 		deps.Self = platform.OwnContainerID()
 		v := viewFromContainer(context.Background(), deps.Docker, deps.Self, host.DockerBridgeVisible, "/proc", logger)
 		if !v.network {

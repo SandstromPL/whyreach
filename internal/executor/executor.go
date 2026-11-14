@@ -72,6 +72,26 @@ const PIDsHidden = "whyreach runs in a container without the host's PIDs (docker
 // so it is the user's to do.
 const PIDsHiddenAdvice = "Letting whyreach see containers' processes from inside a container is the user's decision, not an agent's: run that container with --pid host, and --network host for the host's side (for whyreach's image: docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock IMAGE …), or run whyreach on the host itself"
 
+// PIDsElsewhere is the message of a container's listeners whyreach can't
+// read because Docker's PIDs are processes in another machine's or VM's
+// PID namespace (Docker Desktop, its WSL integration included): a
+// /proc/<pid> read, or setns, would reach an unrelated local process, so
+// whyreach reads listening sockets only inside probe containers there, and
+// those are off. The policy asks an MCP client's user for probe containers
+// when it sees it.
+const PIDsElsewhere = "Docker runs these containers outside whyreach's machine (in Docker Desktop's VM), so Docker's PIDs aren't processes whyreach can see: it reads containers' listening sockets only inside probe containers, which are off (tier 2b)"
+
+// HostNotHere is the message of host-side records whyreach can't make on
+// Docker Desktop's WSL integration: the host a container reaches through
+// host.docker.internal or host-gateway is Windows, and network_mode: host
+// is Docker Desktop's VM. Neither is the WSL2 VM whyreach runs in, so its
+// own listening sockets say nothing about them (INITIAL.md §3.7).
+const HostNotHere = "on Docker Desktop's WSL integration the host a container reaches isn't this WSL2 distro: host.docker.internal (and host-gateway) is Windows, and network_mode: host is Docker Desktop's VM, whose listening sockets whyreach can't read from inside WSL"
+
+// HostNotHereAdvice says how to check the Windows side by hand: whyreach
+// has no Windows collector (INITIAL.md §3.7: only on demand).
+const HostNotHereAdvice = "Check on Windows which address the service listens on (in PowerShell: Get-NetTCPConnection -State Listen -LocalPort PORT): a service bound to 127.0.0.1 there is still reachable through host.docker.internal on Docker Desktop. A service in this WSL2 distro is reached through Windows only if WSL forwards the port (localhostForwarding, or mirrored networking)"
+
 // Unsupported answers every check with an unsupported record that says
 // why: an executor for a place whyreach can't reach.
 type Unsupported struct {

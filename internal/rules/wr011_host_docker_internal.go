@@ -9,8 +9,10 @@ import (
 // WR011: host.docker.internal doesn't resolve on Docker Engine. Docker
 // Desktop provides the name; on Docker Engine a container has it only with
 // extra_hosts: ["host.docker.internal:host-gateway"]. Metadata settles it,
-// and a failed lookup from the source confirms it (Probe? partly). It never
-// fires on Docker Desktop (INITIAL.md §3.7). Frequency rank 7.
+// and a failed lookup from the source confirms it (Probe? partly). It fires
+// on Docker Engine (a Linux host, or a WSL2 distro), read from the platform
+// record, and never on Docker Desktop, its WSL integration included
+// (INITIAL.md §3.7). Frequency rank 7.
 type wr011 struct{}
 
 func (wr011) ID() string   { return "WR011" }
@@ -36,16 +38,14 @@ func (r wr011) Evaluate(v evidence.View) []Finding {
 	if _, mapped := owner.C.HostsEntry(q.To.Host); mapped {
 		return nil
 	}
-	ver, ok := dockerVersion(v)
-	if !ok || !ver.LinuxEngine {
-		return nil // Docker Desktop answers the name itself
+	p, pids, ok := platformOf(v)
+	if !ok || !p.EngineHere() {
+		return nil // Docker Desktop answers the name itself, on every platform
 	}
+	ver, _ := dockerVersion(v)
 	f := Finding{
 		RuleID: r.ID(), Layer: r.Layer(), DocURL: DocURL(r.ID()), Confidence: Medium,
-		Supporting: []string{src.ID, owner.ID},
-	}
-	for _, e := range v.Of(evidence.KindDockerVersion) {
-		f.Supporting = append(f.Supporting, e.ID)
+		Supporting: append([]string{src.ID, owner.ID}, pids...),
 	}
 	confirmed := ""
 	if dns, ok := v.SourceDNS(q.To.Host); ok {
@@ -59,13 +59,17 @@ func (r wr011) Evaluate(v evidence.View) []Finding {
 	f.Supporting = ids(f.Supporting...)
 	name := src.C.DisplayName()
 	f.Title = fmt.Sprintf("%s doesn't exist in %s: Docker Engine needs a host-gateway mapping", evidence.HostDockerInternal, name)
-	f.Explanation = fmt.Sprintf("Docker Desktop provides the name %s, but Docker Engine (this host, %s) adds it to a container only with extra_hosts: [\"host.docker.internal:host-gateway\"], and %s has no such entry.%s",
-		evidence.HostDockerInternal, ver.Version, owner.C.DisplayName(), confirmed)
-	gw := "the host's docker0 address"
+	where := "this host"
+	if p.WSL {
+		where = "in this WSL2 distro"
+	}
+	f.Explanation = fmt.Sprintf("Docker Desktop provides the name %s, but Docker Engine (%s, %s) adds it to a container only with extra_hosts: [\"host.docker.internal:host-gateway\"], and %s has no such entry.%s",
+		evidence.HostDockerInternal, where, ver.Version, owner.C.DisplayName(), confirmed)
+	gw := v.HostLabel() + "'s docker0 address"
 	if ha, ok := v.HostAddrs(); ok {
 		if i, ok := ha.H.Interface(evidence.DefaultBridge); ok {
 			if a, ok := i.IPv4(); ok {
-				gw = fmt.Sprintf("the host's docker0 address, %s", a)
+				gw = fmt.Sprintf("%s's docker0 address, %s", v.HostLabel(), a)
 				f.Supporting = ids(append(f.Supporting, ha.ID)...)
 			}
 		}

@@ -638,3 +638,22 @@ func TestHeldBackNamesCountAsDenied(t *testing.T) {
 		t.Errorf("sent/denied per call = %v, want %v", got, want)
 	}
 }
+
+// TestDesktopListenersNeedProbeContainers: on Docker Desktop a container's
+// listening sockets can be read only inside a probe container, so a record
+// that says so makes the MCP server ask for probe containers, like a probe
+// that needed one.
+func TestDesktopListenersNeedProbeContainers(t *testing.T) {
+	elsewhere := evidence.Evidence{Kind: evidence.KindListeners, Status: evidence.StatusUnsupported,
+		Err: &evidence.Error{Code: evidence.CodeUnsupported, Message: executor.PIDsElsewhere}}
+	if !NeedsProbeContainers([]evidence.Evidence{elsewhere}) {
+		t.Error("a listeners record that only a probe container can make must ask for probe containers")
+	}
+	hidden := evidence.Evidence{Kind: evidence.KindListeners, Status: evidence.StatusUnsupported,
+		Err: &evidence.Error{Code: evidence.CodeUnsupported, Message: executor.PIDsHidden}}
+	windows := evidence.Evidence{Kind: evidence.KindListeners, Status: evidence.StatusUnsupported,
+		Err: &evidence.Error{Code: evidence.CodeUnsupported, Message: executor.HostNotHere}}
+	if NeedsProbeContainers([]evidence.Evidence{hidden, windows}) {
+		t.Error("probe containers help neither whyreach's image without --pid host nor the Windows host")
+	}
+}

@@ -249,10 +249,7 @@ func kindName(k evidence.Kind) string {
 // EvidenceLine describes one record in a sentence, naming where it was
 // observed.
 func EvidenceLine(e evidence.Evidence) string {
-	where := e.Context.String()
-	if e.Context.Kind == evidence.ContextHost {
-		where = "the host"
-	}
+	where := e.Context.Where()
 	if !e.OK() {
 		msg := ""
 		if e.Err != nil {

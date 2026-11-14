@@ -21,6 +21,43 @@ type DockerVersion struct {
 	KernelVersion string `json:"kernel,omitempty"` // daemon's kernel
 }
 
+// Platform is where whyreach and Docker's containers run (INITIAL.md §3.7):
+// what host-side evidence describes, and whether Docker's PIDs are
+// processes whyreach can see.
+type Platform struct {
+	// Name is linux-engine, wsl2-engine, wsl2-desktop, linux-desktop,
+	// macos-desktop, windows-desktop, or other (no Docker API, Windows
+	// containers, whyreach in a container on Docker Desktop).
+	Name        string `json:"name"`
+	WSL         bool   `json:"wsl,omitempty"`          // whyreach runs in a WSL2 distro: its host-side checks describe the WSL2 VM, not Windows
+	InContainer bool   `json:"in_container,omitempty"` // whyreach runs in a container
+	Desktop     bool   `json:"desktop,omitempty"`      // the daemon is Docker Desktop's: its containers run in its own VM, which provides host.docker.internal
+}
+
+// Platform names, as in package platform (rules read them from here).
+const (
+	PlatformLinuxEngine = "linux-engine"
+	PlatformWSL2Engine  = "wsl2-engine"
+	PlatformWSL2Desktop = "wsl2-desktop"
+)
+
+// EngineHere reports Docker Engine on whyreach's own machine (a Linux host
+// or this WSL2 distro): Docker's PIDs are processes whyreach can see, and
+// host.docker.internal needs a host-gateway mapping.
+func (p Platform) EngineHere() bool {
+	return p.Name == PlatformLinuxEngine || p.Name == PlatformWSL2Engine
+}
+
+// HostLabel names whyreach's host-side network namespace in prose: "the
+// host", or under WSL2 "the WSL2 VM".
+func (p Platform) HostLabel() string { return HostOn(p).Where() }
+
+// WindowsHost reports Docker Desktop's WSL integration, where the host the
+// containers reach (host.docker.internal) is Windows, whose state whyreach
+// can't read from inside WSL: host-side evidence there describes the WSL2
+// VM, not the host the containers mean.
+func (p Platform) WindowsHost() bool { return p.Name == PlatformWSL2Desktop }
+
 // Container states as Docker reports them.
 const (
 	StateRunning    = "running"

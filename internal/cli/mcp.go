@@ -34,7 +34,8 @@ func newMCP(o Options) *cobra.Command {
 		Use:   "serve",
 		Short: "Serve diagnose_connection, inspect_environment, run_probe and save_report over stdio",
 		Long: `Serve whyreach's four MCP tools over stdio. stdout carries the protocol;
-logs go to stderr (WHYREACH_LOG=debug|info|warn).
+logs go to stderr (--log-level or WHYREACH_LOG: debug, info or warn). The
+server exits when its input ends.
 
 Add it to Claude Code with:
   claude mcp add whyreach -- /absolute/path/to/whyreach mcp serve`,

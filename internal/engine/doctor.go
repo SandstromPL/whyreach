@@ -3,13 +3,13 @@ package engine
 import (
 	"context"
 	"fmt"
-	"runtime"
 	"slices"
 	"time"
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
+	"github.com/SandstromPL/whyreach/internal/platform"
 )
 
 // Check is one line of whyreach doctor: a capability and whether it works.
@@ -47,16 +47,19 @@ func (e *Engine) SelfCheck(ctx context.Context) []Check {
 			r.docker = nil
 			break
 		}
-		r.version = v
-		r.linux = runtime.GOOS == "linux" && v.Os == "linux" && !v.Desktop()
+		r.setDaemon(v)
 		c := Check{Name: "docker", Status: CheckOK, Detail: fmt.Sprintf("%s %s on %s/%s, API %s (whyreach speaks %s), %s",
 			v.Platform.Name, v.Version, v.Os, v.Arch, v.APIVersion, e.d.Docker.APIVersion(), e.d.Docker.Endpoint())}
-		if !r.linux {
+		if !r.engineHere && !r.platform.WindowsHost() {
 			c.Status = CheckWarn
-			c.Detail += "; this is not Linux Docker Engine on this host, which v0.1 supports (Docker Desktop arrives in v0.3)"
+			c.Detail += "; whyreach supports Docker Engine on Linux, and in WSL2 Docker Engine or Docker Desktop's WSL integration (other Docker Desktop setups arrive in v0.3)"
 		}
 		out = append(out, c)
 	}
+	if r.platform.Name == "" {
+		r.platform = e.platformFor(platform.Daemon{})
+	}
+	out = append(out, platformChecks(r.platform)...)
 
 	if e.d.Interfaces == nil {
 		out = append(out, Check{Name: "interfaces", Status: CheckWarn, Detail: "no interface reader on this platform"})
@@ -84,6 +87,43 @@ func (e *Engine) SelfCheck(ctx context.Context) []Check {
 
 const dockerFix = "Start Docker, or let this user use its socket: add it to the docker group (Docker access is root-equivalent)."
 
+// WSLIdle is doctor's warning on wsl2-engine: WSL stops idle distros, and
+// dockerd with them (INITIAL.md §3.7).
+const WSLIdle = "WSL stops a distro soon after its last process exits (instanceIdleTimeout, 15 s by default) and the WSL2 VM once every distro has stopped (vmIdleTimeout, 60 s by default): that stops dockerd and every container in this distro. When the distro starts again (an MCP client's wsl.exe launch does), dockerd restarts only if a service manager starts it, and only containers with a restart policy come back"
+
+// WSLIdleFix says how to keep the distro running. Docker itself
+// recommends Docker Desktop over Docker Engine in WSL2.
+const WSLIdleFix = "Keep a terminal open on this distro while you work, or set instanceIdleTimeout=-1 under [general] in %UserProfile%\\.wslconfig on Windows (then wsl --shutdown once); Docker recommends Docker Desktop's WSL integration over Docker Engine in WSL2."
+
+// platformChecks are doctor's lines about the platform: which setup
+// whyreach found (INITIAL.md §3.7) and what that means for its checks.
+func platformChecks(p evidence.Platform) []Check {
+	c := Check{Name: "platform", Status: CheckInfo}
+	switch p.Name {
+	case platform.LinuxEngine:
+		c.Detail = p.Name + ": Docker Engine on this Linux machine"
+		if p.InContainer {
+			c.Detail += " (whyreach runs in a container on it)"
+		}
+	case platform.WSL2Engine:
+		c.Detail = p.Name + ": Docker Engine in this WSL2 distro; host-side checks describe the WSL2 VM, not Windows"
+		if p.InContainer {
+			c.Detail = p.Name + ": Docker Engine in a WSL2 distro (whyreach runs in a container on it); host-side checks describe the WSL2 VM, not Windows"
+		}
+		return []Check{c, {Name: "wsl idle shutdown", Status: CheckWarn, Detail: WSLIdle, Fix: WSLIdleFix}}
+	case platform.WSL2Desktop:
+		c.Detail = p.Name + ": Docker Desktop's WSL integration. Its containers run in Docker Desktop's VM, so Docker's PIDs aren't this distro's: whyreach runs container checks and reads containers' listening sockets only inside probe containers (tier 2b), never through /proc or setns. Host-side checks describe this WSL2 VM; the host containers reach (host.docker.internal) is Windows, whose side whyreach can't check"
+	case "":
+	default:
+		c.Status = CheckWarn
+		c.Detail = p.Name + ": whyreach can't tell where Docker runs its containers, or the setup isn't supported yet (Docker Desktop on Linux, macOS and Windows hosts arrive in v0.3)"
+		if p.WSL {
+			c.Detail += "; whyreach runs in WSL2, so host-side checks describe the WSL2 VM, not Windows"
+		}
+	}
+	return []Check{c}
+}
+
 // containerListenerCheck reads one running container's listeners, the way
 // a diagnosis reads the destination's.
 func (r *run) containerListenerCheck(ctx context.Context) Check {
@@ -92,8 +132,8 @@ func (r *run) containerListenerCheck(ctx context.Context) Check {
 		c.Status, c.Detail = CheckInfo, "not checked: no Docker API"
 		return c
 	}
-	if !r.linux {
-		c.Status, c.Detail = CheckWarn, "read through /proc only on Linux Docker Engine; elsewhere they will be read inside probe containers (v0.3)"
+	if !r.engineHere {
+		c.Status, c.Detail = CheckInfo, "Docker's PIDs here are processes in Docker Desktop's VM, not this machine's, so containers' listening sockets are read inside probe containers (tier 2b), never through /proc/<pid>"
 		return c
 	}
 	lctx, cancel := context.WithTimeout(ctx, dockerTimeout)

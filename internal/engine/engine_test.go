@@ -209,6 +209,17 @@ func (s *scripted) Run(ctx context.Context, where evidence.ContextRef, specs []p
 	looked := map[string]bool{}
 	for _, sp := range specs {
 		switch sp.Kind {
+		case probe.SpecListeners:
+			// Read inside the container joined: its sockets, by the PID the
+			// world gave it (a probe container never uses the PID itself).
+			for _, c := range s.w.containers {
+				if evidence.ShortID(c.ID) == where.Container {
+					ctx := where
+					ctx.Executor = s.name
+					out = append(out, evidence.Evidence{Kind: evidence.KindListeners, Subject: "listeners", Status: evidence.StatusOK,
+						Context: ctx, Data: evidence.Listeners{Sockets: socks(s.w.sockets[c.Pid])}})
+				}
+			}
 		case probe.SpecDNS:
 			looked[sp.Host] = true
 			out = append(out, evidence.Evidence{Kind: evidence.KindDNS, Subject: sp.Host, Status: evidence.StatusOK, Context: evidence.ContextRef{Executor: s.name}, Data: lookup(sp.Host)})
