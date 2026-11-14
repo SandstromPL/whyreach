@@ -4,10 +4,10 @@ Checks, from Windows, that an MCP client can run whyreach inside a WSL2
 distro (docs/wsl2-lab.md, step 5): wsl.exe starts it, it answers
 initialize, tools/list and one read-only tool call, which must report a
 WSL2 platform, and it exits as soon as its input closes, leaving nothing
-running in the distro. With -Cold, it stops the distro first, so wsl.exe
-has to boot it, as when a client starts whyreach after WSL stopped the
-idle distro; it skips that with Docker Desktop's integration, which keeps
-the distro running.
+running in the distro. With -Cold, it shuts WSL down first, so wsl.exe has
+to boot the WSL2 VM and the distro, as when a client starts whyreach after
+WSL stopped the idle distro and then the idle VM; it does that only for
+Docker Engine in the distro, never with Docker Desktop's integration.
 
 .EXAMPLE
 powershell -NoProfile -ExecutionPolicy Bypass -File \\wsl.localhost\Ubuntu-24.04\home\you\whyreach\test\wsl2\mcp-launch.ps1 -Distro Ubuntu-24.04 -Whyreach /home/you/whyreach/bin/whyreach -Cold
@@ -44,20 +44,24 @@ function Count-Servers {
 $noCount = 'FAIL: cannot count whyreach servers in the distro: pgrep comes with procps (docs/wsl2-lab.md, step 2)'
 
 if ($Cold) {
-    # Docker Desktop keeps a wsl.exe session open in each distro it
-    # integrates with (its proxy), so the distro doesn't go idle while
-    # Docker Desktop runs, and stopping it would cut the integration off.
+    # Only Docker Engine in the distro idles out with it. Docker Desktop
+    # keeps a wsl.exe session open in each distro it integrates with (its
+    # proxy), so the distro doesn't go idle while Docker Desktop runs, and
+    # shutting WSL down would stop Docker Desktop's engine too. So the cold
+    # start needs docker version to name Docker Engine.
     $engine = "$(@(Invoke-InDistro @('docker', 'version', '--format', '{{.Server.Platform.Name}}')) | Select-Object -First 1)".Trim()
-    if ($engine -like '*Desktop*') {
-        "cold start skipped: $Distro has Docker Desktop's integration ($engine), which keeps the distro running; stopping it would cut the integration off"
+    if ($engine -notlike 'Docker Engine*') {
+        if ($engine -like '*Desktop*') { "cold start skipped: $Distro has Docker Desktop's integration ($engine), which keeps the distro running; shutting WSL down would stop Docker Desktop's engine too" }
+        else { "cold start skipped: docker version in $Distro names no Docker Engine ('$engine')" }
         'SKIP'
         exit 0
     }
-    # Counting starts the distro, so a cold start counts nothing first: a
-    # stopped distro runs no whyreach server.
-    & wsl.exe --terminate $Distro | Out-Null
+    # What a client meets after WSL stopped the idle distro and then the
+    # idle VM: wsl.exe boots both. Counting would start the distro, so a
+    # cold start counts nothing first: a stopped distro runs no server.
+    & wsl.exe --shutdown | Out-Null
     $before = 0
-    "cold start: $Distro stopped first, so wsl.exe boots it"
+    "cold start: WSL shut down first, so wsl.exe boots the WSL2 VM and $Distro"
 }
 else {
     $before = Count-Servers
@@ -78,11 +82,13 @@ try {
 }
 catch { $savedInput = $null }
 
-# What an MCP client does: start the command with pipes, no shell.
+# What an MCP client does: start the command with pipes, no shell, and,
+# like the GUI clients (Node's windowsHide), without a console window.
 $psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName = 'wsl.exe'
 $psi.Arguments = "-d `"$Distro`" --exec $Whyreach mcp serve --log-level info"
 $psi.UseShellExecute = $false
+$psi.CreateNoWindow = $true
 $psi.RedirectStandardInput = $true
 $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
@@ -183,5 +189,8 @@ elseif ($after -gt [Math]::Max($before, 0)) { $ok = $false; "FAIL: $($after - [M
 else { "nothing left running in the distro ($before other whyreach server(s) before, $after after)" }
 
 'stderr, last lines (without their times):'
-$stderr.Result -split "`n" | Where-Object { $_ } | Select-Object -Last 5 | ForEach-Object { Hide-Home ($_ -replace '"time":"[^"]*",', '') }
+if ($stderr.Wait(2000)) {
+    $stderr.Result -split "`n" | Where-Object { $_ } | Select-Object -Last 5 | ForEach-Object { Hide-Home ($_ -replace '"time":"[^"]*",', '') }
+}
+else { '  (still open 2 s after the exit: something kept the pipe)' }
 if ($ok) { 'PASS' } else { 'FAIL'; exit 1 }
