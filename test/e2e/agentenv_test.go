@@ -34,6 +34,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -175,6 +176,34 @@ type claudeRun struct {
 	turns    int
 	cost     float64
 	seconds  float64
+	// What Claude Code says it loaded, from its init event.
+	init    bool
+	offered []string // the tools offered
+	servers []string // MCP servers, as name:status
+	unclean []string // whatever a clean client must not load: see checkClean
+}
+
+// checkClean checks Claude Code's own record of what it loaded for a run
+// (its init event): only the tools asked for, only the MCP servers given,
+// connected, no plugin but Claude Code's built-in ones, no skill, slash
+// command, output style or added directory.
+func checkClean(t *testing.T, r claudeRun, tools []string, servers ...string) {
+	t.Helper()
+	if !r.init {
+		t.Error("Claude Code reported no init event, so nothing shows what it loaded")
+		return
+	}
+	for _, tool := range r.offered {
+		if !slices.Contains(tools, tool) {
+			t.Errorf("the agent was offered %s, which it wasn't given", tool)
+		}
+	}
+	if !slices.Equal(r.servers, servers) {
+		t.Errorf("MCP servers %v, want %v", r.servers, servers)
+	}
+	if len(r.unclean) > 0 {
+		t.Errorf("Claude Code loaded more than a clean client does: %v", r.unclean)
+	}
 }
 
 // runClaude runs a fresh headless Claude Code with the clean client's
@@ -202,7 +231,22 @@ func runClaude(t *testing.T, dir string, env []string, timeout time.Duration, pr
 	for sc.Scan() {
 		var ev struct {
 			Type    string `json:"type"`
-			Message struct {
+			Subtype string `json:"subtype"`
+			// The init event's record of what was loaded.
+			Tools      []string `json:"tools"`
+			MCPServers []struct {
+				Name   string `json:"name"`
+				Status string `json:"status"`
+			} `json:"mcp_servers"`
+			Plugins []struct {
+				Name string `json:"name"`
+				Path string `json:"path"`
+			} `json:"plugins"`
+			Skills        []json.RawMessage `json:"skills"`
+			SlashCommands []json.RawMessage `json:"slash_commands"`
+			OutputStyle   string            `json:"output_style"`
+			AddedDirs     []string          `json:"additional_directories"`
+			Message       struct {
 				Content []struct {
 					Type  string `json:"type"`
 					Name  string `json:"name"`
@@ -220,6 +264,31 @@ func runClaude(t *testing.T, dir string, env []string, timeout time.Duration, pr
 			continue
 		}
 		switch ev.Type {
+		case "system":
+			if ev.Subtype != "init" {
+				continue
+			}
+			r.init, r.offered = true, ev.Tools
+			for _, s := range ev.MCPServers {
+				r.servers = append(r.servers, s.Name+":"+s.Status)
+			}
+			for _, p := range ev.Plugins {
+				if p.Path != "builtin" {
+					r.unclean = append(r.unclean, "plugin "+p.Name)
+				}
+			}
+			for _, s := range ev.Skills {
+				r.unclean = append(r.unclean, "skill "+string(s))
+			}
+			for _, c := range ev.SlashCommands {
+				r.unclean = append(r.unclean, "slash command "+string(c))
+			}
+			if ev.OutputStyle != "" && ev.OutputStyle != "default" {
+				r.unclean = append(r.unclean, "output style "+ev.OutputStyle)
+			}
+			for _, d := range ev.AddedDirs {
+				r.unclean = append(r.unclean, "added directory "+d)
+			}
 		case "assistant":
 			for _, c := range ev.Message.Content {
 				if c.Type != "tool_use" {
