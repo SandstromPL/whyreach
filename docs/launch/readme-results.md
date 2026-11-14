@@ -6,13 +6,13 @@ An agent can already debug Docker networking with a shell: `docker inspect`, `ss
 
 | | Shell agent | whyreach agent |
 |---|---|---|
-| Named the right cause | 21 of 21 | 21 of 21 |
-| Tool calls, median | 5 | 2 |
-| Tokens, median | 37.7k | 12.4k |
-| Time, median | 15.5 s | 6.0 s |
-| Cost, all 21 runs | $0.051 | $0.022 |
-| Commands that would change something, attempted | 19, in 18 runs | 0 |
+| Named the right cause | 20 of 21 | 20 of 21 |
+| Tool calls, median | 6 | 2 |
+| Tokens, median | 38.9k | 12.5k |
+| Time, median | 16.6 s | 6.5 s |
+| Cost, all 21 runs | $0.060 | $0.023 |
+| Commands that would change something, attempted | 18, in 18 runs | 0 |
 
-Both agents found every cause. whyreach's agent did it with about a third of the tokens and less than half the time. It never reached for `docker exec` or `sudo`; the shell agent did in 18 of its 21 runs, to look inside containers, and the benchmark's guard refused each one.
+Each agent found 20 of the 21 causes, and each missed a different one. whyreach's agent got there with about a third of the tokens and less than half the time. It never reached for `docker exec`; the shell agent did in 18 of its 21 runs, to look inside containers, and the benchmark's guard refused each one.
 
-The method was fixed before the run. The per-scenario results, the raw data and the caveats are in [docs/research/agent-benchmark.md](docs/research/agent-benchmark.md): one model, one run each, and stand-in servers that are easier to read than real applications. To run it yourself, use `make lab-bench`; it needs Docker, `bwrap` and the `claude` CLI.
+The method was fixed before the first run. That run's agents could see each scenario's name in their directory names, so it was run again with only that changed; these are the second run's numbers. The per-scenario results, the raw data and the caveats are in [docs/research/agent-benchmark.md](docs/research/agent-benchmark.md): one model, one run each, and stand-in servers that are easier to read than real applications. To run it yourself, use `make lab-bench`; it needs Docker, `bwrap` and the `claude` CLI.
