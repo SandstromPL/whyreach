@@ -1,6 +1,22 @@
 # whyreach
 
-**Why can't one container reach another?** whyreach answers that with evidence, without changing anything. It runs as a CLI and as an MCP server for AI coding agents.
+**What is it?** A tool that tells you why one Docker container can't connect to another container or to the host. It shows the proof and the fix, and it changes nothing. You can run it yourself or let your AI coding agent run it.
+
+**Why does it exist?** Errors like `Connection refused` or a timeout don't say what's wrong. The cause could be a wrong address or port, a service that only listens to itself, containers on different networks, or a service that isn't ready yet. whyreach finds the real one.
+
+**Who is it for?** Developers who run several services with Docker Compose on Linux, often together with an AI coding agent such as Claude Code, Codex or Cursor. Docker Desktop on macOS and Windows comes later.
+
+**Why was it needed?** Finding the cause by hand takes many commands, and you need to know Docker networking well. Small images often don't have the tools to check from inside. AI agents doing the same take many steps, often guess, and may run commands that change things.
+
+**Why use it?**
+- **One step:** one command gives you the cause, the proof and the fix.
+- **Safe:** it only looks. It doesn't change your containers, networks, firewall or DNS ([details](#what-whyreach-may-do)).
+- **Sees what the container sees:** it looks at the network from the container's side, where `localhost` means the container itself.
+- **Honest:** if it can't check something, it tells you instead of guessing.
+- **Made for AI agents:** it works as an MCP server with 4 tools and built-in safety limits.
+- **Light:** one static binary, no telemetry.
+
+## How it works
 
 When a service gets `Connection refused`, a timeout or a name that doesn't resolve, whyreach collects evidence from the right network namespaces: Docker metadata, the listening sockets inside each container, DNS as the source container sees it, and a TCP connect from the source. Then it names the cause from a catalog of 14 rules, such as `localhost` used inside a container, a server bound to `127.0.0.1`, or two Compose projects that share no network. Each finding comes with the evidence behind it and a fix.
 
