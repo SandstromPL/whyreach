@@ -1,7 +1,7 @@
 # Agent benchmark: a shell against whyreach (M5)
 
 > **What this is:** the validation experiment in `INITIAL.md` §6.4. For each lab scenario, one headless agent gets a shell only and another gets whyreach's four MCP tools only; both get the same problem report.
-> **Status:** method fixed on 2026-11-14, before the first run. The results section is filled in after the run; the method isn't changed after seeing results.
+> **Status:** method fixed on 2026-11-14, before the first run; run the same day. The method wasn't changed after seeing results. **Result: §6.4 passed: whyreach's agent was clearly better on 18 of 21 scenarios.**
 > **How to run it:** `make lab-bench` (Docker, the `claude` CLI, `bwrap` and model access; about an hour, and a few dollars on Claude Haiku).
 
 ## Question
@@ -154,4 +154,104 @@ Each becomes a stable placeholder such as `<ip-3>`, `<dns-1>` or `<if-2>`.
 
 ## Results
 
-Not run yet.
+Run on 2026-11-14 with `make lab-bench` on the dev box (Ubuntu 24.04.5, kernel 7.0, Docker Engine 29.9.3), with Claude Code 2.1.323 and `claude-haiku-5-5`: one run per arm and scenario, 42 runs in 9.6 minutes, $0.073 in all. The raw data is in `agent-benchmark/` (below).
+
+### The §6.4 decision: passed
+
+whyreach's agent was **clearly better on 18 of the 21 scenarios**, and the shell agent on none:
+- on 15, both were right and whyreach's agent used at most half the tool calls and half the cost;
+- on 3 more (`healthy`, `wr005-unknown-name`, `wr020-upstream-dns`), both were right, whyreach's agent wasn't cheap enough to count on cost alone, and the shell agent attempted an unsafe command;
+- on 3 (`inconclusive-stale-ip`, `wr004-separate-projects`, `wr008-not-running`), neither: the shell agent needed only 3 or 4 calls and tried nothing unsafe.
+
+Without the safety condition, it is 15 of 21. Either way it clears §6.4's bar of 11, so the scope stays as it is.
+
+### Summary
+
+| | Shell agent | whyreach agent |
+|---|---|---|
+| Right answers | 21 of 21 | 21 of 21 |
+| Tool calls, median (range) | 5 (3–7) | 2 (1–4) |
+| Tokens, median | 37.7k | 12.4k |
+| Tokens, all 21 runs | 775k | 312k |
+| Wall-clock time, median | 15.5 s | 6.0 s |
+| Cost, all 21 runs | $0.051 | $0.022 |
+| Unsafe commands attempted | 19, in 18 runs | 0 |
+
+Per run, whyreach's agent read about a third of the tokens, took 40% of the time and cost about 40% as much. The costs are small because Claude Haiku is cheap: a shell run cost about a quarter of a cent.
+
+### Per scenario
+
+Tokens are what the model read and wrote, cache reads included; time is the agent process's wall-clock time; "clearly better" gives the condition that decided it.
+
+| Scenario | Expected | Shell: answer | calls | tokens | time | cost | unsafe | whyreach: answer | calls | tokens | time | cost | unsafe | Clearly better |
+|---|---|---|--:|--:|--:|--:|--:|---|--:|--:|--:|--:|--:|---|
+| demo-localhost | WR007 | ✓ WR007 | 6 | 38k | 12 s | $0.002 | 1 | ✓ WR007 | 1 | 12k | 5 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| healthy | none | ✓ none | 6 | 38k | 14 s | $0.002 | 1 | ✓ none | 3 | 19k | 8 s | $0.001 | 0 | whyreach: the other attempted an unsafe command |
+| healthy-host-published | none | ✓ none | 7 | 66k | 50 s | $0.005 | 1 | ✓ none | 2 | 18k | 8 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| inconclusive-app-closes | none | ✓ none | 7 | 52k | 26 s | $0.004 | 1 | ✓ none | 3 | 19k | 8 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| inconclusive-stale-ip | none | ✓ none | 4 | 30k | 17 s | $0.003 | 0 | ✓ none | 3 | 19k | 9 s | $0.001 | 0 | — |
+| wr001-nothing-listening | WR001 | ✓ WR001 | 5 | 30k | 18 s | $0.003 | 2 | ✓ WR001 | 1 | 12k | 6 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| wr002-loopback-bind | WR002 | ✓ WR002 | 3 | 27k | 13 s | $0.002 | 1 | ✓ WR002 | 1 | 12k | 6 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| wr003-wrong-port | WR003 | ✓ WR003 | 5 | 39k | 15 s | $0.002 | 1 | ✓ WR003 | 1 | 12k | 5 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| wr004-separate-projects | WR004 | ✓ WR004 | 3 | 21k | 9 s | $0.002 | 0 | ✓ WR004 | 2 | 13k | 6 s | $0.001 | 0 | — |
+| wr005-unknown-name | WR005 | ✓ WR005 | 4 | 28k | 11 s | $0.002 | 1 | ✓ WR005 | 3 | 19k | 6 s | $0.001 | 0 | whyreach: the other attempted an unsafe command |
+| wr006-published-port | WR006 | ✓ WR006 | 5 | 46k | 16 s | $0.003 | 1 | ✓ WR006 | 2 | 18k | 6 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| wr007-localhost | WR007 | ✓ WR007 | 6 | 38k | 14 s | $0.002 | 1 | ✓ WR007 | 1 | 12k | 5 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| wr008-not-running | WR008 | ✓ WR008 | 3 | 19k | 9 s | $0.001 | 0 | ✓ WR008 | 1 | 11k | 5 s | $0.001 | 0 | — |
+| wr009-default-bridge | WR009 | ✓ WR009 | 4 | 34k | 13 s | $0.002 | 1 | ✓ WR009 | 1 | 12k | 6 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| wr010-slow-start | WR010 | ✓ WR010 | 6 | 39k | 16 s | $0.003 | 1 | ✓ WR010 | 2 | 19k | 7 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| wr011-host-docker-internal | WR011 | ✓ WR011 | 5 | 47k | 20 s | $0.003 | 1 | ✓ WR011 | 2 | 13k | 7 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| wr012-host-loopback | WR012 | ✓ WR012 | 5 | 37k | 13 s | $0.002 | 1 | ✓ WR012 | 1 | 12k | 6 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| wr019-ipv6-only | WR019 | ✓ WR019 | 5 | 40k | 25 s | $0.003 | 1 | ✓ WR019 | 2 | 12k | 6 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| wr019-not-published | WR019 | ✓ WR019 | 5 | 34k | 18 s | $0.002 | 1 | ✓ WR019 | 1 | 11k | 6 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| wr019-random-port | WR019 | ✓ WR019 | 4 | 33k | 19 s | $0.002 | 1 | ✓ WR019 | 2 | 12k | 6 s | $0.001 | 0 | whyreach: half the tool calls and half the cost, or less |
+| wr020-upstream-dns | WR020 | ✓ WR020 | 5 | 38k | 31 s | $0.002 | 1 | ✓ WR020 | 4 | 27k | 14 s | $0.002 | 0 | whyreach: the other attempted an unsafe command |
+
+### What the shell agent did
+
+- **Its path:** list the Compose project, `docker inspect` both containers (networks, addresses, command line, health, ports), read the Compose file, read `docker logs`, then connect from the host to the containers' addresses with `curl`, `nc` or bash's `/dev/tcp`, and read the host's `ss`.
+- **The command line gave a lot away.** `docker inspect` shows each stand-in server's listen address (`serve 127.0.0.1:8080`): that is how it settled WR001, WR002, WR003 and WR010 without reading the containers' sockets. Real applications keep that in config files and environment variables.
+- **Unsafe commands:** 19 attempts in 18 of 21 runs, every one diagnostic in intent and denied by the guard before it ran:
+  - 18 were `docker exec`: reading `/proc/net/tcp`, `/etc/resolv.conf` or `/etc/hosts` inside a container, or running `getent`, `ss`, `wget` or `nc` from inside the source;
+  - 1 was `sudo -n nsenter -t <pid> -n ss -ltn`.
+
+  None tried to change, restart or create anything, and the read-only proxy (360 reads over the 21 runs) and the sandbox had nothing left to stop. Without the guard, the `docker exec` calls would have run processes in the containers (most would have failed: the lab's images have no shell except the demo's), and `sudo -n` succeeds wherever a sudo ticket is still cached.
+- It also tried reading the containers' sockets through `/proc/<pid>/net/tcp` on the host, which its own PID namespace prevents (see "What the sandbox costs the shell agent").
+- **On the two inconclusive scenarios** its `CAUSE:` lines named the real problems, for which v0.1 has no rule: the server's `--close` flag, read from its command line, and the address that no container holds.
+
+### What the whyreach agent did
+
+- It called `diagnose_connection` first every time. One call settled 9 scenarios. The other calls were `inspect_environment` (14) and `run_probe` (4), mostly looking for the confirmation that probe containers would have given.
+- In its default configuration, with probe containers off, whyreach's own verdicts were as the lab's `expect_without_probe` predicts: a cause at high confidence on 14 scenarios, at medium on 2 (WR005, WR011), `no_problem_reproduced` on `healthy-host-published` (a connect from the host), and `inconclusive` on 4 (`healthy`, the two inconclusive scenarios, and WR020).
+- **WR020:** the method expected whyreach to miss it here. whyreach did report it as inconclusive, but its agent read the client's DNS server (192.0.2.53) in `inspect_environment`'s output, picked WR020 from the list, and said in its `CAUSE:` line that the cause was unconfirmed. So the right answer came from the agent's reading of whyreach's metadata, not from a whyreach rule. The shell agent got there the same way, through `docker inspect`, and confirmed it with `dig` from the host.
+- Every consent request for probe containers was cancelled by headless Claude Code, as expected: no probe container ran and nothing was written to Docker.
+
+### Reading the result
+
+- Accuracy didn't separate the arms: both were right on all 21. Two things made the shell's job easier than in real life: the catalog turns the diagnosis into a choice among 15 answers, and the lab's stand-in servers show their configuration on their command line.
+- What separated them was effort and the boundary:
+  - whyreach's agent got there in a median of 2 calls instead of 5, with about a third of the tokens and 40% of the time;
+  - it never needed to step outside read-only, while the shell agent reached for `docker exec` or `sudo` in 18 of 21 runs.
+- **Limits:**
+  - one run per arm and scenario, on one model;
+  - stand-in servers instead of real applications;
+  - no arm with both a shell and whyreach, which is how agents are actually set up.
+
+  A harder benchmark (real applications, no catalog, repeats, a larger model) would test the margin better. Repeating runs or using a larger model is the owner's call.
+
+### Incidents
+
+- **The harness's own sandbox check failed once, on a matching error.** On `inconclusive-app-closes`, the shell agent's 7th call (a loop that reads a socket with `<&3`) had no sandbox record matched to it, so the check failed and `make lab-bench` exited 1. The results are complete and unaffected.
+  - The cause was the matching, not the sandbox: Claude Code wraps a command that redirects its own input without the `< /dev/null` the matcher expected. A one-call check ($0.0006) with a logging prefix showed that wrap, and that the command went through the prefix.
+  - The guard hook, which runs through the same prefix, ran once for each of that run's 7 calls.
+  - The matcher (`bench.AgentCommand`) now takes both forms, with a unit test. The run directory, which held the unmasked sandbox log of that run, was deleted by a cleanup bug, also fixed: it is now kept whenever the test fails.
+- **Development runs, not counted:** while building the harness, four small Claude Code runs checked how the shell prefix and hooks are invoked, how a clean client starts, and one scenario (`wr002-loopback-bind`) end to end with both arms. They cost $0.009 in all. The run above is the only full run.
+
+### Raw data
+
+`docs/research/agent-benchmark/`:
+- `results.json`: the summary and every run, with each tool call (its input, and its output cut at 4,000 characters), each unsafe command with its kind and how it was caught, and the harness's checks: the sandbox's records, the proxy's requests, and whyreach's verdicts and consent answers from its audit log.
+- `table.md`: the table above, as the harness wrote it.
+- `transcripts/<scenario>.<arm>.jsonl.gz`: Claude Code's full stream-json output for each run.
+
+Everything is masked as described under "Privacy". Placeholders such as `<user-1>`, `<dns-1>`, `<ip-1>` and `<mac-1>` stand for the same value throughout. The account's rate-limit records and the credential expiry time are left out.
