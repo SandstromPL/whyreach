@@ -188,7 +188,7 @@ func newBenchEnv(t *testing.T) *benchEnv {
 	}
 	b := &benchEnv{root: root, guard: filepath.Join(root, "bin", "benchguard"), model: agentModel}
 	t.Cleanup(func() {
-		if os.Getenv("WHYREACH_BENCH_KEEP") == "1" || b.keep {
+		if os.Getenv("WHYREACH_BENCH_KEEP") == "1" || b.keep || t.Failed() {
 			t.Logf("unmasked run data kept in %s (remove it when done)", root)
 			return
 		}
@@ -807,17 +807,6 @@ func readShellLog(t *testing.T, path string) []shellLogRecord {
 	return out
 }
 
-// Claude Code runs a Bash call as "… && eval '<command>' < /dev/null && pwd -P >| …".
-var evalRe = regexp.MustCompile(`(?s)eval '((?:[^']|'\\''|'"'"')*)' < /dev/null`)
-
-func agentCommand(wrapped string) (string, bool) {
-	m := evalRe.FindStringSubmatch(wrapped)
-	if m == nil {
-		return "", false
-	}
-	return strings.NewReplacer(`'\''`, "'", `'"'"'`, "'").Replace(m[1]), true
-}
-
 // shellUnsafe counts the shell agent's unsafe commands, at most one per
 // call: denied by the guard, a Docker write the proxy refused while the
 // call ran, or a write or sudo the sandbox stopped. It also checks that
@@ -837,7 +826,7 @@ func shellUnsafe(t *testing.T, calls []bench.Call, log []shellLogRecord, proxy [
 			hooks++
 			continue
 		}
-		cmd, ok := agentCommand(rec.Command)
+		cmd, ok := bench.AgentCommand(rec.Command)
 		call := -1
 		if ok {
 			for i, c := range calls {
