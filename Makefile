@@ -9,7 +9,7 @@ CROSS_TARGETS := darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 GOVULNCHECK := golang.org/x/vuln/cmd/govulncheck@v1.9.0
 GORELEASER := github.com/goreleaser/goreleaser/v2@v2.19.0
 
-.PHONY: build test lint vuln lab lab-agent lab-root golden cross release-check release-snapshot release clean
+.PHONY: build test lint vuln lab lab-agent lab-bench lab-root golden cross release-check release-snapshot release clean
 
 ## build: static binary in bin/whyreach
 build:
@@ -35,6 +35,14 @@ lab:
 ## whyreach's MCP tools alone (needs Docker, the claude CLI and model access)
 lab-agent:
 	go test -tags lab,agent -count=1 -run TestAgent -timeout 60m -v ./test/e2e/...
+
+## lab-bench: the agent benchmark (INITIAL.md §6.4): for each lab scenario, a
+## headless Claude Code with a shell only (sandboxed by bwrap, a read-only Docker
+## proxy and a guard hook) and one with whyreach's four MCP tools only; masked
+## results in bin/bench/ (needs Docker, bwrap, the claude CLI and model access;
+## about an hour and a few dollars on Claude Haiku; docs/research/agent-benchmark.md)
+lab-bench:
+	go test -tags lab,agent,bench -count=1 -run TestBench -timeout 150m -v ./test/e2e/...
 
 ## lab-root: the lab as root, where whyreach enters the containers' network
 ## namespaces itself (the netns executor): every scenario, and no Docker

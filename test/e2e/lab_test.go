@@ -304,6 +304,15 @@ type running struct {
 // test's cleanup tears them down.
 func bringUp(t *testing.T, dir string) running {
 	t.Helper()
+	return bringUpAs(t, dir, "whyreach-lab-"+filepath.Base(dir)+"-"+randHex(2), dir)
+}
+
+// bringUpAs brings a scenario up under the given project name, running
+// Compose on the files in composeDir: the agent benchmark uses a neutral
+// name and comment-free copies, since both would otherwise give the
+// answer away.
+func bringUpAs(t *testing.T, dir, project, composeDir string) running {
+	t.Helper()
 	var s scenario
 	b, err := os.ReadFile(filepath.Join(dir, "scenario.yaml"))
 	if err != nil {
@@ -325,7 +334,6 @@ func bringUp(t *testing.T, dir string) running {
 	if len(s.Projects) == 0 {
 		s.Projects = []string{"compose.yaml"}
 	}
-	project := "whyreach-lab-" + filepath.Base(dir) + "-" + randHex(2)
 	// ${LAB_PORT} is a free host port, for scenarios that publish one or
 	// listen on one: a fixed number could be taken on the machine.
 	vars := map[string]string{"${PROJECT}": project, "${LAB_PORT}": freePort(t)}
@@ -333,7 +341,7 @@ func bringUp(t *testing.T, dir string) running {
 		vars["${HOST_PORT}"] = hostListen(t, s.HostListen)
 	}
 	for _, file := range s.Projects {
-		up(t, dir, projectFor(project, file), file, s.UpWait == nil || *s.UpWait, vars)
+		up(t, composeDir, projectFor(project, file), file, s.UpWait == nil || *s.UpWait, vars)
 	}
 	if s.Settle != nil {
 		settle(t, projectFor(project, s.Projects[0]), s.Settle.Service, s.Settle.State)
