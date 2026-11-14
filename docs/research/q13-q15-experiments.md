@@ -5,7 +5,7 @@
 > - E3's lab run: `TestLab` with `allow = ["loopback", "docker"]` under `[probe]` in both lab configs. That's a seven-line change to `setup()` in `test/e2e/lab_test.go`, not committed.
 > - E2's agent count: `TestAgent` with every audit line logged. That's a one-line change in `test/e2e/agent_test.go`, not committed. Each scenario's audit lines are then counted.
 >
-> **When and where:** run on 2026-11-14 on the dev box (Ubuntu 24.04.5, Docker Engine 29.9.3), as a non-root user in the `docker` group, on `main` at `8fe0225` plus the spike.
+> **When and where:** run on 2026-11-14 on the dev box (Ubuntu 24.04.5, Docker Engine 29.9.3), as a non-root user in the `docker` group, on `main` at `cb98cda` plus the spike.
 >
 > **Feeds:** the owner's decisions on `INITIAL.md` §10 Q13, Q14 and Q15. The questions were raised by the M4 reviews, and no experiment had tested them before.
 
