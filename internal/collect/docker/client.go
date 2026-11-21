@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 )
 
@@ -92,7 +93,10 @@ func ReadRoutes() []Route {
 type Client struct {
 	http     *http.Client
 	endpoint string // "unix:///var/run/docker.sock"
-	version  string // negotiated; empty until Negotiate
+	// version is the negotiated API version, nil until Negotiate. MCP tool
+	// calls share one client and run concurrently, so one call's Negotiate
+	// may store it while another's request reads it.
+	version atomic.Pointer[string]
 }
 
 // Endpoint picks the daemon to talk to: DOCKER_HOST when set, otherwise
@@ -133,7 +137,12 @@ func New(endpoint string, routes []Route) (*Client, error) {
 func (c *Client) Endpoint() string { return c.endpoint }
 
 // APIVersion is the negotiated version, or "" before Negotiate.
-func (c *Client) APIVersion() string { return c.version }
+func (c *Client) APIVersion() string {
+	if v := c.version.Load(); v != nil {
+		return *v
+	}
+	return ""
+}
 
 // allowlist refuses any request that matches no route, before it is sent.
 type allowlist struct {
@@ -191,10 +200,11 @@ func (c *Client) Negotiate(ctx context.Context) (Version, error) {
 	if compareVersions(v.APIVersion, MinAPIVersion) < 0 {
 		return v, fmt.Errorf("daemon API %s is older than %s: %w", v.APIVersion, MinAPIVersion, ErrUnsupported)
 	}
-	c.version = MaxAPIVersion
+	version := MaxAPIVersion
 	if compareVersions(v.APIVersion, MaxAPIVersion) < 0 {
-		c.version = v.APIVersion
+		version = v.APIVersion
 	}
+	c.version.Store(&version)
 	return v, nil
 }
 
@@ -243,8 +253,8 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 // caller closes its body.
 func (c *Client) send(ctx context.Context, method, path string, query url.Values, body io.Reader, contentType string) (*http.Response, error) {
 	u := url.URL{Scheme: "http", Host: "docker", Path: path, RawQuery: query.Encode()}
-	if c.version != "" {
-		u.Path = "/v" + c.version + path
+	if v := c.APIVersion(); v != "" {
+		u.Path = "/v" + v + path
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
 	if err != nil {

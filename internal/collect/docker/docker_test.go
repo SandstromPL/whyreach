@@ -331,6 +331,34 @@ func TestListContainersFilters(t *testing.T) {
 	}
 }
 
+// TestConcurrentNegotiate: in mcp serve, concurrent tool calls share one
+// client, so one call's Negotiate may run while another's request reads
+// the API version (run under -race).
+func TestConcurrentNegotiate(t *testing.T) {
+	f := newFakeDaemon(t, "1.56", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, []map[string]any{}) })
+	c, err := New(f.endpoint, ReadRoutes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			if _, err := c.Negotiate(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		wg.Go(func() {
+			if _, err := c.ListContainers(context.Background(), true); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+	if got := c.APIVersion(); got != "1.56" {
+		t.Errorf("API version %q, want 1.56", got)
+	}
+}
+
 func TestNetworks(t *testing.T) {
 	network := map[string]any{
 		"Name": "shop_default", "Id": "c8b1", "Driver": "bridge", "Scope": "local", "Internal": true, "EnableIPv6": false,
