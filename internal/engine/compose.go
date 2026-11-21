@@ -418,20 +418,13 @@ func (r *run) gapsFrom(v evidence.View) []Gap {
 			kinds[k] = append(kinds[k], label)
 		}
 	}
-	for k, ps := range places {
-		k2 := k
-		k2.ctx = joinAnd(ps)
-		byKey[k2] = byKey[k]
-		kinds[k2] = kinds[k]
-		for i := range order {
-			if order[i] == k {
-				order[i] = k2
-			}
-		}
-	}
 	var out []Gap
 	for _, k := range order {
 		g := byKey[k]
+		ctx := k.ctx
+		if ps := places[k]; len(ps) > 0 {
+			ctx = joinAnd(ps)
+		}
 		prep := "from" // probes run from a context
 		switch {
 		case slices.Equal(kinds[k], []string{kindLabel(evidence.KindListeners)}):
@@ -440,7 +433,7 @@ func (r *run) gapsFrom(v evidence.View) []Gap {
 			slices.Equal(kinds[k], []string{kindLabel(evidence.KindHostRoute)}):
 			prep = "of"
 		}
-		g.What = fmt.Sprintf("%s %s %s", joinAnd(kinds[k]), prep, k.ctx)
+		g.What = fmt.Sprintf("%s %s %s", joinAnd(kinds[k]), prep, ctx)
 		out = append(out, *g)
 	}
 	return out
