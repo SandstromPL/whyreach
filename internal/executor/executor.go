@@ -119,35 +119,11 @@ func Failed(where evidence.ContextRef, executor string, specs []probe.Spec, stat
 	out := make([]evidence.Evidence, 0, len(specs))
 	for _, s := range specs {
 		out = append(out, evidence.Evidence{
-			Kind: specKind(s), Context: ctx, Subject: specSubject(s), Status: status,
+			Kind: s.EvidenceKind(), Context: ctx, Subject: s.Subject(), Status: status,
 			ObservedAt: time.Now(), Err: e,
 		})
 	}
 	return out
-}
-
-func specKind(s probe.Spec) evidence.Kind {
-	switch s.Kind {
-	case probe.SpecDNS:
-		return evidence.KindDNS
-	case probe.SpecListeners:
-		return evidence.KindListeners
-	default:
-		return evidence.KindTCP
-	}
-}
-
-func specSubject(s probe.Spec) string {
-	switch s.Kind {
-	case probe.SpecDNS:
-		return s.Host
-	case probe.SpecListeners:
-		return "listeners"
-	default:
-		t := evidence.Target{Host: s.Host, Port: s.Port}
-		_, t.Addr = evidence.ClassifyHost(s.Host)
-		return t.String()
-	}
 }
 
 // KnownNames reports whether Docker's own metadata knows name: a container

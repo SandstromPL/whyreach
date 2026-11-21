@@ -506,6 +506,37 @@ func TestProbeContainerReimportsARemovedImage(t *testing.T) {
 	}
 }
 
+func TestFailedNamesEachCheck(t *testing.T) {
+	specs := []probe.Spec{
+		{Kind: probe.SpecDNS, Host: "api"},
+		{Kind: probe.SpecListeners},
+		{Kind: probe.SpecTCP, Host: "api", Port: 8080},
+		{Kind: probe.SpecTCP, Host: "::1", Port: 80},
+		{Kind: probe.SpecTCP, Host: "fe80::1%eth0", Port: 80},
+		{Kind: probe.SpecTCP, Host: "::ffff:10.0.0.1", Port: 80},
+	}
+	want := []struct {
+		kind    evidence.Kind
+		subject string
+	}{
+		{evidence.KindDNS, "api"},
+		{evidence.KindListeners, "listeners"},
+		{evidence.KindTCP, "api:8080"},
+		{evidence.KindTCP, "[::1]:80"},
+		{evidence.KindTCP, "[fe80::1%eth0]:80"},
+		{evidence.KindTCP, "::ffff:10.0.0.1:80"},
+	}
+	evs := Failed(worker, "netns", specs, evidence.StatusFailed, &evidence.Error{Code: evidence.CodeInternal, Message: "x"})
+	if len(evs) != len(want) {
+		t.Fatalf("%d records, want %d", len(evs), len(want))
+	}
+	for i, ev := range evs {
+		if ev.Kind != want[i].kind || ev.Subject != want[i].subject || ev.Context.Executor != "netns" || ev.Status != evidence.StatusFailed {
+			t.Errorf("record %d: %s %q %+v, want %s %q", i, ev.Kind, ev.Subject, ev.Context, want[i].kind, want[i].subject)
+		}
+	}
+}
+
 func TestProbeBudgetFollowsTheDeadline(t *testing.T) {
 	if got := probeBudget(context.Background()); got != probe.Budget {
 		t.Errorf("no deadline: %s, want %s", got, probe.Budget)
