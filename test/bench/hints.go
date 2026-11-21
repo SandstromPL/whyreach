@@ -56,6 +56,11 @@ func StripComments(src []byte) ([]byte, error) {
 // saw (symptom, or ""), and how to answer; nothing about the cause. from
 // and to are as whyreach's --from and target: from is host or
 // service:<name>@<project>.
+//
+// The answer it asks for is the one the checks judge by: a likely cause
+// counts as a cause (the scenario's likely_cause verdict), and none means
+// no problem or no cause named. Until v0.2 it said "no settled cause",
+// which an agent read as excluding a likely one (wr013-subnet-overlap).
 func DiagnosePrompt(from, to, symptom string) string {
 	who := "On this machine (the host itself, not inside a container), a program"
 	if svc, ok := strings.CutPrefix(from, "service:"); ok {
@@ -66,8 +71,8 @@ func DiagnosePrompt(from, to, symptom string) string {
 		to += " (" + symptom + ")"
 	}
 	return who + " can't connect to " + to + ". Find out why, using the whyreach tools. " +
-		"Finish with one line `RESULT: <rule ID>` naming the rule of the cause whyreach found (its ID: WR and three digits), " +
-		"or `RESULT: none` if whyreach reproduced no problem or found no settled cause."
+		"Finish with one line `RESULT: <rule ID>` naming the rule of the cause whyreach found, certain or likely (its ID: WR and three digits), " +
+		"or `RESULT: none` if whyreach reproduced no problem or named no cause."
 }
 
 var (
