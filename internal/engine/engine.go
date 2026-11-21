@@ -211,6 +211,7 @@ func (e *Engine) Diagnose(ctx context.Context, from target.From, to evidence.Tar
 	_ = stage("collect", r.collect)
 	_ = stage("probe", r.probe)
 	_ = stage("host", r.hostAfterLookup)
+	_ = stage("control", r.hostControl)
 	_ = stage("route", r.routes)
 
 	t := time.Now()

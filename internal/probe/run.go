@@ -33,7 +33,8 @@ type Spec struct {
 	Host string `json:"host,omitempty"` // a name or an IP address
 	Port uint16 `json:"port,omitempty"` // tcp only
 	// Via marks an address that came from Docker metadata rather than from
-	// the target itself ("metadata"); only for tcp specs with an IP Host.
+	// the target itself ("metadata"), or the host's own connect made for
+	// comparison ("control", WR021); only for tcp specs with an IP Host.
 	Via string `json:"via,omitempty"`
 }
 
@@ -52,13 +53,14 @@ func (s Spec) Validate() error {
 		_, err := target.ParseTo(net.JoinHostPort(s.Host, "1")) // brackets an IPv6 literal
 		return err
 	case SpecTCP:
-		if s.Via != "" && s.Via != evidence.ViaMetadata {
-			return fmt.Errorf("unknown via %q", s.Via)
-		}
-		if s.Via == evidence.ViaMetadata {
+		switch s.Via {
+		case "":
+		case evidence.ViaMetadata, evidence.ViaControl:
 			if _, err := netip.ParseAddr(s.Host); err != nil {
-				return errors.New("a metadata address must be an IP")
+				return fmt.Errorf("a %s address must be an IP", s.Via)
 			}
+		default:
+			return fmt.Errorf("unknown via %q", s.Via)
 		}
 		_, err := target.ParseTo(s.subject())
 		return err
@@ -189,8 +191,8 @@ func connect(ctx context.Context, env Env, l *lookups, s Spec) []evidence.Eviden
 	subject := s.subject()
 	if a, err := netip.ParseAddr(s.Host); err == nil {
 		via := evidence.ViaLiteral
-		if s.Via == evidence.ViaMetadata {
-			via = evidence.ViaMetadata
+		if s.Via == evidence.ViaMetadata || s.Via == evidence.ViaControl {
+			via = s.Via
 		}
 		return []evidence.Evidence{dial(ctx, env.Enter, subject, netip.AddrPortFrom(a, s.Port), via, env.Limits)}
 	}

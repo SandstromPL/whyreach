@@ -264,8 +264,11 @@ func EvidenceLine(e evidence.Evidence) string {
 			s += ", " + d.Errno
 		}
 		s += fmt.Sprintf(" (%.1f ms)", evidence.Millis(d.RTT))
-		if d.Via == evidence.ViaMetadata {
+		switch d.Via {
+		case evidence.ViaMetadata:
 			s += ", address from Docker metadata"
+		case evidence.ViaControl:
+			s += ", whyreach's own connect, for comparison"
 		}
 		if d.Outcome == evidence.OutcomeClosed {
 			s += ": accepted, then closed at once without a byte"

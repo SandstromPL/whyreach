@@ -27,7 +27,8 @@ type world struct {
 	sockets     map[int][]string // pid → listening addresses
 	host        []string         // the host's listening addresses
 	dns         map[string][]string
-	tcp         map[string]string // "addr:port" → outcome; missing means timeout
+	tcp         map[string]string // "addr:port" → outcome; missing means timeout; unreachable is EHOSTUNREACH
+	hostTCP     map[string]string // what the host's own connects get, where it differs from tcp (WR021)
 	desktop     bool
 	failInspect map[string]error              // container name → inspect error
 	failList    error                         // the error of listing all containers (resolving a service still works)
@@ -222,12 +223,18 @@ func (s *scripted) Run(ctx context.Context, where evidence.ContextRef, specs []p
 	}
 	dial := func(subject string, ap netip.AddrPort, via string) evidence.Evidence {
 		outcome, ok := s.w.tcp[ap.String()]
+		if o, own := s.w.hostTCP[ap.String()]; own && s.name == evidence.ExecutorHost {
+			outcome, ok = o, true
+		}
 		if !ok {
 			outcome = evidence.OutcomeTimeout
 		}
+		p := evidence.TCPProbe{Target: subject, Addr: ap, Via: via, Outcome: outcome}
+		if outcome == evidence.OutcomeUnreachable {
+			p.Errno = "EHOSTUNREACH"
+		}
 		return evidence.Evidence{Kind: evidence.KindTCP, Subject: subject, Status: evidence.StatusOK,
-			Context: evidence.ContextRef{Executor: s.name},
-			Data:    evidence.TCPProbe{Target: subject, Addr: ap, Via: via, Outcome: outcome}}
+			Context: evidence.ContextRef{Executor: s.name}, Data: p}
 	}
 	looked := map[string]bool{}
 	for _, sp := range specs {

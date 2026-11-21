@@ -219,6 +219,32 @@ func TestSocketAccepts(t *testing.T) {
 	}
 }
 
+// TestHostControl: whyreach's own connect from the host, made for
+// comparison (WR021), is found by its address only in the host's context,
+// counts as one of the host's addresses only where the host holds it, and
+// is never how the app connects.
+func TestHostControl(t *testing.T) {
+	ap := netip.MustParseAddrPort("172.17.0.1:5432")
+	tcp := func(id string, c ContextRef, via string) Evidence {
+		return Evidence{ID: id, Kind: KindTCP, Context: c, Subject: ap.String(), Status: StatusOK,
+			Data: TCPProbe{Target: ap.String(), Addr: ap, Via: via, Outcome: OutcomeConnected}}
+	}
+	src := ContextRef{Kind: ContextContainer, Container: "aaaaaaaaaaaa", Name: "worker"}
+	addrs := Evidence{ID: "ev-01", Kind: KindHostAddrs, Context: Host(), Subject: "interfaces", Status: StatusOK,
+		Data: HostAddrs{Interfaces: []Interface{{Name: "docker0", Up: true, Addrs: []netip.Prefix{netip.MustParsePrefix("172.17.0.1/16")}}}}}
+	q := Question{From: Source{Kind: SourceContainer, Ref: "container:worker", ContainerID: strings.Repeat("a", 64)}, To: Target{Host: "172.17.0.1", Port: 5432, Class: TargetIP, Addr: ap.Addr()}}
+	v := NewView(q, []Evidence{addrs, tcp("ev-02", src, ViaLiteral), tcp("ev-03", Host(), ViaControl)})
+	if c, ok := v.HostControl(ap); !ok || c.ID != "ev-03" || c.P.ByName() {
+		t.Errorf("HostControl = %+v, %v; want ev-03, not by name", c, ok)
+	}
+	if _, ok := NewView(q, []Evidence{addrs, tcp("ev-02", src, ViaControl)}).HostControl(ap); ok {
+		t.Error("a control record outside the host's context isn't the host's own connect")
+	}
+	if !v.HostHolds(ap.Addr()) || v.HostHolds(netip.MustParseAddr("172.17.0.2")) || v.HostHolds(netip.MustParseAddr("127.0.0.1")) {
+		t.Error("HostHolds: want the docker0 address only")
+	}
+}
+
 func container(id, name, project, service string, nets ...NetAttachment) Container {
 	c := Container{ID: id, Name: name, State: StateRunning, Networks: nets, NetworkMode: "bridge"}
 	if project != "" {

@@ -534,6 +534,7 @@ func TestRunSharesLookupsAndConnects(t *testing.T) {
 		{Kind: SpecDNS, Host: "api"},
 		{Kind: SpecTCP, Host: "api", Port: port},
 		{Kind: SpecTCP, Host: "127.0.0.1", Port: port, Via: evidence.ViaMetadata},
+		{Kind: SpecTCP, Host: "127.0.0.1", Port: port, Via: evidence.ViaControl},
 		{Kind: SpecTCP, Host: "nothere", Port: port},
 	}
 	evs := Run(context.Background(), env, specs)
@@ -549,6 +550,7 @@ func TestRunSharesLookupsAndConnects(t *testing.T) {
 		"probe.dns api ok",
 		"probe.tcp api:" + itoa(port) + " ok dns connected",
 		"probe.tcp 127.0.0.1:" + itoa(port) + " ok metadata connected",
+		"probe.tcp 127.0.0.1:" + itoa(port) + " ok control connected",
 		"probe.dns nothere ok",
 		"probe.tcp nothere:" + itoa(port) + " skipped",
 	}
@@ -590,6 +592,7 @@ func TestDecodeSpecs(t *testing.T) {
 		`[{"kind":"tcp","host":"api","port":0}]`,
 		`[{"kind":"tcp","host":"169.254.169.254","port":80}]`,
 		`[{"kind":"tcp","host":"api","port":80,"via":"metadata"}]`,
+		`[{"kind":"tcp","host":"api","port":80,"via":"control"}]`,
 		`[{"kind":"tcp","host":"api","port":80,"via":"magic"}]`,
 		`[{"kind":"dns","host":"api","port":53}]`,
 		`[{"kind":"listeners","host":"api"}]`,

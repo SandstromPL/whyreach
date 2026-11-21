@@ -624,6 +624,35 @@ func (v View) InSource(c ContextRef) bool {
 	return c.Kind == ContextContainer && c.Container == ShortID(v.q.From.ContainerID)
 }
 
+// HostControl returns whyreach's own connect from the host's network
+// namespace to addr, made for comparison when a container's connect to that
+// host address failed (WR021), if it was made.
+func (v View) HostControl(addr netip.AddrPort) (TCPEv, bool) {
+	for _, t := range v.TCP() {
+		if t.Context.Kind == ContextHost && t.P.Via == ViaControl && t.P.Addr == addr {
+			return t, true
+		}
+	}
+	return TCPEv{}, false
+}
+
+// HostHolds reports an address of the host's own: on one of its
+// interfaces, or, when those weren't read, one the target stands for.
+func (v View) HostHolds(a netip.Addr) bool {
+	a = a.Unmap()
+	if !a.IsValid() || a.IsLoopback() {
+		return false
+	}
+	if ha, ok := v.HostAddrs(); ok {
+		_, owned := ha.H.Owner(a)
+		return owned
+	}
+	if ht, ok := v.HostTarget(); ok {
+		return slices.Contains(ht.Addresses(), a)
+	}
+	return false
+}
+
 // SourceTCP returns the TCP connects that ran in the source's netns.
 func (v View) SourceTCP() []TCPEv {
 	var out []TCPEv

@@ -505,6 +505,10 @@ const (
 	ViaDNS      = "dns"      // answered by the resolver in resolv.conf
 	ViaLiteral  = "literal"  // the target was an IP address
 	ViaMetadata = "metadata" // the address came from Docker metadata, not from a lookup
+	// ViaControl marks whyreach's own connect from the host's network
+	// namespace to the host address and port a container's connect failed
+	// at, made for comparison (WR021): never how the app connects.
+	ViaControl = "control"
 
 	RcodeTimeout = "TIMEOUT" // no answer from the resolver in time
 )
@@ -686,6 +690,7 @@ type DockerSubnet struct {
 }
 
 // ByName reports whether the address came from resolving the target the way
-// the app would (or was given literally), as opposed to Docker metadata.
-// Only such probes decide whether the problem reproduced.
-func (t TCPProbe) ByName() bool { return t.Via != ViaMetadata }
+// the app would (or was given literally), as opposed to Docker metadata or
+// whyreach's own connect from the host for comparison. Only such probes
+// decide whether the problem reproduced.
+func (t TCPProbe) ByName() bool { return t.Via != ViaMetadata && t.Via != ViaControl }

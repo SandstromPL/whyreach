@@ -254,12 +254,16 @@ func facts(v evidence.View, complete bool) []Fact {
 		}
 	}
 	for _, t := range v.TCP() {
-		if !inSource(q, t.Context) {
+		control := t.P.Via == evidence.ViaControl && t.Context.Kind == evidence.ContextHost
+		if !inSource(q, t.Context) && !control {
 			continue
 		}
 		via := ""
-		if t.P.Via == evidence.ViaMetadata {
+		switch {
+		case t.P.Via == evidence.ViaMetadata:
 			via = ", address from Docker metadata"
+		case control:
+			via = ", whyreach's own connect, for comparison"
 		}
 		text := fmt.Sprintf("connect %s from %s: %s (%.1f ms%s)", t.P.Addr, t.Context.String(), t.P.Outcome, evidence.Millis(t.P.RTT), via)
 		if t.P.Errno != "" {
