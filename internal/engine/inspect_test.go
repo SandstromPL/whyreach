@@ -9,6 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
+	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/probe"
@@ -83,6 +86,36 @@ func TestInspect(t *testing.T) {
 	}
 	if _, err := noDocker.Inspect(ctx, target.Scope{Kind: target.ScopeContainer, Name: "api"}); err == nil {
 		t.Error("a container scope needs Docker")
+	}
+}
+
+// TestInspectNamesBridges: the host's interfaces name the Docker network
+// whose bridge each one is, by the bridge name Docker reports: docker0,
+// br-<id>, or a name com.docker.network.bridge.name sets.
+func TestInspectNamesBridges(t *testing.T) {
+	w := inspectWorld()
+	w.nets = []docker.Network{
+		{ID: strings.Repeat("c", 64), Name: "lab_custom", Driver: "bridge", Bridge: "labbr0"},
+		{ID: strings.Repeat("d", 64), Name: "lab_vlan", Driver: "macvlan"},
+	}
+	ifaces := func() (evidence.HostAddrs, error) {
+		return evidence.HostAddrs{Interfaces: []evidence.Interface{
+			{Name: "br-shop_default", Up: true, Addrs: []netip.Prefix{netip.MustParsePrefix("172.22.0.1/16")}},
+			{Name: "eth0", Up: true, Addrs: []netip.Prefix{netip.MustParsePrefix("192.168.1.10/24")}},
+			{Name: "labbr0", Up: true, Addrs: []netip.Prefix{netip.MustParsePrefix("172.30.0.1/16")}},
+		}}, nil
+	}
+	in, err := New(Deps{Docker: w, Listeners: w, Interfaces: ifaces}).Inspect(context.Background(), target.Scope{Kind: target.ScopeHost})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, i := range in.Host.Interfaces {
+		got[i.Name] = i.Network
+	}
+	want := map[string]string{"br-shop_default": "shop_default", "eth0": "", "labbr0": "lab_custom"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("interface → network (-want +got):\n%s", diff)
 	}
 }
 

@@ -182,13 +182,10 @@ func (e *Engine) inspectHost(ctx context.Context, in *Inspection) {
 			r.gaps = append(r.gaps, Gap{What: "Docker networks", Why: "failed", Detail: err.Error()})
 		}
 		for _, n := range nets {
-			if n.Driver != "bridge" {
-				continue
-			}
-			if n.Name == evidence.NetworkBridge {
-				bridges[evidence.DefaultBridge] = n.Name
-			} else {
-				bridges["br-"+evidence.ShortID(n.ID)] = n.Name
+			// The bridge's name as Docker reports it: docker0, br-<id>, or
+			// the one com.docker.network.bridge.name sets.
+			if n.Bridge != "" {
+				bridges[n.Bridge] = n.Name
 			}
 		}
 		cctx, ccancel := context.WithTimeout(ctx, dockerTimeout)
