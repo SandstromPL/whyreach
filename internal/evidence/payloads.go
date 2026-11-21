@@ -200,11 +200,11 @@ func (p PortMap) LoopbackOnly() bool {
 	return err == nil && h.Unmap().IsLoopback()
 }
 
-// HostAddr is the binding's host side as host:port, "*" standing for every
-// address.
+// HostAddr is the binding's host side as host:port, 0.0.0.0 standing for
+// an empty host address.
 func (p PortMap) HostAddr() string {
 	ip := p.HostIP
-	if ip == "" || ip == "0.0.0.0" {
+	if ip == "" {
 		ip = "0.0.0.0"
 	}
 	if a, err := netip.ParseAddr(ip); err == nil && a.Is6() && !a.Is4In6() {
@@ -344,7 +344,7 @@ func (c Container) UserDefinedNetworks() []string {
 // Matching ignores case and a trailing dot, as DNS does. Whether Docker's DNS
 // actually answers the name is AnswersTo's question.
 func (c Container) Matches(name string) bool {
-	name = normalizeName(name)
+	name = NormalizeName(name)
 	if name == "" {
 		return false
 	}
@@ -364,7 +364,7 @@ func (c Container) Matches(name string) bool {
 // name, Compose service, an alias or a DNSName. The default bridge network
 // answers nothing.
 func (c Container) AnswersTo(name string) []string {
-	name = normalizeName(name)
+	name = NormalizeName(name)
 	if name == "" {
 		return nil
 	}
@@ -392,7 +392,7 @@ func (c Container) answersOn(a NetAttachment, name string) bool {
 // "192.168.1.50" or "host-gateway". The container's /etc/hosts answers such
 // a name before any DNS, so it overrides every container with that name.
 func (c Container) HostsEntry(name string) (string, bool) {
-	name = normalizeName(name)
+	name = NormalizeName(name)
 	for _, e := range c.ExtraHosts {
 		// "host:ip" (an IPv6 ip contains colons too) or, from Docker 25, "host=ip"
 		host, value, ok := strings.Cut(e, "=")
@@ -406,7 +406,9 @@ func (c Container) HostsEntry(name string) (string, bool) {
 	return "", false
 }
 
-func normalizeName(name string) string { return strings.TrimSuffix(strings.ToLower(name), ".") }
+// NormalizeName is a name as DNS compares it: lowercase, without a
+// trailing dot.
+func NormalizeName(name string) string { return strings.TrimSuffix(strings.ToLower(name), ".") }
 
 // Listeners is the set of listening TCP sockets in one network namespace.
 type Listeners struct {
@@ -530,6 +532,12 @@ type DNSProbe struct {
 	// used when that is on the probe block list and was asked because it is
 	// one of the host's own resolvers (INITIAL.md §10 Q13); empty otherwise.
 	HostResolver string `json:"host_resolver,omitempty"`
+}
+
+// AtDockerDNS reports a lookup whose resolver is Docker's embedded DNS
+// (Server "127.0.0.11:53").
+func (p DNSProbe) AtDockerDNS() bool {
+	return strings.HasPrefix(p.Server, DockerDNSAddr.String()+":")
 }
 
 // From names, for text, the nameserver a lookup's result came from: the

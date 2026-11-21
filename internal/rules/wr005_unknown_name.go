@@ -47,7 +47,7 @@ func (r wr005) Evaluate(v evidence.View) []Finding {
 	if len(d.All()) > 0 {
 		return nil // only on other networks: WR004
 	}
-	name := strings.TrimSuffix(strings.ToLower(q.To.Host), ".")
+	name := evidence.NormalizeName(q.To.Host)
 	known := namesOn(v, owner.C, nets)
 	best, dist := closest(name, known)
 	dotted := strings.Contains(name, ".")
@@ -116,7 +116,7 @@ func confirmLookup(v evidence.View, f *Finding, src, owner evidence.ContainerEv)
 	ctl, ok := v.SourceDNS(owner.C.Name)
 	controlResolved := ok && ctl.ID != dns.ID && len(ctl.P.Answers) > 0
 	if dns.P.Rcode == evidence.RcodeTimeout {
-		embedded := strings.HasPrefix(dns.P.Server, evidence.DockerDNSAddr.String()+":")
+		embedded := dns.P.AtDockerDNS()
 		if !controlResolved || !embedded || !singleLabel(q.To.Host) || len(searchQueries(dns.P)) > 0 {
 			return fmt.Sprintf(" The lookup in %s timed out (from %s), which points at the upstream DNS rather than at the name.", src.C.DisplayName(), dns.P.Server), false
 		}

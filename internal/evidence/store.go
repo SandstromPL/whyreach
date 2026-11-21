@@ -23,13 +23,6 @@ func (s *Store) Add(e ...Evidence) {
 	s.items = append(s.items, e...)
 }
 
-// Len is the number of records so far.
-func (s *Store) Len() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.items)
-}
-
 // Snapshot returns the records collected so far, in canonical order, without
 // IDs. The engine uses it to decide what to collect next.
 func (s *Store) Snapshot() []Evidence {

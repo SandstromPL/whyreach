@@ -166,7 +166,7 @@ func outsideOf(v evidence.View, owner evidence.ContainerEv, beyond string) (outs
 				return outside{}, false // it resolves to an address on the source's networks after all
 			}
 			out.ids = append(out.ids, dns.ID)
-			if len(dns.P.Answers) == 0 && dns.P.Rcode == "SERVFAIL" && strings.HasPrefix(dns.P.Server, evidence.DockerDNSAddr.String()+":") {
+			if len(dns.P.Answers) == 0 && dns.P.Rcode == "SERVFAIL" && dns.P.AtDockerDNS() {
 				out.dns = "Looking it up, Docker's DNS answered SERVFAIL: it doesn't forward lookups from internal networks."
 			}
 		}

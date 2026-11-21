@@ -60,7 +60,7 @@ func ClassifyHost(host string) (class string, addr netip.Addr) {
 		}
 		return TargetIP, a
 	}
-	h := strings.TrimSuffix(strings.ToLower(host), ".")
+	h := NormalizeName(host)
 	switch {
 	case h == "localhost", h == "ip6-localhost", h == "ip6-loopback", strings.HasSuffix(h, ".localhost"):
 		return TargetLoopback, netip.Addr{}

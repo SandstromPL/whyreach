@@ -457,7 +457,7 @@ func (v View) HostAddrs() (HostAddrsEv, bool) {
 const HostDockerInternal = "host.docker.internal"
 
 // IsHostDockerInternal reports the name host.docker.internal.
-func IsHostDockerInternal(name string) bool { return normalizeName(name) == HostDockerInternal }
+func IsHostDockerInternal(name string) bool { return NormalizeName(name) == HostDockerInternal }
 
 // How a target can refer to the host's network namespace.
 const (

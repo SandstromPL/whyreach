@@ -55,7 +55,7 @@ func (r wr020) Evaluate(v evidence.View) []Finding {
 		Supporting: []string{src.ID, owner.ID, dns.ID},
 	}
 	srcName := src.C.DisplayName()
-	embedded := strings.HasPrefix(dns.P.Server, evidence.DockerDNSAddr.String()+":")
+	embedded := dns.P.AtDockerDNS()
 	control, haveControl := v.SourceDNS(owner.C.Name)
 	if haveControl && control.ID == dns.ID {
 		haveControl = false
