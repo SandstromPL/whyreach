@@ -13,7 +13,7 @@ import (
 )
 
 // maxRouteLookups bounds the target's addresses whose host routes are
-// looked up (WR013).
+// looked up (WR013, WR016).
 const maxRouteLookups = 2
 
 // RoutesElsewhere is the message of a route record where Docker's networks
@@ -26,9 +26,11 @@ const RoutesElsewhereAdvice = "Compare the subnets of Docker's networks (docker 
 
 // routes records how the host routes the target's addresses that lie in a
 // Docker bridge network's subnet and that no container holds (WR013: a
-// Docker subnet overlaps a VPN or LAN route). It runs after the probes,
-// since the source's lookup may give the address, and needs none of them:
-// a literal address or an extra_hosts entry is enough.
+// Docker subnet overlaps a VPN or LAN route), and those outside Docker's
+// networks that the source's connect timed out on (WR016: where the
+// traffic goes before something drops it). It runs after the probes,
+// since the source's lookup may give the address; WR013's lookups need
+// none of them: a literal address or an extra_hosts entry is enough.
 func (r *run) routes(ctx context.Context) error {
 	if ctx.Err() != nil || r.docker == nil || r.e.d.Routes == nil {
 		return nil
@@ -37,8 +39,8 @@ func (r *run) routes(ctx context.Context) error {
 	if _, ok := view.HostTarget(); ok {
 		return nil // an address of the host's own: not routed into a Docker network
 	}
-	cands := targetAddrs(view)
-	if len(cands) == 0 {
+	cands, timedOut := targetAddrs(view), timedOutAddrs(view)
+	if len(cands) == 0 && len(timedOut) == 0 {
 		return nil
 	}
 	if r.networks == nil {
@@ -53,7 +55,18 @@ func (r *run) routes(ctx context.Context) error {
 			bridges[n.Bridge] = true
 		}
 	}
-	for _, a := range r.routeTargets(view, cands) {
+	addrs := r.routeTargets(view, cands)
+	if r.engineHere {
+		// On Docker Desktop its VM and its own network stack carry the
+		// traffic, so the routes here say nothing about where a dropped
+		// connect went, and WR016 doesn't judge one that leaves the VM.
+		for _, a := range r.outsideTargets(timedOut) {
+			if len(addrs) < maxRouteLookups && !slices.Contains(addrs, a) {
+				addrs = append(addrs, a)
+			}
+		}
+	}
+	for _, a := range addrs {
 		ev := evidence.Evidence{
 			Kind: evidence.KindHostRoute, Context: r.host(), Subject: a.String(),
 			Source: "the kernel's routing tables (netlink RTM_GETROUTE), in whyreach's own network namespace",
@@ -74,7 +87,8 @@ func (r *run) routes(ctx context.Context) error {
 		}
 		rt.Dst, rt.Networks = a, r.dockerSubnets(a)
 		// A default route covers every address: it says nothing about
-		// whose range the address is in, and isn't kept.
+		// whose range the address is in, and isn't kept among the covering
+		// routes. As the chosen one it stays: no other route covers it.
 		rt.Covering = slices.DeleteFunc(rt.Covering, evidence.Route.Default)
 		if rt.Chosen != nil {
 			rt.Chosen.Docker = bridges[rt.Chosen.Dev]
@@ -110,6 +124,50 @@ func targetAddrs(v evidence.View) []netip.Addr {
 		}
 	}
 	return slices.DeleteFunc(cands, func(a netip.Addr) bool { a = a.Unmap(); return !a.IsValid() || a.IsLoopback() })
+}
+
+// timedOutAddrs lists the addresses the source's connects through the
+// target's name or literal address timed out on.
+func timedOutAddrs(v evidence.View) []netip.Addr {
+	var out []netip.Addr
+	for _, t := range v.SourceTCP() {
+		if t.P.ByName() && t.P.Outcome == evidence.OutcomeTimeout {
+			out = append(out, t.P.Addr.Addr().Unmap())
+		}
+	}
+	return out
+}
+
+// outsideTargets keeps the timed-out addresses whose routes WR016 needs:
+// outside every Docker network's subnet, where the host's routing table
+// decides where the traffic goes (from a container, after its gateway).
+// The host's own addresses never get here (routes returns first for a
+// target on the host).
+func (r *run) outsideTargets(addrs []netip.Addr) []netip.Addr {
+	var out []netip.Addr
+	for _, a := range addrs {
+		switch {
+		case !a.IsValid(), a.IsLoopback(), a.IsUnspecified(), a.IsLinkLocalUnicast(), a.IsMulticast(), slices.Contains(out, a):
+			continue
+		case r.inDockerSubnet(a):
+			continue // a container's, or WR013's and WR024's
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
+// inDockerSubnet reports an address in any Docker network's subnet, of any
+// driver.
+func (r *run) inDockerSubnet(a netip.Addr) bool {
+	for _, n := range r.networks {
+		for _, s := range n.Subnets {
+			if s.Contains(a) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // routeTargets keeps the addresses whose routes WR013 needs: in a Docker

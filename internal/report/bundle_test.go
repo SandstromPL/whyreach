@@ -240,6 +240,40 @@ func TestRedactorHostRoutes(t *testing.T) {
 	}
 }
 
+// TestRedactorOutsideRoute: WR016's record for an address outside Docker
+// that the source's connect timed out on. Its chosen route may be the
+// default one, whose interface names the user's network and whose prefix
+// names nothing: 0.0.0.0 in a listener stays readable. (A VPN's /1 half,
+// 128.0.0.0, is a public address, which every report pseudonymizes.)
+func TestRedactorOutsideRoute(t *testing.T) {
+	d := identifying()
+	d.Question.To = evidence.Target{Host: "203.0.113.40", Port: 443, Proto: "tcp", Class: evidence.TargetIP, Addr: netip.MustParseAddr("203.0.113.40")}
+	d.Evidence = append(d.Evidence,
+		evidence.Evidence{ID: "ev-05", Kind: evidence.KindHostRoute, Status: evidence.StatusOK, Data: evidence.HostRoute{
+			Dst:    netip.MustParseAddr("203.0.113.40"),
+			Chosen: &evidence.Route{Prefix: netip.MustParsePrefix("0.0.0.0/0"), Dev: "enp3s0"},
+		}},
+		evidence.Evidence{ID: "ev-06", Kind: evidence.KindHostRoute, Status: evidence.StatusOK, Data: evidence.HostRoute{
+			Dst:    netip.MustParseAddr("198.51.100.9"),
+			Chosen: &evidence.Route{Prefix: netip.MustParsePrefix("128.0.0.0/1"), Dev: "tun3"},
+		}})
+	for _, private := range []bool{false, true} {
+		r := NewRedactor(private, "")
+		r.Learn(d)
+		text := r.Apply("the default route 0.0.0.0/0 dev enp3s0, a VPN's half 128.0.0.0/1 dev tun3, api listens on 0.0.0.0:8080")
+		for _, leak := range []string{"enp3s0", "tun3"} {
+			if strings.Contains(text, leak) {
+				t.Errorf("private=%v: not redacted: %q in %q", private, leak, text)
+			}
+		}
+		for _, kept := range []string{"0.0.0.0/0", "0.0.0.0:8080"} {
+			if !strings.Contains(text, kept) {
+				t.Errorf("private=%v: a default route's prefix names nothing and stays: %q missing from %q", private, kept, text)
+			}
+		}
+	}
+}
+
 // TestReportMarkdownIsSanitized: report.md carries the summary and the
 // evidence lines, which can hold label text.
 func TestReportMarkdownIsSanitized(t *testing.T) {

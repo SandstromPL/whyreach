@@ -5,7 +5,8 @@
 // Interfaces come from the standard library's net.Interfaces, which asks
 // the kernel over netlink on Linux (RTM_GETLINK, RTM_GETADDR) and never
 // runs a command. Route lookups (Route: netlink RTM_GETROUTE, Linux only)
-// serve WR013. Listening sockets are read by package probe from /proc/net.
+// serve WR013 and WR016. Listening sockets are read by package probe from
+// /proc/net.
 package host
 
 import (

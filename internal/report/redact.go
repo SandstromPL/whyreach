@@ -67,7 +67,7 @@ func (r *Redactor) Learn(d *engine.Diagnosis) {
 	// A route that isn't Docker's maps the user's other networks (a VPN, a
 	// LAN): its range and interface, and the host's own addresses on that
 	// interface, get pseudonyms even where private addresses are kept
-	// (WR013's host.route records).
+	// (the host.route records of WR013 and WR016).
 	keep := map[netip.Addr]bool{q.To.Addr.Unmap(): true}
 	foreign := map[string]bool{}
 	for _, e := range d.Evidence {
@@ -92,7 +92,9 @@ func (r *Redactor) Learn(d *engine.Diagnosis) {
 				r.bridge(rt.Dev)
 				continue
 			}
-			if a := rt.Prefix.Addr(); !keep[a] {
+			// A default route's prefix (0.0.0.0/0, or a VPN's /1 halves)
+			// names no network of the user's; its interface still does.
+			if a := rt.Prefix.Addr(); !keep[a] && !rt.Default() {
 				r.always(a)
 			}
 			if rt.Dev != "" && rt.Dev != "lo" {

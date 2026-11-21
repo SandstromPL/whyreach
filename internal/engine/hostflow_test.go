@@ -547,3 +547,37 @@ func TestRouteRecords(t *testing.T) {
 		t.Errorf("Docker Desktop: route records %+v, gaps %+v", recs, d.Gaps)
 	}
 }
+
+// TestRouteRecordsOutside: a connect from the source that timed out on an
+// address outside every Docker network's subnet gets the host's route
+// (WR016), from the host or a container: the chosen route kept even when
+// it is the default one, the covering ones without defaults, no Docker
+// network. A connect that worked gets none, and nothing is looked up on
+// Docker Desktop, whose VM and network stack carry such traffic.
+func TestRouteRecordsOutside(t *testing.T) {
+	outside := func(desktop bool) *world {
+		w := shopWorld()
+		w.desktop = desktop
+		dflt := evidence.Route{Prefix: netip.MustParsePrefix("0.0.0.0/0"), Dev: "eth0"}
+		w.routes = map[string]evidence.HostRoute{"10.8.20.5": {Chosen: &dflt, Covering: []evidence.Route{dflt}}}
+		return w // 10.8.20.5:5432 isn't in w.tcp: it times out
+	}
+	for _, from := range []string{"host", "container:shop-worker-1"} {
+		recs := routeRecords(diagnoseWith(t, outside(false), from, "10.8.20.5:5432", true))
+		if len(recs) != 1 || !recs[0].OK() {
+			t.Fatalf("%s: route records %+v", from, recs)
+		}
+		rt := recs[0].Data.(evidence.HostRoute)
+		if rt.Dst != netip.MustParseAddr("10.8.20.5") || rt.Chosen == nil || !rt.Chosen.Default() || len(rt.Covering) != 0 || len(rt.Networks) != 0 {
+			t.Errorf("%s: route record %+v", from, rt)
+		}
+	}
+	w := outside(false)
+	w.tcp["10.8.20.5:5432"] = evidence.OutcomeConnected
+	if recs := routeRecords(diagnoseWith(t, w, "host", "10.8.20.5:5432", true)); len(recs) != 0 {
+		t.Errorf("a route was looked up for a connect that worked: %+v", recs)
+	}
+	if recs := routeRecords(diagnoseWith(t, outside(true), "container:shop-worker-1", "10.8.20.5:5432", true)); len(recs) != 0 {
+		t.Errorf("Docker Desktop: route records %+v", recs)
+	}
+}
