@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -198,6 +199,51 @@ func (f *failingReads) Run(ctx context.Context, where evidence.ContextRef, specs
 	return f.scripted.Run(ctx, where, specs)
 }
 
+// overlappingReads is a probe executor whose listener reads each wait, up
+// to a second, until two of them are in flight at once.
+type overlappingReads struct {
+	*scripted
+	mu             sync.Mutex
+	inFlight, most int
+}
+
+func (o *overlappingReads) Run(ctx context.Context, where evidence.ContextRef, specs []probe.Spec) ([]evidence.Evidence, error) {
+	if len(specs) != 1 || specs[0].Kind != probe.SpecListeners {
+		return o.scripted.Run(ctx, where, specs)
+	}
+	o.mu.Lock()
+	o.inFlight++
+	o.most = max(o.most, o.inFlight)
+	o.mu.Unlock()
+	for deadline := time.Now().Add(time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+		o.mu.Lock()
+		overlapped := o.most > 1
+		o.mu.Unlock()
+		if overlapped {
+			break
+		}
+	}
+	o.mu.Lock()
+	o.inFlight--
+	o.mu.Unlock()
+	return o.scripted.Run(ctx, where, specs)
+}
+
+// TestUnpublishedServerSearchReadsInParallel: on Docker Desktop each read
+// of the search is a probe container (0.5 to 1.5 s), so they overlap.
+func TestUnpublishedServerSearchReadsInParallel(t *testing.T) {
+	w := &world{containers: exposers(maxProbeListeners, 7000), sockets: map[int][]string{}, desktop: true}
+	probes := &overlappingReads{scripted: &scripted{w: w, name: evidence.ExecutorProbeContainer}}
+	f, _ := target.ParseFrom("host")
+	to, _ := target.ParseTo("localhost:9000")
+	if _, err := New(Deps{Docker: w, Listeners: w, Host: &scripted{w: w, name: evidence.ExecutorHost}, Probe: probes, Platform: wslRoot}).Diagnose(context.Background(), f, to); err != nil {
+		t.Fatal(err)
+	}
+	if len(probes.where) != maxProbeListeners || probes.most < 2 {
+		t.Errorf("%d listener reads, at most %d at once; want %d, overlapping", len(probes.where), probes.most, maxProbeListeners)
+	}
+}
+
 // masked prints a diagnosis's records and gaps without their times.
 func masked(d *Diagnosis) string {
 	var b strings.Builder
@@ -219,7 +265,7 @@ func masked(d *Diagnosis) string {
 }
 
 // TestUnpublishedServerSearchOnDesktop: on Docker Desktop each running
-// container's listeners take a probe container. The
+// container's listeners take a probe container, read in parallel. The
 // search for the one that serves a port unpublished (WR019) takes its
 // probe-container reads in name order first, so the records, which
 // containers it cut and the gaps are the same every time: pinned here.

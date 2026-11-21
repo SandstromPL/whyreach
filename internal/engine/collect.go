@@ -302,34 +302,45 @@ func (r *run) collectHost(ctx context.Context, ht evidence.HostTarget, list []do
 		r.metadataIncomplete = true
 		r.store.Add(failed...)
 	}
+	// The probe-container reads are taken in order before any read starts,
+	// and the reads run in parallel; each container's record stays at its
+	// index, so what follows sees them in order.
+	results := make([]evidence.Evidence, len(scanned))
+	var read []evidence.Container
+	var at []int
+	var cut []string
+	for i, ev := range scanned {
+		c := ev.Data.(evidence.Container)
+		switch {
+		case c.HostNetwork() || c.NetnsOwner() != "":
+			// its sockets are the host's, or another container's: no record
+		case !r.engineHere && !r.takeProbeListener():
+			results[i] = r.listenersCut(c)
+			cut = append(cut, c.DisplayName())
+		default:
+			read, at = append(read, c), append(at, i)
+		}
+	}
+	for j, l := range r.readAll(ctx, read) {
+		results[at[j]] = l
+	}
 	// Containers whose sockets couldn't be read (Docker Desktop without
 	// probe containers, whyreach's image without --pid host, the bound)
 	// may serve the port unpublished: one record says so, so the rules
 	// don't take their silence for "nothing listens".
 	var unread []evidence.Evidence
-	var cut []string
-	for _, ev := range scanned {
-		c := ev.Data.(evidence.Container)
-		if c.HostNetwork() || c.NetnsOwner() != "" {
-			continue // its sockets are the host's, or another container's
-		}
-		if !r.engineHere && !r.takeProbeListener() {
-			unread = append(unread, r.listenersCut(c))
-			cut = append(cut, c.DisplayName())
-			continue
-		}
-		l := r.containerListeners(ctx, c)
-		if !l.OK() {
+	for i, l := range results {
+		switch {
+		case l.Kind == "":
+		case !l.OK():
 			if l.Status != evidence.StatusSkipped || l.Err == nil || l.Err.Code != evidence.CodeNotFound {
 				unread = append(unread, l)
 			}
-			continue
+		default:
+			if socks, ok := l.Data.(evidence.Listeners); ok && len(socks.OnPort(port)) > 0 {
+				r.store.Add(scanned[i], l)
+			}
 		}
-		socks, ok := l.Data.(evidence.Listeners)
-		if !ok || len(socks.OnPort(port)) == 0 {
-			continue
-		}
-		r.store.Add(ev, l)
 	}
 	unread = append(unread, unscanned...)
 	if len(unread) > 0 {
@@ -580,15 +591,24 @@ func (r *run) readListeners(ctx context.Context, cs []evidence.Container) {
 	if len(cut) > 0 {
 		r.gaps = append(r.gaps, r.probeListenersGap(cut))
 	}
-	g, _ := errgroup.WithContext(ctx)
+	r.store.Add(r.readAll(ctx, read)...)
+}
+
+// readAll reads each container's listening sockets, collectParallel at a
+// time, and returns the records in the order given. Callers take the
+// probe-container reads first (takeProbeListener).
+func (r *run) readAll(ctx context.Context, cs []evidence.Container) []evidence.Evidence {
+	out := make([]evidence.Evidence, len(cs))
+	var g errgroup.Group
 	g.SetLimit(collectParallel)
-	for _, c := range read {
+	for i, c := range cs {
 		g.Go(func() error {
-			r.store.Add(r.containerListeners(ctx, c))
+			out[i] = r.containerListeners(ctx, c)
 			return nil
 		})
 	}
 	_ = g.Wait() // the goroutines never return errors
+	return out
 }
 
 // maxProbeListeners bounds the containers whose listening sockets one
