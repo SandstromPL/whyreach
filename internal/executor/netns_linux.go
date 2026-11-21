@@ -52,19 +52,18 @@ func (n *Netns) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 	failWith := func(status evidence.Status, code string, err error) ([]evidence.Evidence, error) {
 		return fail(status, &evidence.Error{Code: code, Message: err.Error()}, err)
 	}
-	c, err := n.lookUp(ctx, where)
+	ns, err := n.openFor(ctx, where)
 	if err != nil {
 		var ce *containerError
-		if errors.As(err, &ce) {
+		switch {
+		case errors.As(err, &ce):
 			return failWith(ce.status, ce.code, err)
+		case errors.Is(err, ErrCannotEnter):
+			status, e := probe.Classify(err)
+			return fail(status, e, err)
+		default:
+			return failWith(statusOf(ctx, err), evidence.CodeDockerUnavailable, err)
 		}
-		return failWith(statusOf(ctx, err), evidence.CodeDockerUnavailable, err)
-	}
-	ns, err := openNetns(c.Pid, c.ID, n.logger())
-	if err != nil {
-		err = fmt.Errorf("%w: %w", ErrCannotEnter, err)
-		status, e := probe.Classify(err)
-		return fail(status, e, err)
 	}
 	defer ns.close()
 
@@ -94,13 +93,9 @@ func (n *Netns) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 // Check enters the network namespace of a running container once, and reads
 // its /etc/resolv.conf, without sending anything: for whyreach doctor.
 func (n *Netns) Check(ctx context.Context, where evidence.ContextRef) error {
-	c, err := n.lookUp(ctx, where)
+	ns, err := n.openFor(ctx, where)
 	if err != nil {
 		return err
-	}
-	ns, err := openNetns(c.Pid, c.ID, n.logger())
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrCannotEnter, err)
 	}
 	defer ns.close()
 	f, err := ns.open(ctx, "/etc/resolv.conf")
@@ -108,6 +103,22 @@ func (n *Netns) Check(ctx context.Context, where evidence.ContextRef) error {
 		return fmt.Errorf("read %s's /etc/resolv.conf: %w", where, err)
 	}
 	return f.Close()
+}
+
+// openFor looks where's container up and opens its network namespace and
+// root directory (openNetns). A container that can't be used as it is
+// comes back as a *containerError, one whose namespace can't be entered as
+// ErrCannotEnter, and a failed lookup as Docker's error.
+func (n *Netns) openFor(ctx context.Context, where evidence.ContextRef) (*netnsHandle, error) {
+	c, err := n.lookUp(ctx, where)
+	if err != nil {
+		return nil, err
+	}
+	ns, err := openNetns(c.Pid, c.ID, n.logger())
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrCannotEnter, err)
+	}
+	return ns, nil
 }
 
 // containerError is a container that is there but can't be entered as it
