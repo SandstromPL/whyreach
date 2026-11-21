@@ -1,5 +1,5 @@
 {
-  "description": "worker asks for apii and the lookup times out: a timeout points at the upstream resolver (WR020), not at the name, so WR005 stays medium",
+  "description": "worker asks for apii, a single-label name with no search domains, and the lookup times out at Docker's embedded DNS while worker's own name resolves there: Docker passed apii on to its upstream, as it does only with names it doesn't know (Docker Desktop's DNS doesn't answer single-label names), so WR005 is high",
   "question": {
     "from": {
       "kind": "container",
@@ -220,12 +220,13 @@
   "want": [
     {
       "rule_id": "WR005",
-      "confidence": "medium",
+      "confidence": "high",
       "supporting": [
         "ev-01",
         "ev-02",
         "ev-03",
-        "ev-04"
+        "ev-04",
+        "ev-05"
       ],
       "fix_contains": "api:8080"
     }

@@ -94,9 +94,15 @@ func (r wr005) Evaluate(v evidence.View) []Finding {
 }
 
 // confirmLookup adds the source's own lookup of the target, which raises a
-// finding to high when it failed, unless it timed out: a timeout says the
-// upstream resolver didn't answer (WR020), not that Docker doesn't know the
-// name. It returns the sentence to add, and whether the name resolved.
+// finding to high when it failed. A timeout usually says the upstream
+// resolver didn't answer (WR020), not that Docker doesn't know the name, so
+// it raises the finding only for a single-label name, asked as it is (no
+// search domains), at Docker's embedded DNS while the source's own name
+// resolved there: Docker's DNS works and passed the name on, which it does
+// only with names Docker doesn't know, and an upstream server's silence
+// about a single-label name hides no outside host the app could mean
+// (Docker Desktop's DNS on Windows doesn't answer one in time). It returns
+// the sentence to add, and whether the name resolved.
 func confirmLookup(v evidence.View, f *Finding, src, owner evidence.ContainerEv) (string, bool) {
 	q := v.Question()
 	dns, ok := v.SourceDNS(q.To.Host)
@@ -107,12 +113,21 @@ func confirmLookup(v evidence.View, f *Finding, src, owner evidence.ContainerEv)
 		return "", true
 	}
 	f.Supporting = append(f.Supporting, dns.ID)
+	ctl, ok := v.SourceDNS(owner.C.Name)
+	controlResolved := ok && ctl.ID != dns.ID && len(ctl.P.Answers) > 0
 	if dns.P.Rcode == evidence.RcodeTimeout {
-		return fmt.Sprintf(" The lookup in %s timed out (from %s), which points at the upstream DNS rather than at the name.", src.C.DisplayName(), dns.P.Server), false
+		embedded := strings.HasPrefix(dns.P.Server, evidence.DockerDNSAddr.String()+":")
+		if !controlResolved || !embedded || !singleLabel(q.To.Host) || len(searchQueries(dns.P)) > 0 {
+			return fmt.Sprintf(" The lookup in %s timed out (from %s), which points at the upstream DNS rather than at the name.", src.C.DisplayName(), dns.P.Server), false
+		}
+		f.Confidence = High
+		f.Supporting = append(f.Supporting, ctl.ID)
+		return fmt.Sprintf(" The lookup in %s timed out at %s (Docker's embedded DNS), while %s's own name resolved there at once: Docker's DNS works and passed %s on to its upstream servers, which it does only with names Docker doesn't know.",
+			src.C.DisplayName(), dns.P.Server, owner.C.Name, q.To.Host), false
 	}
 	f.Confidence = High
 	looked := fmt.Sprintf(" The lookup in %s failed too (%s from %s).", src.C.DisplayName(), dns.P.Rcode, dns.P.Server)
-	if ctl, ok := v.SourceDNS(owner.C.Name); ok && ctl.ID != dns.ID && len(ctl.P.Answers) > 0 {
+	if controlResolved {
 		f.Supporting = append(f.Supporting, ctl.ID)
 		looked = fmt.Sprintf(" The lookup in %s failed too (%s from %s), while %s's own name resolved there: Docker's DNS works and doesn't know %s.",
 			src.C.DisplayName(), dns.P.Rcode, dns.P.Server, owner.C.Name, q.To.Host)

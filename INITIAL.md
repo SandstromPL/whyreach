@@ -952,7 +952,7 @@ Record whether it found the right root cause, how many tool calls and tokens it 
 ## 9. OTHER CONSIDERATIONS (gotchas)
 
 **Docker networking semantics**
-- The DNS rcode for an unknown name depends on the host's resolver, not on Docker. Behind a systemd-resolved stub, single-label names come back SERVFAIL; elsewhere they come back NXDOMAIN. Decide "name not found" from Docker metadata (rule experiments E1, E2).
+- The DNS rcode for an unknown name depends on the host's resolver, not on Docker. Behind a systemd-resolved stub, single-label names come back SERVFAIL; elsewhere they come back NXDOMAIN; under Docker Desktop on Windows they get no answer within the probe's timeout (WSL2 lab, 2026-11-21). Decide "name not found" from Docker metadata (rule experiments E1, E2), and judge the upstream DNS (WR020) only by names with a dot.
 - Connecting by IP to a container on another network times out (a silent drop) rather than being refused.
 - Networking semantics differ between Linux Docker Engine, Docker Desktop and WSL2 (§3.7). A rule that is correct on Linux can be wrong on Docker Desktop, so rules that depend on the platform must check it.
 - Inside a container, `localhost` refers to that container. Every message and rule must say *which* network namespace an address belongs to.

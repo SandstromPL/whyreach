@@ -92,26 +92,59 @@ func (r wr020) Evaluate(v evidence.View) []Finding {
 }
 
 // upstreamFailure says how the lookup failed when the upstream did not
-// answer: every query timed out, or the resolver reported a failure. A
-// single-label name's SERVFAIL is what systemd-resolved answers for names
-// it won't forward, not a failure.
+// answer: every query timed out, or the resolver reported a failure.
+//
+// A single-label name says nothing about the upstream servers: none of them
+// resolves one, and what each does with it varies. systemd-resolved's stub
+// answers SERVFAIL at once; Docker Desktop's DNS on Windows didn't answer
+// within the probe's timeout (WSL2 lab, 2026-11-21). For one, only the
+// search-domain names the resolver tried count, since they have dots: when
+// every one of those timed out, the upstream doesn't answer. A resolver
+// that couldn't be reached at all fails any name.
 func upstreamFailure(p evidence.DNSProbe, name string) string {
-	allTimeout := len(p.Attempts) > 0
-	for _, a := range p.Attempts {
-		if a.Rcode != evidence.RcodeTimeout {
-			allTimeout = false
+	if singleLabel(name) && p.Rcode != "ERROR" {
+		searched := searchQueries(p)
+		if len(searched) > 0 && allTimedOut(searched) {
+			return "timed out"
 		}
+		return ""
 	}
 	switch {
-	case p.Rcode == evidence.RcodeTimeout || allTimeout:
+	case p.Rcode == evidence.RcodeTimeout || (len(p.Attempts) > 0 && allTimedOut(p.Attempts)):
 		return "timed out"
-	case p.Rcode == "SERVFAIL" && strings.Contains(strings.TrimSuffix(name, "."), "."):
+	case p.Rcode == "SERVFAIL":
 		return "failed (SERVFAIL)"
 	case p.Rcode == "ERROR":
 		return "failed (the resolver could not be reached)"
 	default:
 		return ""
 	}
+}
+
+// singleLabel reports a name without a dot, such as a container's.
+func singleLabel(name string) bool {
+	return !strings.Contains(strings.TrimSuffix(name, "."), ".")
+}
+
+// searchQueries returns the queries of the search-domain names a lookup
+// tried ("api.<search 1>"), which have dots, unlike a single-label name.
+func searchQueries(p evidence.DNSProbe) []evidence.DNSAttempt {
+	var out []evidence.DNSAttempt
+	for _, a := range p.Attempts {
+		if strings.Contains(a.Query, ".") {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+func allTimedOut(attempts []evidence.DNSAttempt) bool {
+	for _, a := range attempts {
+		if a.Rcode != evidence.RcodeTimeout {
+			return false
+		}
+	}
+	return true
 }
 
 func upstreamList(up []string) string {

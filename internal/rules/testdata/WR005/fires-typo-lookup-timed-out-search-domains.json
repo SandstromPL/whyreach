@@ -1,0 +1,245 @@
+{
+  "description": "worker asks for apii and every query times out, its search-domain names included: those could be outside hosts, so the timeout points at the upstream (WR020) and WR005 stays medium",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-worker-1",
+      "container_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "to": {
+      "host": "apii",
+      "port": 8080,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "worker"
+      },
+      "subject": "container:shop-worker-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "shop-worker-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 4098,
+        "compose": {
+          "project": "shop",
+          "service": "worker"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "names": [
+              "shop-worker-1",
+              "worker"
+            ],
+            "ipv4": "172.22.0.2"
+          }
+        ]
+      },
+      "id": "ev-01",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "api"
+      },
+      "subject": "container:shop-api-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "shop-api-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 4097,
+        "compose": {
+          "project": "shop",
+          "service": "api"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "names": [
+              "api",
+              "shop-api-1"
+            ],
+            "ipv4": "172.22.0.3"
+          }
+        ]
+      },
+      "id": "ev-02",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "dddddddddddd",
+        "name": "db"
+      },
+      "subject": "container:shop-db-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "name": "shop-db-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 4100,
+        "compose": {
+          "project": "shop",
+          "service": "db"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "names": [
+              "db",
+              "shop-db-1"
+            ],
+            "ipv4": "172.22.0.4"
+          }
+        ]
+      },
+      "id": "ev-03",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "worker",
+        "executor": "probe-container"
+      },
+      "subject": "apii",
+      "status": "ok",
+      "data": {
+        "name": "apii",
+        "server": "127.0.0.11:53",
+        "rcode": "TIMEOUT",
+        "upstream": [
+          "host(127.0.0.53)"
+        ],
+        "attempts": [
+          {
+            "query": "apii.<search 1>",
+            "type": "A",
+            "rcode": "TIMEOUT",
+            "answers": 0
+          },
+          {
+            "query": "apii.<search 1>",
+            "type": "AAAA",
+            "rcode": "TIMEOUT",
+            "answers": 0
+          },
+          {
+            "query": "apii",
+            "type": "A",
+            "rcode": "TIMEOUT",
+            "answers": 0
+          },
+          {
+            "query": "apii",
+            "type": "AAAA",
+            "rcode": "TIMEOUT",
+            "answers": 0
+          }
+        ]
+      },
+      "source": "resolver",
+      "id": "ev-04",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "worker",
+        "executor": "probe-container"
+      },
+      "subject": "shop-worker-1",
+      "status": "ok",
+      "data": {
+        "name": "shop-worker-1",
+        "server": "127.0.0.11:53",
+        "rcode": "NOERROR",
+        "upstream": [
+          "host(127.0.0.53)"
+        ],
+        "answers": [
+          "172.22.0.2"
+        ],
+        "answered": "shop-worker-1",
+        "via": "dns",
+        "attempts": [
+          {
+            "query": "shop-worker-1",
+            "type": "A",
+            "rcode": "NOERROR",
+            "answers": 0
+          },
+          {
+            "query": "shop-worker-1",
+            "type": "AAAA",
+            "rcode": "NOERROR",
+            "answers": 0
+          }
+        ]
+      },
+      "source": "resolver",
+      "id": "ev-05",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR005",
+      "confidence": "medium",
+      "supporting": [
+        "ev-01",
+        "ev-02",
+        "ev-03",
+        "ev-04"
+      ],
+      "fix_contains": "api:8080"
+    }
+  ]
+}
