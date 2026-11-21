@@ -50,8 +50,9 @@ func Route(dst netip.Addr) (evidence.HostRoute, error) {
 		return out, fmt.Errorf("read the routing tables: %w", err)
 	}
 	for i := range msgs {
-		r, typ, ok := parseRoute(&msgs[i])
+		r, typ, oif, ok := parseRoute(&msgs[i])
 		if ok && typ == unix.RTN_UNICAST && r.Prefix.Contains(dst) {
+			r.Dev = devName(oif)
 			out.Covering = append(out.Covering, r)
 		}
 	}
@@ -106,7 +107,8 @@ func routeGet(dst netip.Addr) (evidence.Route, error) {
 					return evidence.Route{}, syscall.Errno(uint32(-code))
 				}
 			case syscall.RTM_NEWROUTE:
-				if r, _, ok := parseRoute(m); ok {
+				if r, _, oif, ok := parseRoute(m); ok {
+					r.Dev = devName(oif)
 					return r, nil
 				}
 				return evidence.Route{}, errors.New("netlink: unreadable route in the reply")
@@ -144,16 +146,18 @@ func getRouteRequest(dst netip.Addr, seq uint32) []byte {
 	return b
 }
 
-// parseRoute reads an RTM_NEWROUTE message: the route's prefix, interface
-// and table, and its type (unicast, local, …).
-func parseRoute(m *syscall.NetlinkMessage) (evidence.Route, uint8, bool) {
+// parseRoute reads an RTM_NEWROUTE message: the route's prefix and table,
+// its type (unicast, local, …), and the index of its interface (0 for
+// none). Naming the interface (devName) costs a dump of every link, so
+// callers name it only for the routes they keep.
+func parseRoute(m *syscall.NetlinkMessage) (evidence.Route, uint8, int, bool) {
 	if m.Header.Type != syscall.RTM_NEWROUTE || len(m.Data) < syscall.SizeofRtMsg {
-		return evidence.Route{}, 0, false
+		return evidence.Route{}, 0, 0, false
 	}
 	family, dstLen, table, typ := m.Data[0], int(m.Data[1]), uint32(m.Data[4]), m.Data[7]
 	attrs, err := syscall.ParseNetlinkRouteAttr(m)
 	if err != nil {
-		return evidence.Route{}, 0, false
+		return evidence.Route{}, 0, 0, false
 	}
 	var dst netip.Addr
 	oif := 0
@@ -180,23 +184,28 @@ func parseRoute(m *syscall.NetlinkMessage) (evidence.Route, uint8, bool) {
 		case syscall.AF_INET6:
 			dst = netip.IPv6Unspecified()
 		default:
-			return evidence.Route{}, 0, false
+			return evidence.Route{}, 0, 0, false
 		}
 	}
 	p, err := dst.Prefix(dstLen)
 	if err != nil {
-		return evidence.Route{}, 0, false
+		return evidence.Route{}, 0, 0, false
 	}
 	r := evidence.Route{Prefix: p}
 	if table != evidence.MainTable {
 		r.Table = table
 	}
-	if oif > 0 {
-		if ifc, err := net.InterfaceByIndex(oif); err == nil {
-			r.Dev = ifc.Name
-		} else {
-			r.Dev = fmt.Sprintf("if%d", oif)
-		}
+	return r, typ, oif, true
+}
+
+// devName names the interface with index oif: "" for none, "if<index>"
+// when it can't be found.
+func devName(oif int) string {
+	if oif <= 0 {
+		return ""
 	}
-	return r, typ, true
+	if ifc, err := net.InterfaceByIndex(oif); err == nil {
+		return ifc.Name
+	}
+	return fmt.Sprintf("if%d", oif)
 }

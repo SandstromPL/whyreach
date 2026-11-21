@@ -69,26 +69,35 @@ func TestParseRoute(t *testing.T) {
 		m    syscall.NetlinkMessage
 		want evidence.Route
 		typ  uint8
+		oif  int
 	}{
 		{"main table, on loopback's index", routeMsg(syscall.AF_INET, 16, evidence.MainTable, unix.RTN_UNICAST,
 			attr(syscall.RTA_DST, []byte{10, 8, 0, 0}), attr(syscall.RTA_OIF, u32(1))),
-			evidence.Route{Prefix: netip.MustParsePrefix("10.8.0.0/16"), Dev: "lo"}, unix.RTN_UNICAST},
+			evidence.Route{Prefix: netip.MustParsePrefix("10.8.0.0/16")}, unix.RTN_UNICAST, 1},
 		{"a table above 255 travels in RTA_TABLE", routeMsg(syscall.AF_INET, 24, unix.RT_TABLE_COMPAT, unix.RTN_UNICAST,
 			attr(syscall.RTA_DST, []byte{192, 168, 200, 0}), attr(unix.RTA_TABLE, u32(51820))),
-			evidence.Route{Prefix: netip.MustParsePrefix("192.168.200.0/24"), Table: 51820}, unix.RTN_UNICAST},
+			evidence.Route{Prefix: netip.MustParsePrefix("192.168.200.0/24"), Table: 51820}, unix.RTN_UNICAST, 0},
 		{"a default route has no RTA_DST", routeMsg(syscall.AF_INET6, 0, evidence.MainTable, unix.RTN_UNICAST),
-			evidence.Route{Prefix: netip.MustParsePrefix("::/0")}, unix.RTN_UNICAST},
+			evidence.Route{Prefix: netip.MustParsePrefix("::/0")}, unix.RTN_UNICAST, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, typ, ok := parseRoute(&tt.m)
-			if !ok || typ != tt.typ {
-				t.Fatalf("ok %v type %d", ok, typ)
+			got, typ, oif, ok := parseRoute(&tt.m)
+			if !ok || typ != tt.typ || oif != tt.oif {
+				t.Fatalf("ok %v type %d interface %d", ok, typ, oif)
 			}
 			if diff := cmp.Diff(tt.want, got, samePrefix); diff != "" {
 				t.Error(diff)
 			}
 		})
+	}
+}
+
+func TestDevName(t *testing.T) {
+	for oif, want := range map[int]string{0: "", 1: "lo", 1 << 30: "if1073741824"} {
+		if got := devName(oif); got != want {
+			t.Errorf("devName(%d) = %q, want %q", oif, got, want)
+		}
 	}
 }
 
