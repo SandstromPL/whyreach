@@ -24,7 +24,8 @@ import (
 // writes nothing to Docker.
 func (p *Policy) Doctor(ctx context.Context) []engine.Check {
 	out := p.engine.SelfCheck(ctx)
-	out = append(out, p.probeContainerCheck(ctx))
+	ep := p.engine.Platform(ctx) // once: each asks the daemon (GET /version)
+	out = append(out, p.probeContainerCheck(ctx, ep))
 	allow := "any address the block list allows (no allowlist)"
 	if len(p.d.Settings.Allow) > 0 {
 		allow = strings.Join(p.d.Settings.Allow, ", ")
@@ -47,7 +48,7 @@ func (p *Policy) Doctor(ctx context.Context) []engine.Check {
 	}
 	out = append(out, dnsChecks("/etc/resolv.conf", "/run/systemd/resolve/resolv.conf", host)...)
 	pl := platform.Detect()
-	out = append(out, p.netnsCheck(ctx, pl))
+	out = append(out, p.netnsCheck(ctx, pl, ep))
 	if pl.InContainer {
 		// The interfaces, host listeners and container listeners lines say
 		// what it has: host-side checks are unsupported records without
@@ -62,16 +63,17 @@ func (p *Policy) Doctor(ctx context.Context) []engine.Check {
 // netnsCheck says whether container checks enter the containers' network
 // namespaces themselves (tier 3, the netns executor), and when they do,
 // enters one running container's namespace once to show that it works. It
-// sends nothing and writes nothing.
-func (p *Policy) netnsCheck(ctx context.Context, pl platform.Info) engine.Check {
+// sends nothing and writes nothing. pl is where whyreach runs, ep the
+// platform the engine found.
+func (p *Policy) netnsCheck(ctx context.Context, pl platform.Info, ep evidence.Platform) engine.Check {
 	c := engine.Check{Name: "netns executor", Status: engine.CheckInfo}
 	_, why := pl.NetnsExecutor()
 	switch {
 	case p.d.Netns != nil:
 		c.Detail = "on (root): where Docker Engine runs on this machine, DNS and TCP checks from containers enter their network namespaces directly, with no Docker write (a probe container stands in only if entering fails and they are allowed). Run whyreach as root for the CLI only; as an MCP server, prefer a regular user"
-		if pl := p.engine.Platform(ctx); p.d.Docker != nil && !pl.EngineHere() {
+		if p.d.Docker != nil && !ep.EngineHere() {
 			c.Status = engine.CheckWarn
-			c.Detail += "; not used here (" + pl.Name + "): Docker Engine doesn't run on this machine, so Docker's PIDs aren't processes whyreach can enter, and probe containers run container checks instead"
+			c.Detail += "; not used here (" + ep.Name + "): Docker Engine doesn't run on this machine, so Docker's PIDs aren't processes whyreach can enter, and probe containers run container checks instead"
 			return c
 		}
 		p.tryNetns(ctx, &c)
@@ -112,9 +114,10 @@ func (p *Policy) tryNetns(ctx context.Context, c *engine.Check) {
 	c.Detail += "; entered " + s.Name() + "'s and read its /etc/resolv.conf (no probe sent)"
 }
 
-func (p *Policy) probeContainerCheck(ctx context.Context) engine.Check {
+// probeContainerCheck says whether probe containers (tier 2b) are on and
+// could run, on the platform the engine found (pl).
+func (p *Policy) probeContainerCheck(ctx context.Context, pl evidence.Platform) engine.Check {
 	c := engine.Check{Name: "probe containers"}
-	pl := p.engine.Platform(ctx)
 	if p.d.Netns != nil && !p.ProbeContainers() && pl.EngineHere() {
 		c.Status = engine.CheckInfo
 		c.Detail = "off (tier 2b), and not needed while whyreach runs as root on Docker Engine here: the netns executor runs container checks"
