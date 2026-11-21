@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/probe"
@@ -179,3 +181,87 @@ func TestListenerReadsAreNotWasted(t *testing.T) {
 		t.Errorf("a host-network container's listeners: %d host reads, %d through its PID, evidence %+v; want 1, 0 and one record", reads.host, reads.container, res.Evidence)
 	}
 }
+
+// failingReads is a probe executor whose listener reads in one container
+// fail; it runs everything else as scripted does.
+type failingReads struct {
+	*scripted
+	in string // the container's display name
+}
+
+func (f *failingReads) Run(ctx context.Context, where evidence.ContextRef, specs []probe.Spec) ([]evidence.Evidence, error) {
+	if where.Name == f.in && len(specs) == 1 && specs[0].Kind == probe.SpecListeners {
+		where.Executor = f.name
+		return []evidence.Evidence{{Kind: evidence.KindListeners, Subject: "listeners", Context: where, Status: evidence.StatusFailed,
+			Err: &evidence.Error{Code: evidence.CodeInternal, Message: "the probe container exited 1"}}}, nil
+	}
+	return f.scripted.Run(ctx, where, specs)
+}
+
+// masked prints a diagnosis's records and gaps without their times.
+func masked(d *Diagnosis) string {
+	var b strings.Builder
+	for _, e := range d.Evidence {
+		fmt.Fprintf(&b, "%s %s [%s %s %s %d %s] %s %s", e.ID, e.Kind, e.Context.Kind, e.Context.Name, e.Context.Container, e.Context.NetnsID, e.Context.Executor, e.Subject, e.Status)
+		if e.Err != nil {
+			fmt.Fprintf(&b, " %s: %s", e.Err.Code, e.Err.Message)
+		}
+		fmt.Fprintf(&b, " %v %q", e.Limitations, e.Source)
+		if l, ok := e.Data.(evidence.Listeners); ok {
+			fmt.Fprintf(&b, " %v", l.Sockets)
+		}
+		b.WriteString("\n")
+	}
+	for _, g := range d.Gaps {
+		fmt.Fprintf(&b, "gap %q %s %q %q %v\n", g.What, g.Why, g.Detail, g.HowToEnable, g.Evidence)
+	}
+	return b.String()
+}
+
+// TestUnpublishedServerSearchOnDesktop: on Docker Desktop each running
+// container's listeners take a probe container. The
+// search for the one that serves a port unpublished (WR019) takes its
+// probe-container reads in name order first, so the records, which
+// containers it cut and the gaps are the same every time: pinned here.
+func TestUnpublishedServerSearchOnDesktop(t *testing.T) {
+	w := &world{containers: exposers(9, 7000), sockets: map[int][]string{}, desktop: true}
+	w.sockets[w.containers[2].Pid] = []string{"0.0.0.0:9000"}
+	w.containers[3].NetworkMode, w.containers[3].Networks = "host", nil // its sockets are the host's
+	w.tcp = map[string]string{"127.0.0.1:9000": evidence.OutcomeRefused, "[::1]:9000": evidence.OutcomeRefused}
+	f, _ := target.ParseFrom("host")
+	to, _ := target.ParseTo("localhost:9000")
+	for range 3 {
+		probes := &failingReads{scripted: &scripted{w: w, name: evidence.ExecutorProbeContainer}, in: "svc01"}
+		d, err := New(Deps{Docker: w, Listeners: w, Host: &scripted{w: w, name: evidence.ExecutorHost}, Probe: probes, Platform: wslRoot}).Diagnose(context.Background(), f, to)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p := d.Primary(); p == nil || p.RuleID != "WR019" {
+			t.Errorf("primary %+v, want WR019", p)
+		}
+		if got := masked(d); got != unpublishedSearchWant {
+			t.Errorf("records and gaps (-want +got):\n%s", cmp.Diff(unpublishedSearchWant, got))
+		}
+		var read []string // besides svc01's, which failed
+		for _, where := range probes.where {
+			read = append(read, where.Name)
+		}
+		slices.Sort(read)
+		if want := []string{"svc00", "svc02", "svc04", "svc05", "svc06"}; !slices.Equal(read, want) {
+			t.Errorf("probe containers read the listeners in %v, want %v", read, want)
+		}
+	}
+}
+
+const unpublishedSearchWant = `ev-01 docker.version [host WSL2 VM  0 ] docker ok [] "docker GET /version"
+ev-02 platform [host WSL2 VM  0 ] platform ok [] "whyreach's own environment (/proc/sys/kernel/osrelease, WSL's interop entry in /proc/sys/fs/binfmt_misc, container markers) and the daemon's GET /version"
+ev-03 docker.container [container svc02 020202020202 0 ] container:app-svc02-1 ok [] "docker GET /containers/{id}/json"
+ev-04 netns.listeners [host WSL2 VM  0 ] listeners ok [] "/proc/thread-self/net/tcp{,6} in whyreach's own network namespace" []
+ev-05 netns.listeners [container 3 running containers  0 ] listeners failed internal: the probe container exited 1 [read to find a container that serves port 9000 without publishing it (svc01, svc07, svc08); one of these may] "/proc/net/tcp{,6} read inside a probe container joined to the container's network namespace"
+ev-06 netns.listeners [container svc02 020202020202 0 probe-container] listeners ok [] "/proc/net/tcp{,6} read inside a probe container joined to the container's network namespace" [{tcp 0.0.0.0:9000 0}]
+ev-07 probe.dns [host WSL2 VM  0 host] localhost ok [] ""
+ev-08 probe.tcp [host WSL2 VM  0 host] localhost:9000 ok [] ""
+ev-09 probe.tcp [host WSL2 VM  0 host] localhost:9000 ok [] ""
+gap "listening sockets in svc07, svc08" skipped "where Docker's PIDs aren't this machine's (Docker Desktop), each container's listening sockets take a probe container, and whyreach reads at most 6 in one diagnosis" "" []
+gap "listening sockets in 3 running containers" failed "the probe container exited 1" "" [ev-05]
+`
