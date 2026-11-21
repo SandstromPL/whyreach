@@ -56,7 +56,7 @@ func TestRunCreatesEverySocketThroughEnter(t *testing.T) {
 	rec := &recordingEnter{}
 	env := Env{
 		ProcDir:  "/proc",
-		Resolver: &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange, Enter: rec.enter},
+		Resolver: &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange},
 		Enter:    rec.enter,
 	}
 	evs := Run(context.Background(), env, []Spec{
@@ -85,7 +85,7 @@ func TestRunWithoutTheNamespaceObservesNothing(t *testing.T) {
 	rec := &recordingEnter{fail: fmt.Errorf("enter the network namespace: %w", syscall.EPERM)}
 	env := Env{
 		ProcDir:  "/proc",
-		Resolver: &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange, Enter: rec.enter},
+		Resolver: &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange},
 		Enter:    rec.enter,
 	}
 	evs := Run(context.Background(), env, []Spec{
@@ -192,7 +192,7 @@ func TestConnectAfterAFailedLookup(t *testing.T) {
 	rp, hp := writeFiles(t, "nameserver 127.0.0.11\noptions ndots:0\n", "")
 	f := &fakeDNS{answers: map[string]string{"api. A": "10.0.0.7"}}
 	rec := &recordingEnter{fail: fmt.Errorf("enter the network namespace: %w", syscall.EPERM)}
-	env := Env{ProcDir: "/proc", Resolver: &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange, Enter: rec.enter}, Enter: rec.enter}
+	env := Env{ProcDir: "/proc", Resolver: &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange}, Enter: rec.enter}
 	evs := Run(context.Background(), env, []Spec{{Kind: SpecTCP, Host: "api", Port: 8080}})
 	var tcp *evidence.Evidence
 	for i := range evs {

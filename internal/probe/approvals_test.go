@@ -44,7 +44,7 @@ func TestHostResolverOnTheBlockList(t *testing.T) {
 			for _, h := range tt.host {
 				lim.HostResolvers = append(lim.HostResolvers, netip.MustParseAddr(h))
 			}
-			ev := r.lookupWithin(context.Background(), "api", lim)
+			ev := r.lookupWithin(context.Background(), nil, "api", lim)
 			if ev.Status != tt.want {
 				t.Fatalf("status %s, err %+v", ev.Status, ev.Err)
 			}

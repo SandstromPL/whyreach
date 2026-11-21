@@ -104,9 +104,9 @@ type Env struct {
 	ProcDir  string // "/proc/thread-self": the namespace of the thread that reads it
 	Resolver *Resolver
 	Limits   Limits // where connects may go, beyond the block list
-	// Enter, when set, runs every socket the batch creates, and its
-	// listener read, inside another network namespace (the netns
-	// executor). nil means the caller's own.
+	// Enter, when set, runs every socket the batch creates (its connects
+	// and its DNS queries), and its listener read, inside another network
+	// namespace (the netns executor). nil means the caller's own.
 	Enter Enter
 }
 
@@ -288,7 +288,7 @@ func (l *lookups) entry(name string) *lookup {
 
 func (l *lookups) resolve(ctx context.Context, name string) *lookup {
 	lk := l.entry(name)
-	lk.once.Do(func() { lk.ev = l.env.Resolver.lookupWithin(ctx, name, l.env.Limits) })
+	lk.once.Do(func() { lk.ev = l.env.Resolver.lookupWithin(ctx, l.env.Enter, name, l.env.Limits) })
 	return lk
 }
 

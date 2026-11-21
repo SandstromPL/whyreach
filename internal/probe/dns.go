@@ -50,9 +50,6 @@ type Resolver struct {
 	// executor reads a container's own files with it, since entering a
 	// network namespace leaves whyreach's file system as it is.
 	Open func(ctx context.Context, path string) (io.ReadCloser, error)
-	// Enter runs each query, and so creates its socket, inside another
-	// network namespace (Env.Enter); nil means the caller's own.
-	Enter Enter
 }
 
 func (r *Resolver) timeout() time.Duration { return cmp.Or(r.Timeout, QueryTimeout) }
@@ -69,13 +66,15 @@ func (r *Resolver) open(ctx context.Context, path string) (io.ReadCloser, error)
 // lookup is an observation. Every name may be looked up; the nameservers
 // still pass the block list.
 func (r *Resolver) Lookup(ctx context.Context, name string) evidence.Evidence {
-	return r.lookupWithin(ctx, name, Limits{})
+	return r.lookupWithin(ctx, nil, name, Limits{})
 }
 
 // lookupWithin is Lookup under lim, which may hold back an outside name
-// (Limits.CheckName). The hosts file answers first either way, as it does
-// for the app; a name it doesn't answer and lim refuses is never sent.
-func (r *Resolver) lookupWithin(ctx context.Context, name string, lim Limits) evidence.Evidence {
+// (Limits.CheckName), with each query run through enter (the batch's
+// Env.Enter), so that its socket lives in the namespace being probed. The
+// hosts file answers first either way, as it does for the app; a name it
+// doesn't answer and lim refuses is never sent.
+func (r *Resolver) lookupWithin(ctx context.Context, enter Enter, name string, lim Limits) evidence.Evidence {
 	start := time.Now()
 	ev := evidence.Evidence{
 		Kind:    evidence.KindDNS,
@@ -85,7 +84,7 @@ func (r *Resolver) lookupWithin(ctx context.Context, name string, lim Limits) ev
 			"the app's libc (glibc or musl) may order IPv4 and IPv6 answers differently",
 		},
 	}
-	p, notes, err := r.lookup(ctx, name, lim)
+	p, notes, err := r.lookup(ctx, enter, name, lim)
 	ev.Limitations = append(ev.Limitations, notes...)
 	ev.Duration = time.Since(start)
 	ev.ObservedAt = time.Now()
@@ -105,7 +104,7 @@ func (r *Resolver) lookupWithin(ctx context.Context, name string, lim Limits) ev
 // lookup resolves name: the hosts file first, then, if lim lets the name
 // out, the nameservers that pass the block list. notes are limitations of
 // the lookup, such as a nameserver it skipped.
-func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evidence.DNSProbe, notes []string, err error) {
+func (r *Resolver) lookup(ctx context.Context, enter Enter, name string, lim Limits) (p evidence.DNSProbe, notes []string, err error) {
 	p = evidence.DNSProbe{Name: name}
 	addrs, err := r.hostsLookup(ctx, name)
 	switch {
@@ -148,7 +147,7 @@ func (r *Resolver) lookup(ctx context.Context, name string, lim Limits) (p evide
 	givenRcode := ""
 	var rcodeFrom, givenFrom string // the nameserver whose reply set the rcode
 	for i, cand := range conf.candidates(name) {
-		res := r.resolveOne(ctx, conf.servers, cand.fqdn)
+		res := r.resolveOne(ctx, enter, conf.servers, cand.fqdn)
 		if res.err != nil {
 			// No query could be sent from the namespace: that is no answer
 			// from the resolver, so it must not read as an rcode.
@@ -355,16 +354,16 @@ type resolveResult struct {
 	rcode    string
 	server   string // the nameserver whose reply was used; empty when none came
 	attempts []evidence.DNSAttempt
-	err      error // the queries could not be sent at all (Resolver.Enter failed)
+	err      error // the queries could not be sent at all (Env.Enter failed)
 }
 
 // resolveOne asks for A and AAAA in parallel, as getaddrinfo does.
-func (r *Resolver) resolveOne(ctx context.Context, servers []string, fqdn string) resolveResult {
+func (r *Resolver) resolveOne(ctx context.Context, enter Enter, servers []string, fqdn string) resolveResult {
 	types := []uint16{dns.TypeA, dns.TypeAAAA}
 	results := make([]queryResult, len(types))
 	var wg sync.WaitGroup
 	for i, t := range types {
-		wg.Go(func() { results[i] = r.query(ctx, servers, fqdn, t) })
+		wg.Go(func() { results[i] = r.query(ctx, enter, servers, fqdn, t) })
 	}
 	wg.Wait()
 	var res resolveResult
@@ -391,14 +390,14 @@ type queryResult struct {
 	answers []netip.Addr
 	rcode   string
 	server  string // the nameserver that replied; empty when none did
-	err     error  // Resolver.Enter failed: nothing was sent
+	err     error  // Env.Enter failed: nothing was sent
 }
 
 // query sends one question, retrying once on a timeout or an error (such as
 // an ICMP refusal), on the next nameserver if there is one. A truncated UDP
-// answer is retried over TCP. Each attempt runs through Resolver.Enter, so
-// its sockets live in the namespace being probed.
-func (r *Resolver) query(ctx context.Context, servers []string, fqdn string, qtype uint16) queryResult {
+// answer is retried over TCP. Each attempt runs through enter, so its
+// sockets live in the namespace being probed.
+func (r *Resolver) query(ctx context.Context, enter Enter, servers []string, fqdn string, qtype uint16) queryResult {
 	m := new(dns.Msg)
 	m.SetQuestion(fqdn, qtype)
 	m.RecursionDesired = true
@@ -415,7 +414,7 @@ func (r *Resolver) query(ctx context.Context, servers []string, fqdn string, qty
 		qctx, cancel := context.WithTimeout(ctx, r.timeout())
 		var resp *dns.Msg
 		var err error
-		eerr := r.Enter.run(func() {
+		eerr := enter.run(func() {
 			resp, err = exchange(qctx, m, server, "udp")
 			if err == nil && resp.Truncated {
 				resp, err = exchange(qctx, m, server, "tcp")

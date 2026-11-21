@@ -70,7 +70,7 @@ func (n *Netns) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 
 	env := probe.Env{
 		ProcDir:  "/proc/thread-self", // read inside the namespace: the thread's, not the process's
-		Resolver: &probe.Resolver{HostsPath: "/etc/hosts", ResolvPath: "/etc/resolv.conf", Open: ns.open, Enter: ns.enter},
+		Resolver: &probe.Resolver{HostsPath: "/etc/hosts", ResolvPath: "/etc/resolv.conf", Open: ns.open},
 		Limits:   probe.LimitsFrom(ctx),
 		Enter:    ns.enter,
 	}

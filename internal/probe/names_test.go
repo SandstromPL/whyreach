@@ -237,7 +237,7 @@ func TestNameserverFormsOfTheCLibrary(t *testing.T) {
 func TestBlockedNameserverComesBeforeTheName(t *testing.T) {
 	rp, hp := writeFiles(t, "nameserver 169.254.169.254\n", "")
 	r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: (&fakeDNS{}).exchange}
-	ev := r.lookupWithin(context.Background(), "example.com", Limits{NamesRestricted: true})
+	ev := r.lookupWithin(context.Background(), nil, "example.com", Limits{NamesRestricted: true})
 	if ev.Err == nil || ev.Err.Message == NameNotApproved || !strings.Contains(ev.Err.Message, "block list") {
 		t.Errorf("err = %+v, want the nameserver refusal", ev.Err)
 	}
