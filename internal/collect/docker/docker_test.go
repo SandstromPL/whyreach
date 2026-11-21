@@ -628,3 +628,46 @@ func TestUntrustedTextIsKeptOut(t *testing.T) {
 		t.Errorf("names (-want +got):\n%s", diff)
 	}
 }
+
+// TestGrammarBoundaries pins the label and alias grammars: what they accept
+// and their length limits, the longest accepted and one more refused.
+func TestGrammarBoundaries(t *testing.T) {
+	type matcher interface{ MatchString(s string) bool }
+	tests := []struct {
+		name string
+		g    matcher
+		in   string
+		want bool
+	}{
+		{"project, longest", composeProject, "a" + strings.Repeat("b", 254), true},
+		{"project, one too long", composeProject, "a" + strings.Repeat("b", 255), false},
+		{"project, one character", composeProject, "a", true},
+		{"project, empty", composeProject, "", false},
+		{"project, dash and underscore", composeProject, "my-shop_2", true},
+		{"project, upper case", composeProject, "Shop", false},
+		{"project, leading dash", composeProject, "-shop", false},
+		{"project, a dot", composeProject, "my.shop", false},
+		{"project, trailing newline", composeProject, "shop\n", false},
+		{"service, longest", composeService, "A" + strings.Repeat("b.", 127), true},
+		{"service, one too long", composeService, "A" + strings.Repeat("b.", 127) + "c", false},
+		{"service, one character", composeService, "A", true},
+		{"service, empty", composeService, "", false},
+		{"service, leading dot", composeService, ".api", false},
+		{"service, a space", composeService, "api x", false},
+		{"name, longest", dnsName, "a" + strings.Repeat("b", 252) + "c", true},
+		{"name, one too long", dnsName, "a" + strings.Repeat("b", 253) + "c", false},
+		{"name, one character", dnsName, "_", true},
+		{"name, two characters", dnsName, "ab", true},
+		{"name, empty", dnsName, "", false},
+		{"name, trailing dot", dnsName, "db.corp.", false},
+		{"name, leading dash", dnsName, "-db", false},
+		{"name, inner dash and dot", dnsName, "db-1.corp", true},
+		{"name, a control character", dnsName, "x\x1b[2J", false},
+		{"name, trailing newline", dnsName, "db\n", false},
+	}
+	for _, tt := range tests {
+		if got := tt.g.MatchString(tt.in); got != tt.want {
+			t.Errorf("%s (%d bytes): %v, want %v", tt.name, len(tt.in), got, tt.want)
+		}
+	}
+}

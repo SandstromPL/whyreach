@@ -211,11 +211,22 @@ func (c *Client) InspectContainer(ctx context.Context, idOrName string) (evidenc
 // Labels and aliases are free text that reaches reports and an agent's
 // context, so only values in Compose's and DNS's grammar are kept.
 var (
-	composeProject = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,254}$`)
-	composeService = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$`)
-	dnsName        = regexp.MustCompile(`^[a-zA-Z0-9_]([a-zA-Z0-9_.-]{0,252}[a-zA-Z0-9_])?$`)
+	composeProject = grammar{regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`), 255}
+	composeService = grammar{regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`), 255}
+	dnsName        = grammar{regexp.MustCompile(`^[a-zA-Z0-9_]([a-zA-Z0-9_.-]*[a-zA-Z0-9_])?$`), 254}
 	quoted         = regexp.MustCompile(`"[^"]*"|'[^']*'`)
 )
+
+// grammar is a pattern and a length limit. A bounded repetition such as
+// {0,254} would say the same, but compiles into a program of hundreds of
+// kilobytes at every start.
+type grammar struct {
+	re  *regexp.Regexp
+	max int // bytes
+}
+
+// MatchString reports whether s is at most max bytes long and matches re.
+func (g grammar) MatchString(s string) bool { return len(s) <= g.max && g.re.MatchString(s) }
 
 // scrubQuoted drops the quoted parts of a daemon error: Docker quotes the
 // entrypoint it couldn't start (exec: "redis-server --requirepass …"),
