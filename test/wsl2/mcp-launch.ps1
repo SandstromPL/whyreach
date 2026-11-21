@@ -83,10 +83,14 @@ try {
 catch { $savedInput = $null }
 
 # What an MCP client does: start the command with pipes, no shell, and,
-# like the GUI clients (Node's windowsHide), without a console window.
+# like the GUI clients (Node's windowsHide), without a console window. The
+# distro's name goes unquoted, as clients pass it: wsl.exe reads -d's value
+# up to the next space and keeps any quotes in it, so -d "Debian" asks for a
+# distro called "Debian" with the quotes, and wsl.exe answers that there is
+# no such distribution. WSL's names have no spaces.
 $psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName = 'wsl.exe'
-$psi.Arguments = "-d `"$Distro`" --exec $Whyreach mcp serve --log-level info"
+$psi.Arguments = "-d $Distro --exec $Whyreach mcp serve --log-level info"
 $psi.UseShellExecute = $false
 $psi.CreateNoWindow = $true
 $psi.RedirectStandardInput = $true
