@@ -356,20 +356,15 @@ func newProbe(o Options) *cobra.Command {
 	return cmd
 }
 
-// probeHowTo is the advice for a check that needs probe containers.
+// probeHowTo is the advice for a check whyreach can't see from where it
+// runs, or one that needs probe containers.
 func probeHowTo(p *policy.Policy) func(evidence.Evidence) string {
 	return func(e evidence.Evidence) string {
-		if e.Err != nil && e.Err.Message == executor.HostHidden {
-			return executor.HostHiddenAdvice + "."
-		}
-		if e.Err != nil && e.Err.Message == executor.PIDsHidden {
-			return executor.PIDsHiddenAdvice + "."
-		}
-		if e.Err != nil && e.Err.Message == executor.HostNotHere {
-			return executor.HostNotHereAdvice + "."
-		}
 		if e.Err == nil {
 			return ""
+		}
+		if a := executor.Advice(e.Err.Message); a != "" {
+			return a
 		}
 		// Not any denial: a read of a container's listeners that /proc
 		// refused (hidepid) is no matter for probe containers.

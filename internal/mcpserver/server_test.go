@@ -855,6 +855,14 @@ func TestListenersDeniedAdvice(t *testing.T) {
 	if !strings.Contains(res.HowToEnable, "probe_containers = true") {
 		t.Errorf("a check withheld because probe containers are off: %s", res.HowToEnable)
 	}
+	// Records whyreach can't make from where it runs get their own advice.
+	for msg, want := range map[string]string{
+		executor.HostHidden: executor.HostHiddenAdvice + ".", executor.PIDsHidden: executor.PIDsHiddenAdvice + ".", executor.HostNotHere: executor.HostNotHereAdvice + ".",
+	} {
+		if got := h.s.advice(evidence.Evidence{Status: evidence.StatusUnsupported, Err: &evidence.Error{Code: evidence.CodeUnsupported, Message: msg}}, true); got != want {
+			t.Errorf("%s: advice %q, want %q", msg, got, want)
+		}
+	}
 }
 
 // dialer stands in for probe containers that check the probe's limits as

@@ -445,13 +445,12 @@ func (s *Server) adviceFor(req *mcp.CallToolRequest) func(evidence.Evidence) str
 // agent's (an agent that can write files must not change the config to
 // widen its own permissions).
 func (s *Server) advice(e evidence.Evidence, canAsk bool) string {
+	if e.Err != nil {
+		if a := executor.Advice(e.Err.Message); a != "" {
+			return a
+		}
+	}
 	switch {
-	case e.Err != nil && e.Err.Message == executor.HostHidden:
-		return executor.HostHiddenAdvice + "."
-	case e.Err != nil && e.Err.Message == executor.PIDsHidden:
-		return executor.PIDsHiddenAdvice + "."
-	case e.Err != nil && e.Err.Message == executor.HostNotHere:
-		return executor.HostNotHereAdvice + "."
 	case e.Err != nil && e.Err.Message == executor.PIDsElsewhere:
 		return "On Docker Desktop whyreach reads containers' listening sockets only inside probe containers, which are off. Turning them on is the user's decision: " +
 			"approve probe containers when whyreach asks, or set probe_containers = true under [permissions] in " + s.p.ConfigPath() + "."

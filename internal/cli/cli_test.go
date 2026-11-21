@@ -265,6 +265,13 @@ func TestListenersDeniedAdvice(t *testing.T) {
 		t.Fatal(err)
 	}
 	howTo := probeHowTo(p)
+	for msg, want := range map[string]string{
+		executor.HostHidden: executor.HostHiddenAdvice + ".", executor.PIDsHidden: executor.PIDsHiddenAdvice + ".", executor.HostNotHere: executor.HostNotHereAdvice + ".",
+	} {
+		if got := howTo(evidence.Evidence{Status: evidence.StatusUnsupported, Err: &evidence.Error{Code: evidence.CodeUnsupported, Message: msg}}); got != want {
+			t.Errorf("%s: advice %q, want %q", msg, got, want)
+		}
+	}
 	for _, msg := range []string{executor.ProbeContainersOff, executor.ErrCannotEnter.Error() + ": operation not permitted"} {
 		e := evidence.Evidence{Kind: evidence.KindTCP, Status: evidence.StatusPermissionDenied, Err: &evidence.Error{Code: evidence.CodePermissionDenied, Message: msg}}
 		if !strings.Contains(howTo(e), "probe_containers = true") {
