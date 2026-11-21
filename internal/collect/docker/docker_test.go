@@ -357,6 +357,23 @@ func TestConcurrentNegotiate(t *testing.T) {
 	if got := c.APIVersion(); got != "1.56" {
 		t.Errorf("API version %q, want 1.56", got)
 	}
+	// Every Negotiate asked the unversioned /version, also after another
+	// had settled the version.
+	if _, err := c.Negotiate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	asked := 0
+	for _, r := range f.seen() {
+		if strings.HasSuffix(strings.SplitN(r, "?", 2)[0], "/version") {
+			asked++
+			if !strings.HasPrefix(r, "GET /version?") {
+				t.Errorf("versioned version request %q", r)
+			}
+		}
+	}
+	if asked != 5 {
+		t.Errorf("%d version requests, want 5", asked)
+	}
 }
 
 func TestNetworks(t *testing.T) {

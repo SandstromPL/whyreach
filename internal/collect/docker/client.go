@@ -183,11 +183,14 @@ type Version struct {
 	KernelVersion string `json:"KernelVersion"`
 }
 
+// versionPath is the daemon's version endpoint, always asked unversioned.
+const versionPath = "/version"
+
 // Negotiate asks the daemon for its version (an unversioned request) and
 // settles the API version for later calls.
 func (c *Client) Negotiate(ctx context.Context) (Version, error) {
 	var v Version
-	if err := c.do(ctx, http.MethodGet, "/version", nil, nil, "", &v); err != nil {
+	if err := c.do(ctx, http.MethodGet, versionPath, nil, nil, "", &v); err != nil {
 		return Version{}, err
 	}
 	if v.APIVersion == "" {
@@ -249,7 +252,9 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 // caller closes its body.
 func (c *Client) send(ctx context.Context, method, path string, query url.Values, body io.Reader, contentType string) (*http.Response, error) {
 	u := url.URL{Scheme: "http", Host: "docker", Path: path, RawQuery: query.Encode()}
-	if v := c.APIVersion(); v != "" {
+	// /version stays unversioned, so that Negotiate asks the same question
+	// however many times it runs, concurrent calls included.
+	if v := c.APIVersion(); v != "" && path != versionPath {
 		u.Path = "/v" + v + path
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
