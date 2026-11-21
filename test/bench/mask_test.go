@@ -30,14 +30,15 @@ func TestMasker(t *testing.T) {
 		"network shop_network_demo; mail jdoe@corp.example.edu",
 		"version 29.9.3 and 1.27.4, at 06:05:37, sha256:0123abcd",
 		"it connects to 10.20.30.40. Then 10.20.30.41: refused (10.20.30.42).",
+		"nothing listens on ::1:37267, and fd00::5:37267 refuses",
 	}, "\n")
 	got := m.String(in)
-	for _, private := range []string{"10.20.30.4", "jdoe/", "jdoe on", "Laptop", "corp.example.edu", "CORP.EXAMPLE.EDU", "198.51.100.53", "127.0.9.9", "CorpVPN", "eth9", "02:00:00", "203.0.113.42", "10.1.2.3", "2001:db8", "fe80::1", "shop_network_demo", "@corp"} {
+	for _, private := range []string{"10.20.30.4", "jdoe/", "jdoe on", "Laptop", "corp.example.edu", "CORP.EXAMPLE.EDU", "198.51.100.53", "127.0.9.9", "CorpVPN", "eth9", "02:00:00", "203.0.113.42", "10.1.2.3", "2001:db8", "fe80::1", "shop_network_demo", "@corp", "fd00::"} {
 		if strings.Contains(got, private) {
 			t.Errorf("%q still shows:\n%s", private, got)
 		}
 	}
-	for _, kept := range []string{"127.0.0.53", "172.18.0.3:8080", "8.8.8.8", "192.0.2.53", "::1", "[::]:8080", "29.9.3", "1.27.4", "06:05:37", "sha256:0123abcd", "<home-1>/Desktop/x", "<user-1> on <hostname-1>", "<dns-1>", "<dns-2>", "::ffff:<dns-2>"} {
+	for _, kept := range []string{"127.0.0.53", "172.18.0.3:8080", "8.8.8.8", "192.0.2.53", "::1", "[::]:8080", "29.9.3", "1.27.4", "06:05:37", "sha256:0123abcd", "<home-1>/Desktop/x", "<user-1> on <hostname-1>", "<dns-1>", "<dns-2>", "::ffff:<dns-2>", "::1:37267", ">:37267 refuses"} {
 		if !strings.Contains(got, kept) {
 			t.Errorf("%q should show:\n%s", kept, got)
 		}
@@ -51,6 +52,14 @@ func TestMasker(t *testing.T) {
 	}
 	if leaks := m.Leaks("version 1.2.3.4.5 of 10.9.8.7"); len(leaks) == 0 {
 		t.Error("Leaks missed an address that masking left (inside a longer dotted run)")
+	}
+	// An IPv6 address written with a port and no brackets is read whole:
+	// loopback's stays, and a private one is still a leak.
+	if leaks := m.Leaks("nothing listens on ::1:37267"); len(leaks) != 0 {
+		t.Errorf("Leaks read ::1:37267 as another address: %v", leaks)
+	}
+	if leaks := m.Leaks("it listens on fd00::5:37267"); len(leaks) == 0 {
+		t.Error("Leaks missed fd00::5 written with its port")
 	}
 	if leaks := m.Leaks("contact JDOE-laptop-x1 now"); len(leaks) == 0 {
 		t.Error("Leaks missed the host name")

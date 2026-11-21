@@ -286,10 +286,13 @@ func newBenchMasker(t *testing.T) *bench.Masker {
 			m.Literal(i.Name, "if")
 		}
 	}
-	// Docker resources outside the lab, and the daemon's ID.
+	// Docker resources outside the lab, their Compose projects (whyreach
+	// names a container's service as service@project), and the daemon's ID.
 	for _, args := range [][]string{
 		{"ps", "-a", "--format", "{{.Names}}"},
+		{"ps", "-a", "--format", `{{.Label "com.docker.compose.project"}}`},
 		{"network", "ls", "--format", "{{.Name}}"},
+		{"network", "ls", "--format", `{{.Label "com.docker.compose.project"}}`},
 		{"volume", "ls", "--format", "{{.Name}}"},
 		{"info", "--format", "{{.ID}}"},
 	} {
@@ -1045,7 +1048,9 @@ func firstModel(runs []bench.Run) string {
 }
 
 // maskTranscript masks a stream-json transcript and drops what it doesn't
-// need: the account's rate-limit records and credential expiry times.
+// need: the account's rate-limit records, credential expiry times, and the
+// thinking blocks' signatures (opaque base64, in which a short private
+// value such as an interface name turns up by chance).
 func maskTranscript(m *bench.Masker, raw []byte) []byte {
 	var buf bytes.Buffer
 	sc := bufio.NewScanner(bytes.NewReader(raw))
@@ -1055,7 +1060,7 @@ func maskTranscript(m *bench.Masker, raw []byte) []byte {
 		if bytes.Contains(line, []byte(`"type":"rate_limit_event"`)) {
 			continue
 		}
-		masked, err := m.JSON(line, "credential_expires_at")
+		masked, err := m.JSON(line, "credential_expires_at", "signature")
 		if err != nil {
 			masked = []byte(m.String(string(line)))
 		}

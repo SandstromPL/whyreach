@@ -89,8 +89,10 @@ func (m *Masker) placeholder(key, kind string) string {
 }
 
 var (
-	ipv4Re  = regexp.MustCompile(`\d{1,3}(?:\.\d{1,3}){3}`)
-	ipv6Re  = regexp.MustCompile(`[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?:%[0-9A-Za-z_.-]+)?`)
+	ipv4Re = regexp.MustCompile(`\d{1,3}(?:\.\d{1,3}){3}`)
+	// ipv6Re takes a whole run of hex digits and colons, so that what it
+	// matches is what a reader sees: ipv6Addr then reads an address in it.
+	ipv6Re  = regexp.MustCompile(`[0-9A-Fa-f:]*:[0-9A-Fa-f:]*:[0-9A-Fa-f:]*(?:%[0-9A-Za-z_.-]+)?`)
 	macRe   = regexp.MustCompile(`(?i)\b[0-9a-f]{2}(?:[:-][0-9a-f]{2}){5}\b`)
 	emailRe = regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}`)
 )
@@ -105,16 +107,11 @@ func (m *Masker) String(s string) string {
 	}
 	s = macRe.ReplaceAllStringFunc(s, func(mac string) string { return m.placeholder(strings.ToLower(mac), "mac") })
 	s = replaceAddrs(s, ipv6Re, isHexOrColon, func(tok string) (string, bool) {
-		addr, zone, _ := strings.Cut(tok, "%")
-		a, err := netip.ParseAddr(addr)
-		if err != nil || !a.Is6() || a.Is4In6() {
+		a, rest, ok := ipv6Addr(tok)
+		if !ok || m.kept(a) {
 			return "", false
 		}
-		if m.kept(a) {
-			return "", false
-		}
-		_ = zone
-		return m.placeholder(a.String(), "ip6"), true
+		return m.placeholder(a.String(), "ip6") + rest, true
 	})
 	s = replaceAddrs(s, ipv4Re, isDigitByte, func(tok string) (string, bool) {
 		a, err := netip.ParseAddr(tok)
@@ -130,6 +127,30 @@ func (m *Masker) String(s string) string {
 		return m.placeholder(a.String(), "ip"), true
 	})
 	return s
+}
+
+// ipv6Addr reads the IPv6 address in a run of hex digits and colons (with
+// its zone, which it drops): the whole run, or the run without a port
+// that follows the address unbracketed, as in "fd00::5:37267". rest is
+// what follows the address.
+func ipv6Addr(tok string) (a netip.Addr, rest string, ok bool) {
+	tok, _, _ = strings.Cut(tok, "%")
+	parse := func(s string) bool {
+		var err error
+		a, err = netip.ParseAddr(s)
+		return err == nil && a.Is6() && !a.Is4In6()
+	}
+	if parse(tok) {
+		return a, "", true
+	}
+	i := strings.LastIndexByte(tok, ':')
+	if i <= 0 || tok[i-1] == ':' {
+		return netip.Addr{}, "", false
+	}
+	if port := tok[i+1:]; port != "" && len(port) <= 5 && strings.Trim(port, "0123456789") == "" && parse(tok[:i]) {
+		return a, tok[i:], true
+	}
+	return netip.Addr{}, "", false
 }
 
 func (m *Masker) kept(a netip.Addr) bool {
@@ -227,14 +248,17 @@ func (m *Masker) Leaks(s string) []string {
 		}
 	}
 	// Any address left that masking would have replaced, whatever its
-	// surroundings.
-	for _, re := range []*regexp.Regexp{ipv4Re, ipv6Re} {
-		for _, tok := range re.FindAllString(s, -1) {
-			addr, _, _ := strings.Cut(tok, "%")
-			if a, err := netip.ParseAddr(addr); err == nil && !m.kept(a) {
-				out = append(out, "an address outside the kept prefixes")
-				return out
-			}
+	// surroundings. An IPv6 run is read as masking reads it, whole: its
+	// first characters alone ("::1:3726" of "::1:37267") aren't an address
+	// anyone wrote.
+	for _, tok := range ipv4Re.FindAllString(s, -1) {
+		if a, err := netip.ParseAddr(tok); err == nil && !m.kept(a) {
+			return append(out, "an address outside the kept prefixes")
+		}
+	}
+	for _, tok := range ipv6Re.FindAllString(s, -1) {
+		if a, _, ok := ipv6Addr(tok); ok && !m.kept(a) {
+			return append(out, "an address outside the kept prefixes")
 		}
 	}
 	return out
