@@ -320,33 +320,52 @@ func (p *ProbeContainer) sweep(ctx context.Context) bool {
 	return true
 }
 
+// ensureImage returns the probe image's reference, importing the image
+// first if the daemon doesn't have it.
 func (p *ProbeContainer) ensureImage(ctx context.Context) (string, error) {
-	v, err := p.API.Negotiate(ctx)
+	ref, tag, imported, err := p.image(ctx)
 	if err != nil {
 		return "", err
 	}
-	if v.Os != "linux" || v.Arch != runtime.GOARCH || runtime.GOOS != "linux" {
-		return "", fmt.Errorf("the daemon runs %s/%s and this whyreach is %s/%s; probe binaries for other platforms arrive in v0.3: %w",
-			v.Os, v.Arch, runtime.GOOS, runtime.GOARCH, probe.ErrUnsupported)
-	}
-	digest, err := checkBinary(p.Binary)
-	if err != nil {
-		return "", err
-	}
-	tag := ImageTag(p.Version, digest)
-	ref := docker.ProbeImageRepo + ":" + tag
-	img, err := p.API.ImageInspect(ctx, ref)
-	if err == nil && img.Config.Labels[docker.ProbeLabel] == "1" {
+	if imported {
 		return ref, nil
-	}
-	if err != nil && !errors.Is(err, docker.ErrNotFound) {
-		return "", fmt.Errorf("inspect %s: %w", ref, err)
 	}
 	if err := p.importImage(ctx, tag); err != nil {
 		return "", err
 	}
 	RecordSideEffect(ctx, "imported image "+ref)
 	return ref, nil
+}
+
+// image checks that the daemon's platform matches and that the binary can
+// run on scratch, names the probe image after them, and asks the daemon
+// whether it has that image: an image under the tag without the probe
+// label isn't whyreach's, so it counts as not imported. ref and tag are set
+// once the binary checks out, even when the inspect fails.
+func (p *ProbeContainer) image(ctx context.Context) (ref, tag string, imported bool, err error) {
+	v, err := p.API.Negotiate(ctx)
+	if err != nil {
+		return "", "", false, err
+	}
+	if v.Os != "linux" || v.Arch != runtime.GOARCH || runtime.GOOS != "linux" {
+		return "", "", false, fmt.Errorf("the daemon runs %s/%s and this whyreach is %s/%s; probe binaries for other platforms arrive in v0.3: %w",
+			v.Os, v.Arch, runtime.GOOS, runtime.GOARCH, probe.ErrUnsupported)
+	}
+	digest, err := checkBinary(p.Binary)
+	if err != nil {
+		return "", "", false, err
+	}
+	tag = ImageTag(p.Version, digest)
+	ref = docker.ProbeImageRepo + ":" + tag
+	img, err := p.API.ImageInspect(ctx, ref)
+	switch {
+	case err == nil:
+		return ref, tag, img.Config.Labels[docker.ProbeLabel] == "1", nil
+	case errors.Is(err, docker.ErrNotFound):
+		return ref, tag, false, nil
+	default:
+		return ref, tag, false, fmt.Errorf("inspect %s: %w", ref, err)
+	}
 }
 
 // Readiness is what running a probe container needs, checked without any
@@ -360,27 +379,8 @@ type Readiness struct {
 // static ELF that can run on scratch, and whether the image is imported. It
 // never imports, sweeps or creates anything.
 func (p *ProbeContainer) Readiness(ctx context.Context) (Readiness, error) {
-	v, err := p.API.Negotiate(ctx)
-	if err != nil {
-		return Readiness{}, err
-	}
-	if v.Os != "linux" || v.Arch != runtime.GOARCH || runtime.GOOS != "linux" {
-		return Readiness{}, fmt.Errorf("the daemon runs %s/%s and this whyreach is %s/%s; probe binaries for other platforms arrive in v0.3: %w",
-			v.Os, v.Arch, runtime.GOOS, runtime.GOARCH, probe.ErrUnsupported)
-	}
-	digest, err := checkBinary(p.Binary)
-	if err != nil {
-		return Readiness{}, err
-	}
-	r := Readiness{Image: docker.ProbeImageRepo + ":" + ImageTag(p.Version, digest)}
-	img, err := p.API.ImageInspect(ctx, r.Image)
-	switch {
-	case err == nil:
-		r.Imported = img.Config.Labels[docker.ProbeLabel] == "1"
-	case !errors.Is(err, docker.ErrNotFound):
-		return r, fmt.Errorf("inspect %s: %w", r.Image, err)
-	}
-	return r, nil
+	ref, _, imported, err := p.image(ctx)
+	return Readiness{Image: ref, Imported: imported}, err
 }
 
 // checkBinary verifies that the executable can run on scratch: a static

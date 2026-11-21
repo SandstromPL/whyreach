@@ -41,6 +41,7 @@ type fakeAPI struct {
 	createErrs []error
 	reclaimed  []string
 	sweepErr   error
+	inspectErr error
 }
 
 func (f *fakeAPI) call(s string) {
@@ -56,6 +57,9 @@ func (f *fakeAPI) Negotiate(context.Context) (docker.Version, error) {
 
 func (f *fakeAPI) ImageInspect(_ context.Context, ref string) (docker.Image, error) {
 	f.call("inspect " + ref)
+	if f.inspectErr != nil {
+		return docker.Image{}, f.inspectErr
+	}
 	if img, ok := f.images[ref]; ok {
 		return img, nil
 	}
@@ -503,6 +507,51 @@ func TestProbeContainerReimportsARemovedImage(t *testing.T) {
 	}
 	if count("create ") != 2 {
 		t.Errorf("calls %q, want exactly one retry", api.calls)
+	}
+}
+
+// TestReadiness: whyreach doctor's check names the image and says whether
+// the daemon has it, without any Docker write.
+func TestReadiness(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the probe container needs a Linux whyreach")
+	}
+	bin := fakeELF(t, false)
+	digest, err := checkBinary(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := docker.ProbeImageRepo + ":" + ImageTag("dev", digest)
+	labelled := func(v string) docker.Image {
+		var img docker.Image
+		img.Config.Labels = map[string]string{docker.ProbeLabel: v}
+		return img
+	}
+	linux := docker.Version{Os: "linux", Arch: runtime.GOARCH}
+	tests := []struct {
+		name    string
+		api     *fakeAPI
+		want    Readiness
+		wantErr bool
+	}{
+		{"imported", &fakeAPI{version: linux, images: map[string]docker.Image{ref: labelled("1")}}, Readiness{Image: ref, Imported: true}, false},
+		{"not imported", &fakeAPI{version: linux}, Readiness{Image: ref}, false},
+		{"the tag holds another image", &fakeAPI{version: linux, images: map[string]docker.Image{ref: labelled("0")}}, Readiness{Image: ref}, false},
+		{"the inspect fails", &fakeAPI{version: linux, inspectErr: errors.New("daemon busy")}, Readiness{Image: ref}, true},
+		{"another platform", &fakeAPI{version: docker.Version{Os: "windows", Arch: runtime.GOARCH}}, Readiness{}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NewProbeContainer(tt.api, bin, "dev", nil).Readiness(context.Background())
+			if got != tt.want || (err != nil) != tt.wantErr {
+				t.Errorf("%+v, %v; want %+v, error %v", got, err, tt.want, tt.wantErr)
+			}
+			for _, c := range tt.api.calls {
+				if strings.HasPrefix(c, "import") || strings.HasPrefix(c, "create") || c == "leftovers" {
+					t.Errorf("readiness made %q", c)
+				}
+			}
+		})
 	}
 }
 
