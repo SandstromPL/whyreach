@@ -103,9 +103,11 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 		// container (Docker Desktop): never through a PID that isn't this
 		// machine's. A host-network container's sockets are the host's,
 		// except on Docker Desktop, where its host is Docker Desktop's VM.
-		ev := r.containerListeners(ctx, owner)
+		var ev evidence.Evidence
 		if owner.HostNetwork() && r.engineHere {
 			ev = r.hostListeners()
+		} else {
+			ev = r.containerListeners(ctx, owner)
 		}
 		return restamp([]evidence.Evidence{ev}, stamp), nil
 	}

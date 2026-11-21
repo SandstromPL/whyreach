@@ -1,15 +1,19 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/executor"
+	"github.com/SandstromPL/whyreach/internal/probe"
 	"github.com/SandstromPL/whyreach/internal/rules"
+	"github.com/SandstromPL/whyreach/internal/target"
 )
 
 // exposers returns n running containers that expose port without
@@ -119,5 +123,59 @@ func TestWindowsHostWithoutContainerList(t *testing.T) {
 	hostL := hostListenerRecords(r.d)
 	if len(hostL) != 1 || hostL[0].Status != evidence.StatusUnsupported || hostL[0].Err == nil || hostL[0].Err.Message != executor.HostNotHere {
 		t.Errorf("host listeners = %+v, want one unsupported record (%q)", hostL, executor.HostNotHere)
+	}
+}
+
+// countedReads is a listener reader that counts its reads.
+type countedReads struct {
+	*world
+	mu              sync.Mutex
+	host, container int
+}
+
+func (c *countedReads) Host() ([]evidence.Socket, error) {
+	c.mu.Lock()
+	c.host++
+	c.mu.Unlock()
+	return c.world.Host()
+}
+
+func (c *countedReads) Container(pid int, id string) ([]evidence.Socket, error) {
+	c.mu.Lock()
+	c.container++
+	c.mu.Unlock()
+	return c.world.Container(pid, id)
+}
+
+// TestListenerReadsAreNotWasted: each listening-socket read whyreach makes
+// ends up in the answer. A container reaching the host reads the host's
+// listeners once, and run_probe reads a host-network container's sockets
+// as the host's, without reading them through its PID first.
+func TestListenerReadsAreNotWasted(t *testing.T) {
+	w := firewallWorld(evidence.OutcomeConnected, evidence.OutcomeConnected)
+	reads := &countedReads{world: w}
+	e := New(Deps{Docker: w, Listeners: reads, Interfaces: hostIfaces, Host: &scripted{w: w, name: evidence.ExecutorHost}})
+	f, _ := target.ParseFrom("container:shop-worker-1")
+	to, _ := target.ParseTo("host.docker.internal:5432")
+	d, err := e.Diagnose(context.Background(), f, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reads.host != 1 || len(hostListenerRecords(d)) != 1 {
+		t.Errorf("%d reads of the host's listeners for %d records, want 1", reads.host, len(hostListenerRecords(d)))
+	}
+
+	w = shopWorld()
+	w.containers[1].NetworkMode, w.containers[1].Networks = "host", nil
+	w.host = []string{"0.0.0.0:8080"}
+	reads = &countedReads{world: w}
+	e = New(Deps{Docker: w, Listeners: reads, Host: &scripted{w: w, name: evidence.ExecutorHost}})
+	f, _ = target.ParseFrom("container:shop-api-1")
+	res, err := e.Probe(context.Background(), f, probe.Spec{Kind: probe.SpecListeners})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reads.host != 1 || reads.container != 0 || len(res.Evidence) != 1 || !res.Evidence[0].OK() {
+		t.Errorf("a host-network container's listeners: %d host reads, %d through its PID, evidence %+v; want 1, 0 and one record", reads.host, reads.container, res.Evidence)
 	}
 }

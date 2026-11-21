@@ -216,15 +216,11 @@ const maxScan = 32
 // it, or publish their own port of that number elsewhere. When the source
 // is the host and nothing there accepts the port, it also reads the
 // listeners of the running containers to find the one that serves it but
-// doesn't publish it (WR019).
-func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[string]bool) {
+// doesn't publish it (WR019). ht is how the target refers to the host.
+func (r *run) collectHost(ctx context.Context, ht evidence.HostTarget, list []docker.Summary, have map[string]bool) {
 	r.hostDone = true
 	port := r.q.To.Port
-	hostL := r.hostListeners()
-	if r.q.From.Kind == evidence.SourceContainer {
-		ht, _ := evidence.NewView(r.q, r.store.Snapshot()).HostTarget()
-		hostL = r.hostListenersFor(&ht)
-	}
+	hostL := r.hostListenersFor(&ht)
 	r.store.Add(hostL)
 	hostAccepts := false
 	if l, ok := hostL.Data.(evidence.Listeners); ok && hostL.OK() {
@@ -497,7 +493,7 @@ func (r *run) hostSide(ctx context.Context) {
 		r.hostDone = true
 		return
 	}
-	r.collectHost(ctx, r.list, containerIDs(r.store.Snapshot()))
+	r.collectHost(ctx, ht, r.list, containerIDs(r.store.Snapshot()))
 }
 
 // containerIDs lists the containers whose metadata items records, by ID.
