@@ -203,3 +203,35 @@ func TestHostFirewall(t *testing.T) {
 		t.Errorf("from the host: the host's own connects %+v", controls(host))
 	}
 }
+
+// TestHostControlKeepsTheNetns: the host's own connect for comparison
+// (WR021) keeps the network namespace the host executor stamped on it, as
+// the source's probes keep theirs: it shows the two connects ran in
+// different network namespaces.
+func TestHostControlKeepsTheNetns(t *testing.T) {
+	const hostNetns, workerNetns = 4026531840, 4026532001
+	w := firewallWorld(evidence.OutcomeUnreachable, evidence.OutcomeConnected)
+	f, _ := target.ParseFrom("container:shop-worker-1")
+	to, _ := target.ParseTo("host.docker.internal:5432")
+	d, err := New(Deps{
+		Docker: w, Listeners: w, Interfaces: hostIfaces, Routes: w.route,
+		Host:  &scripted{w: w, name: evidence.ExecutorHost, netns: hostNetns},
+		Probe: &scripted{w: w, name: evidence.ExecutorProbeContainer, netns: workerNetns},
+	}).Diagnose(context.Background(), f, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var controlNetns, workerTCP []uint64
+	for _, e := range d.Evidence {
+		if tp, ok := e.Data.(evidence.TCPProbe); ok {
+			if tp.Via == evidence.ViaControl {
+				controlNetns = append(controlNetns, e.Context.NetnsID)
+			} else {
+				workerTCP = append(workerTCP, e.Context.NetnsID)
+			}
+		}
+	}
+	if !slices.Equal(controlNetns, []uint64{hostNetns}) || len(workerTCP) == 0 || slices.ContainsFunc(workerTCP, func(n uint64) bool { return n != workerNetns }) {
+		t.Errorf("netns of the host's own connect %v, want [%d]; of worker's connects %v, want %d", controlNetns, uint64(hostNetns), workerTCP, uint64(workerNetns))
+	}
+}

@@ -77,16 +77,24 @@ func (r *run) probe(ctx context.Context) error {
 	if err != nil {
 		r.e.d.Logger.Warn("probe batch failed", "executor", ex.Name(), "err", err)
 	}
+	r.store.Add(restamp(evs, stamp)...)
+	return nil
+}
+
+// restamp files the records an executor returned under the context to (the
+// source's, which may share the netns the checks ran in, or the host's),
+// keeping the network namespace and the executor the executor stamped, and
+// fills in a missing observation time.
+func restamp(evs []evidence.Evidence, to evidence.ContextRef) []evidence.Evidence {
 	for i := range evs {
 		netns, exe := evs[i].Context.NetnsID, evs[i].Context.Executor
-		evs[i].Context = stamp
+		evs[i].Context = to
 		evs[i].Context.NetnsID, evs[i].Context.Executor = netns, exe
 		if evs[i].ObservedAt.IsZero() {
 			evs[i].ObservedAt = time.Now()
 		}
 	}
-	r.store.Add(evs...)
-	return nil
+	return evs
 }
 
 // specs lists the checks for the question: look the name up and connect to

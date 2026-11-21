@@ -98,14 +98,6 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 			}), nil
 		}
 	}
-	restamp := func(evs []evidence.Evidence) []evidence.Evidence {
-		for i := range evs {
-			netns, exe := evs[i].Context.NetnsID, evs[i].Context.Executor
-			evs[i].Context = stamp
-			evs[i].Context.NetnsID, evs[i].Context.Executor = netns, exe
-		}
-		return evs
-	}
 	if spec.Kind == probe.SpecListeners {
 		// Through /proc where Docker Engine runs here, else inside a probe
 		// container (Docker Desktop): never through a PID that isn't this
@@ -115,7 +107,7 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 		if owner.HostNetwork() && r.engineHere {
 			ev = r.hostListeners()
 		}
-		return restamp([]evidence.Evidence{ev}), nil
+		return restamp([]evidence.Evidence{ev}, stamp), nil
 	}
 	if !owner.Running() {
 		return executor.Failed(stamp, "", []probe.Spec{spec}, evidence.StatusFailed, &evidence.Error{
@@ -151,7 +143,7 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 			}
 		}
 	}
-	return restamp(evs), nil
+	return restamp(evs, stamp), nil
 }
 
 // NameSearchBounded is the limitation of a lookup held back for approval

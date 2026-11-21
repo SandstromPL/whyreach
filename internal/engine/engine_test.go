@@ -191,6 +191,7 @@ type scripted struct {
 	ran    [][]probe.Spec
 	where  []evidence.ContextRef
 	effect []string
+	netns  uint64 // the network namespace it stamps on its records, as the real executors do; 0 for none
 }
 
 func (s *scripted) Name() string { return s.name }
@@ -272,6 +273,9 @@ func (s *scripted) Run(ctx context.Context, where evidence.ContextRef, specs []p
 				out = append(out, dial(subject, netip.AddrPortFrom(a, sp.Port), p.Via))
 			}
 		}
+	}
+	for i := range out {
+		out[i].Context.NetnsID = s.netns
 	}
 	return out, nil
 }

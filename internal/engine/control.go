@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/netip"
 	"slices"
-	"time"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/probe"
@@ -52,15 +51,7 @@ func (r *run) hostControl(ctx context.Context) error {
 	if err != nil {
 		r.e.d.Logger.Warn("the host's own connect failed to run", "err", err)
 	}
-	for i := range evs {
-		exe := evs[i].Context.Executor
-		evs[i].Context = where
-		evs[i].Context.Executor = exe
-		if evs[i].ObservedAt.IsZero() {
-			evs[i].ObservedAt = time.Now()
-		}
-	}
-	r.store.Add(evs...)
+	r.store.Add(restamp(evs, where)...)
 	return nil
 }
 
