@@ -443,7 +443,7 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 	} else {
 		logger.Warn("no audit log", "err", err)
 	}
-	warnForeignDirs(logger)
+	warnForeignDirs(logger, pl.Root)
 	if cfg.Permissions.Docker {
 		endpoint, err := docker.Endpoint(o.Getenv)
 		if err == nil {
@@ -534,9 +534,9 @@ const selfInspectTimeout = 3 * time.Second
 // warnForeignDirs warns when whyreach runs as root but its state and data
 // directories belong to another user, as after sudo -E: the root-owned
 // files it would write there (the audit log, reports) would lock that user
-// out of them.
-func warnForeignDirs(logger *slog.Logger) {
-	if !platform.Detect().Root {
+// out of them. root is whether whyreach runs as root.
+func warnForeignDirs(logger *slog.Logger, root bool) {
+	if !root {
 		return
 	}
 	for _, dir := range []func() (string, error){config.StateDir, config.DataDir} {
@@ -550,33 +550,35 @@ func warnForeignDirs(logger *slog.Logger) {
 // its listening sockets and checks run from it. Containers' listeners, read
 // through /proc/<pid> (with --pid host), stay.
 func hideHost(d *policy.Deps) {
-	d.Interfaces = func() (evidence.HostAddrs, error) { return evidence.HostAddrs{}, hostHidden{} }
-	d.Routes = func(a netip.Addr) (evidence.HostRoute, error) { return evidence.HostRoute{Dst: a}, hostHidden{} }
+	d.Interfaces = func() (evidence.HostAddrs, error) { return evidence.HostAddrs{}, hiddenErr(executor.HostHidden) }
+	d.Routes = func(a netip.Addr) (evidence.HostRoute, error) {
+		return evidence.HostRoute{Dst: a}, hiddenErr(executor.HostHidden)
+	}
 	d.Listeners = hiddenHostListeners{d.Listeners}
 	d.Host = executor.Unsupported{Executor: evidence.ExecutorHost, Reason: executor.HostHidden}
 }
 
-// hostHidden is the error of a host-side read that can't describe the host.
-type hostHidden struct{}
+// hiddenErr is the error of a read that whyreach, in a container, can't
+// make: of the host's side (executor.HostHidden) or of containers' PIDs
+// (executor.PIDsHidden). It is unsupported, never a negative result.
+type hiddenErr string
 
-func (hostHidden) Error() string        { return executor.HostHidden }
-func (hostHidden) Is(target error) bool { return target == probe.ErrUnsupported }
+func (e hiddenErr) Error() string      { return string(e) }
+func (hiddenErr) Is(target error) bool { return target == probe.ErrUnsupported }
 
 type hiddenHostListeners struct{ engine.Listeners }
 
-func (hiddenHostListeners) Host() ([]evidence.Socket, error) { return nil, hostHidden{} }
+func (hiddenHostListeners) Host() ([]evidence.Socket, error) {
+	return nil, hiddenErr(executor.HostHidden)
+}
 
 // hiddenPIDs reads no container's listeners: whyreach runs in a container
 // without the host's PIDs, so Docker's PIDs aren't ones it can see.
 type hiddenPIDs struct{ engine.Listeners }
 
-func (hiddenPIDs) Container(int, string) ([]evidence.Socket, error) { return nil, pidsHidden{} }
-
-// pidsHidden is the error of such a read.
-type pidsHidden struct{}
-
-func (pidsHidden) Error() string        { return executor.PIDsHidden }
-func (pidsHidden) Is(target error) bool { return target == probe.ErrUnsupported }
+func (hiddenPIDs) Container(int, string) ([]evidence.Socket, error) {
+	return nil, hiddenErr(executor.PIDsHidden)
+}
 
 // procListeners reads listeners from /proc on the host. The host's own come
 // from the reading thread's view (/proc/thread-self): /proc/net shows the
