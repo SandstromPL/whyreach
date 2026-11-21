@@ -98,7 +98,7 @@ func (g *guard) Run(ctx context.Context, where evidence.ContextRef, specs []prob
 	// a name reports its lookup too.
 	refusedLookups := map[string]bool{}
 	for _, e := range evs {
-		if e.Kind == evidence.KindDNS && e.Status == evidence.StatusSkipped && e.Err != nil && e.Err.Code == evidence.CodePolicyDenied && !queried(e) {
+		if policyDenied(e, evidence.KindDNS) && !queried(e) {
 			refusedLookups[target.NormalizeName(e.Subject)] = true
 		}
 	}

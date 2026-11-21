@@ -127,8 +127,8 @@ type Policy struct {
 	explicit []netip.Prefix // the allowlist's CIDRs and addresses
 
 	namesMu  sync.Mutex
-	approved map[string]int         // outside names the user approved: lookups left
-	addrs    map[netip.AddrPort]int // private addresses and ports the user approved: connects left
+	approved budget[string]         // outside names the user approved: lookups left
+	addrs    budget[netip.AddrPort] // private addresses and ports the user approved: connects left
 
 	probeOnce sync.Once
 	probeEx   executor.Executor
@@ -158,7 +158,7 @@ func New(d Deps) (*Policy, error) {
 	if d.Docker == nil || d.Settings.NetnsOff {
 		d.Netns = nil // it finds containers through the Docker API; and the user can turn it off
 	}
-	p := &Policy{d: d, limiter: newLimiter(d.Settings.RatePerMinute, d.Now), approved: map[string]int{}, addrs: map[netip.AddrPort]int{}}
+	p := &Policy{d: d, limiter: newLimiter(d.Settings.RatePerMinute, d.Now), approved: budget[string]{}, addrs: budget[netip.AddrPort]{}}
 	for _, entry := range d.Settings.Allow {
 		prefixes, err := config.AllowPrefixes(entry)
 		if err != nil {
@@ -235,12 +235,39 @@ func (p *Policy) RecordConsent(approved bool, how string) {
 	if approved {
 		p.granted.Store(true)
 	}
+	p.auditAnswer(ToolConsent, map[string]string{"answer": how}, approved)
+}
+
+// auditAnswer records the user's answer to a question in the audit log.
+func (p *Policy) auditAnswer(tool string, args map[string]string, approved bool) {
 	status := "declined"
 	if approved {
 		status = "approved"
 	}
-	p.audit(Entry{Tool: ToolConsent, Args: map[string]string{"answer": how}, Status: status, SideEffects: []string{}}, time.Now(), nil)
+	p.audit(Entry{Tool: tool, Args: args, Status: status}, time.Now(), nil)
 }
+
+// budget holds the uses left of the user's approvals, by name or by address
+// and port (INITIAL.md §10 Q14, Q15). Policy.namesMu guards it.
+type budget[K comparable] map[K]int
+
+// grant gives k a fresh approval: ApprovalBudget uses.
+func (b budget[K]) grant(k K) { b[k] = ApprovalBudget }
+
+// left is how many uses k's approval has left.
+func (b budget[K]) left(k K) int { return b[k] }
+
+// take uses one of k's, if any is left.
+func (b budget[K]) take(k K) bool {
+	if b[k] <= 0 {
+		return false
+	}
+	b[k]--
+	return true
+}
+
+// refund gives k back one use, never past ApprovalBudget.
+func (b budget[K]) refund(k K) { b[k] = min(b[k]+1, ApprovalBudget) }
 
 // NamesNeedApproval reports whether lookups of outside names are held back
 // until the user approves them (INITIAL.md §10 Q11): for MCP clients. The
@@ -256,7 +283,7 @@ func (p *Policy) NameAllowed(name string) bool {
 	}
 	p.namesMu.Lock()
 	defer p.namesMu.Unlock()
-	return p.approved[target.NormalizeName(name)] > 0
+	return p.approved.left(target.NormalizeName(name)) > 0
 }
 
 // RecordNameConsent records the user's answer to a request to look up one
@@ -268,14 +295,10 @@ func (p *Policy) RecordNameConsent(name string, approved bool, how string) {
 	n := target.NormalizeName(name)
 	if approved {
 		p.namesMu.Lock()
-		p.approved[n] = ApprovalBudget
+		p.approved.grant(n)
 		p.namesMu.Unlock()
 	}
-	status := "declined"
-	if approved {
-		status = "approved"
-	}
-	p.audit(Entry{Tool: ToolNameConsent, Args: map[string]string{"name": n, "answer": how}, Status: status, SideEffects: []string{}}, time.Now(), nil)
+	p.auditAnswer(ToolNameConsent, map[string]string{"name": n, "answer": how}, approved)
 }
 
 // AddrsNeedApproval reports whether connects to private addresses outside
@@ -291,7 +314,7 @@ func (p *Policy) AddrsNeedApproval() bool {
 func (p *Policy) AddrAllowed(ap netip.AddrPort) bool {
 	p.namesMu.Lock()
 	defer p.namesMu.Unlock()
-	return p.addrs[unmapped(ap)] > 0
+	return p.addrs.left(unmapped(ap)) > 0
 }
 
 // RecordAddrConsent records the user's answer to a request to connect to one
@@ -302,14 +325,10 @@ func (p *Policy) RecordAddrConsent(ap netip.AddrPort, approved bool, how string)
 	ap = unmapped(ap)
 	if approved {
 		p.namesMu.Lock()
-		p.addrs[ap] = ApprovalBudget
+		p.addrs.grant(ap)
 		p.namesMu.Unlock()
 	}
-	status := "declined"
-	if approved {
-		status = "approved"
-	}
-	p.audit(Entry{Tool: ToolAddrConsent, Args: map[string]string{"address": ap.String(), "answer": how}, Status: status, SideEffects: []string{}}, time.Now(), nil)
+	p.auditAnswer(ToolAddrConsent, map[string]string{"address": ap.String(), "answer": how}, approved)
 }
 
 func unmapped(ap netip.AddrPort) netip.AddrPort {
@@ -320,11 +339,7 @@ func unmapped(ap netip.AddrPort) netip.AddrPort {
 func (p *Policy) leaseName(n string) bool {
 	p.namesMu.Lock()
 	defer p.namesMu.Unlock()
-	if p.approved[n] == 0 {
-		return false
-	}
-	p.approved[n]--
-	return true
+	return p.approved.take(n)
 }
 
 // leaseAddrs sets aside, for one batch, connects to the approved addresses:
@@ -369,10 +384,10 @@ func (p *Policy) settle(names []string, addrs []netip.AddrPort, evs []evidence.E
 		p.namesMu.Lock()
 		defer p.namesMu.Unlock()
 		for _, n := range names {
-			p.approved[n] = min(p.approved[n]+1, ApprovalBudget)
+			p.approved.refund(n)
 		}
 		for _, ap := range addrs {
-			p.addrs[ap] = min(p.addrs[ap]+1, ApprovalBudget)
+			p.addrs.refund(ap)
 		}
 		return
 	}
@@ -400,7 +415,7 @@ func (p *Policy) settle(names []string, addrs []netip.AddrPort, evs []evidence.E
 	defer p.namesMu.Unlock()
 	for _, n := range names {
 		if unsent[n] && !sent[n] {
-			p.approved[n] = min(p.approved[n]+1, ApprovalBudget)
+			p.approved.refund(n)
 		}
 	}
 	if lost {
@@ -411,7 +426,7 @@ func (p *Policy) settle(names []string, addrs []netip.AddrPort, evs []evidence.E
 			used[ap]--
 			continue
 		}
-		p.addrs[ap] = min(p.addrs[ap]+1, ApprovalBudget)
+		p.addrs.refund(ap)
 	}
 }
 
@@ -465,7 +480,7 @@ func (p *Policy) diagnose(ctx context.Context, a DiagnoseArgs) (*engine.Diagnosi
 func (p *Policy) Inspect(ctx context.Context, scope string) (*engine.Inspection, error) {
 	start := time.Now()
 	in, err := p.inspect(ctx, scope)
-	p.audit(Entry{Tool: ToolInspect, Args: map[string]string{"scope": scope}, SideEffects: []string{}}, start, err)
+	p.audit(Entry{Tool: ToolInspect, Args: map[string]string{"scope": scope}}, start, err)
 	return in, err
 }
 
@@ -617,15 +632,19 @@ func NeedsAddrApproval(evs []evidence.Evidence) []netip.AddrPort {
 // AddrHeldBack reports a connect the probe didn't make because its private
 // address and port weren't approved.
 func AddrHeldBack(e evidence.Evidence) bool {
-	return e.Kind == evidence.KindTCP && e.Status == evidence.StatusSkipped && e.Err != nil &&
-		e.Err.Code == evidence.CodePolicyDenied && e.Err.Message == probe.AddrNotApproved
+	return policyDenied(e, evidence.KindTCP) && e.Err.Message == probe.AddrNotApproved
 }
 
 // NameHeldBack reports a lookup the probe didn't send because its outside
 // name wasn't approved.
 func NameHeldBack(e evidence.Evidence) bool {
-	return e.Kind == evidence.KindDNS && e.Status == evidence.StatusSkipped && e.Err != nil &&
-		e.Err.Code == evidence.CodePolicyDenied && e.Err.Message == probe.NameNotApproved
+	return policyDenied(e, evidence.KindDNS) && e.Err.Message == probe.NameNotApproved
+}
+
+// policyDenied reports a check of kind k that the policy or the probe
+// refused: skipped, with code policy_denied (and so an Err).
+func policyDenied(e evidence.Evidence, k evidence.Kind) bool {
+	return e.Kind == k && e.Status == evidence.StatusSkipped && e.Err != nil && e.Err.Code == evidence.CodePolicyDenied
 }
 
 // Error is a request the policy refused or could not serve.
@@ -814,5 +833,5 @@ func (p *Policy) audit(e Entry, start time.Time, err error) {
 // Audit records a tool call that does not run through the engine, such as
 // save_report.
 func (p *Policy) Audit(tool string, args map[string]string, start time.Time, err error) {
-	p.audit(Entry{Tool: tool, Args: args, SideEffects: []string{}}, start, err)
+	p.audit(Entry{Tool: tool, Args: args}, start, err)
 }
