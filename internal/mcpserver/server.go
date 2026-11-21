@@ -455,7 +455,9 @@ func (s *Server) advice(e evidence.Evidence, canAsk bool) string {
 	case e.Err != nil && e.Err.Message == executor.PIDsElsewhere:
 		return "On Docker Desktop whyreach reads containers' listening sockets only inside probe containers, which are off. Turning them on is the user's decision: " +
 			"approve probe containers when whyreach asks, or set probe_containers = true under [permissions] in " + s.p.ConfigPath() + "."
-	case e.Status == evidence.StatusPermissionDenied:
+	case e.Status == evidence.StatusPermissionDenied && e.Err != nil && (e.Err.Message == executor.ProbeContainersOff || executor.CannotEnter(e.Err)):
+		// Not any denial: a read of a container's listeners that /proc
+		// refused (hidepid) is no matter for probe containers.
 		return "This check runs inside the container through a probe container, which is off. Turning them on is the user's decision: " +
 			"approve probe containers when whyreach asks, or set probe_containers = true under [permissions] in " + s.p.ConfigPath() + "."
 	case policy.AddrHeldBack(e):

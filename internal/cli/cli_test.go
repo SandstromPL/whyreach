@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/netip"
 	"os"
@@ -16,6 +18,7 @@ import (
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/engine"
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/policy"
 )
 
@@ -224,6 +227,48 @@ func TestFailedWriteIsInternal(t *testing.T) {
 	} {
 		if code, stderr := run(fullWriter{}, args...); code != ExitInternal || !strings.Contains(stderr, "no space left") {
 			t.Errorf("%q: exit %d, want %d (%s)", args, code, ExitInternal, stderr)
+		}
+	}
+}
+
+// deniedListeners reads no container's listeners: /proc refuses them, as
+// with hidepid=1.
+type deniedListeners struct{ fakeDocker }
+
+func (deniedListeners) Container(pid int, _ string) ([]evidence.Socket, error) {
+	return nil, fmt.Errorf("open /proc/%d/net/tcp: %w", pid, fs.ErrPermission)
+}
+
+// A listener read that /proc refuses is no matter for probe containers,
+// which never read listeners on Docker Engine: probe listeners must not
+// advise them.
+func TestListenersDeniedAdvice(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Execute(context.Background(), []string{"probe", "listeners", "--from", "container:shop-api-1"}, Options{
+		Version: "test", Stdout: &stdout, Stderr: &stderr, Getenv: func(string) string { return "" },
+		NewPolicy: func(_ Options, logger *slog.Logger, client string) (*policy.Policy, error) {
+			return policy.New(policy.Deps{
+				Settings: policy.Settings{Docker: true, ConfigPath: "/test/config.toml"},
+				Docker:   fakeDocker{}, Listeners: deniedListeners{}, Client: client, Logger: logger,
+			})
+		},
+	})
+	if code != ExitNoProblem || !strings.Contains(stdout.String(), "permission_denied") {
+		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", code, stdout.String(), stderr.String())
+	}
+	if strings.Contains(stdout.String(), "probe containers") {
+		t.Errorf("a refused listener read advises probe containers:\n%s", stdout.String())
+	}
+	// Checks probe containers would run still say how to allow them.
+	p, err := fakePolicy(Options{}, slog.New(slog.DiscardHandler), policy.ClientCLI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	howTo := probeHowTo(p)
+	for _, msg := range []string{executor.ProbeContainersOff, executor.ErrCannotEnter.Error() + ": operation not permitted"} {
+		e := evidence.Evidence{Kind: evidence.KindTCP, Status: evidence.StatusPermissionDenied, Err: &evidence.Error{Code: evidence.CodePermissionDenied, Message: msg}}
+		if !strings.Contains(howTo(e), "probe_containers = true") {
+			t.Errorf("%s: advice %q", msg, howTo(e))
 		}
 	}
 }

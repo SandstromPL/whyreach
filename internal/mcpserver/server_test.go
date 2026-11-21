@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/netip"
 	"os"
@@ -788,6 +789,42 @@ func TestHeldBackAdviceNotesBoundedSearch(t *testing.T) {
 	got := h.s.advice(e, false)
 	if !strings.Contains(got, engine.NameSearchBounded) || strings.Contains(got, "when whyreach asks") {
 		t.Errorf("advice: %s", got)
+	}
+}
+
+// deniedListeners reads no container's listeners: /proc refuses them, as
+// with hidepid=1.
+type deniedListeners struct{ fakeDocker }
+
+func (deniedListeners) Container(pid int, _ string) ([]evidence.Socket, error) {
+	return nil, fmt.Errorf("open /proc/%d/net/tcp: %w", pid, fs.ErrPermission)
+}
+
+// A listener read that /proc refuses is no matter for probe containers,
+// which never read listeners on Docker Engine: its advice must not send the
+// user to them. Checks withheld because they are off still say how to allow
+// them.
+func TestListenersDeniedAdvice(t *testing.T) {
+	p, err := policy.New(policy.Deps{
+		Settings: policy.Settings{Docker: true, ConfigPath: "/cfg/config.toml"},
+		Docker:   fakeDocker{}, Listeners: deniedListeners{},
+		NewProbe: func() (executor.Executor, error) { return &connector{}, nil }, Client: policy.ClientMCP,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := harness{p: p, s: New(p, Options{Version: "test", ConsentTimeout: 5 * time.Second})}
+	cs := h.connect(t, nil, "")
+	res := structured[report.ProbeResult](t, call(t, cs, "run_probe", map[string]any{"kind": "listeners", "from": "container:shop-api-1"}))
+	if len(res.Results) != 1 || res.Results[0].Status != string(evidence.StatusPermissionDenied) {
+		t.Fatalf("results: %+v", res.Results)
+	}
+	if strings.Contains(res.HowToEnable, "probe container") {
+		t.Errorf("a refused listener read advises probe containers: %s", res.HowToEnable)
+	}
+	res = structured[report.ProbeResult](t, call(t, cs, "run_probe", map[string]any{"kind": "tcp", "target": "api:8080", "from": "container:shop-worker-1"}))
+	if !strings.Contains(res.HowToEnable, "probe_containers = true") {
+		t.Errorf("a check withheld because probe containers are off: %s", res.HowToEnable)
 	}
 }
 

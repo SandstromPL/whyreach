@@ -368,7 +368,13 @@ func probeHowTo(p *policy.Policy) func(evidence.Evidence) string {
 		if e.Err != nil && e.Err.Message == executor.HostNotHere {
 			return executor.HostNotHereAdvice + "."
 		}
-		if e.Status != evidence.StatusPermissionDenied && (e.Err == nil || e.Err.Message != executor.PIDsElsewhere) {
+		if e.Err == nil {
+			return ""
+		}
+		// Not any denial: a read of a container's listeners that /proc
+		// refused (hidepid) is no matter for probe containers.
+		withheld := e.Status == evidence.StatusPermissionDenied && (e.Err.Message == executor.ProbeContainersOff || executor.CannotEnter(e.Err))
+		if !withheld && e.Err.Message != executor.PIDsElsewhere {
 			return ""
 		}
 		return "Checks from inside a container need probe containers: set probe_containers = true under [permissions] in " +
