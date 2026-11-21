@@ -19,12 +19,13 @@ package e2e
 // (buildRelease), and records the URLs it was asked for: they must be the
 // pinned release's archive and checksums.txt on this project's GitHub
 // Releases. With WHYREACH_CI_RELEASE set to a version, the real curl
-// downloads that release instead, for a run after the release is out.
+// downloads that release instead: the ci-example workflow does that on
+// GitHub, when started by hand after a release.
 //
 // The diagnose step runs redacted and unredacted with probe containers, the
 // example's default. Its sudo variant runs only where WHYREACH_CI_SUDO=1
-// says that passwordless sudo is there to use (GitHub's runners): the test
-// never runs sudo otherwise.
+// says that passwordless sudo is there to use (GitHub's runners, through
+// the ci-example workflow): the test never runs sudo otherwise.
 
 import (
 	"bytes"

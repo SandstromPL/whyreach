@@ -199,7 +199,7 @@ A diagnosis needs to look from inside the containers: DNS as the source sees it,
 | Writes to Docker | the probe image, imported once per whyreach build, and the probe containers; each diagnosis lists them as side effects | nothing |
 | Files | the runner's user's, under `RUNNER_TEMP` | root's: the step passes `RUNNER_TEMP`'s directories to root, then gives the files back to the runner's user |
 | Self-hosted runners | work wherever the runner's user can reach Docker; the probe image stays, about 15 MB per whyreach version: `docker image ls --filter label=io.whyreach.probe=1` lists them | work only with passwordless sudo |
-| Checked by | `TestCIExample` (`make lab`) | `TestCIExample` with `WHYREACH_CI_SUDO=1`, on a runner with passwordless sudo; the test never runs sudo otherwise |
+| Checked by | `TestCIExample` (`make lab`), and the `ci-example` workflow on GitHub's runner | the `ci-example` workflow on GitHub's runner only: the test runs sudo only where `WHYREACH_CI_SUDO=1` says it may |
 
 **Why probe containers are the default:** they need only access to Docker, which a job that runs Compose has anyway, so the same step works on self-hosted runners without sudo, and every file stays the runner's user's. On the test's stack ([below](#how-the-example-is-tested)), a diagnosis with probe containers took 0.3 s on Docker Engine, the probe image's import included. sudo suits a job that must not have containers started during the diagnosis, on a runner with passwordless sudo.
 
@@ -233,4 +233,4 @@ The same commands work on any Linux CI runner with Docker Engine: install the re
 
 - **Install:** nothing is downloaded. A stand-in for `curl` answers from a release that the test builds from the same source, in the release's layout, and records each URL. The URLs must be the pinned release's archive and `checksums.txt` on this project's GitHub Releases. A tampered archive, or a `checksums.txt` without the archive's line, must stop the step before anything is installed.
 - **Diagnose,** redacted and not, with probe containers: worker's connection to `api:8080` must be WR002 (exit 1), a working connection no problem (exit 0), and a service that doesn't exist and a malformed line warnings. The step must exit 0. Redacted, no address or container ID of the stack may appear in the log, the job summary or the artifact.
-- **sudo:** with `WHYREACH_CI_SUDO=1`, on a runner with passwordless sudo such as GitHub's, the test runs the diagnose step with `WHYREACH_SUDO: true` too. With `WHYREACH_CI_RELEASE` set to a version, it downloads that release from GitHub Releases instead of building one.
+- **On GitHub:** the `ci-example` workflow (`.github/workflows/ci-example.yml`) runs the same test on GitHub's `ubuntu-24.04` runner, with the sudo variant too, since that runner has passwordless sudo. Started by hand with a version, it downloads that release from GitHub Releases instead of building one.
