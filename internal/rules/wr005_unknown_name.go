@@ -82,7 +82,7 @@ func (r wr005) Evaluate(v evidence.View) []Finding {
 			owner.C.DisplayName(), where, q.To.Host, best, looked)
 		f.Title = fmt.Sprintf("no container on %s's networks is called %s (did you mean %s?)", src.C.DisplayName(), q.To.Host, best)
 		f.Fix = fmt.Sprintf("Use %s. If %s is meant to be another service, start it on %s, or give the service that alias (networks: {%s: {aliases: [%s]}} in Compose).",
-			target, q.To.Host, nets[0], composeKey(owner.C, nets[0]), q.To.Host)
+			target, q.To.Host, nets[0], stripProject(projectOf(owner.C), nets[0]), q.To.Host)
 	default:
 		shown := known
 		if len(shown) > 6 {
@@ -175,19 +175,15 @@ func (r wr005) aliasElsewhere(v evidence.View, src, owner evidence.ContainerEv, 
 	}
 	f.Supporting = ids(f.Supporting...)
 	name := m.C.DisplayName()
-	here := m.C.Name
-	if m.C.Compose != nil && m.C.Compose.Service != "" {
-		here = m.C.Compose.Service
-	}
 	f.Title = fmt.Sprintf("%s answers to %s only on %s, which %s isn't on", name, q.To.Host, quoteList(m.Networks), src.C.DisplayName())
 	f.Explanation = fmt.Sprintf("%s has %s as an alias on %s %s only. Aliases are per network: on %s, which %s shares with it, Docker's DNS knows it as %s, not %s.%s",
-		containerLabel(m.C), q.To.Host, plural(len(m.Networks), "network", "networks"), quoteList(m.Networks), shared[0], src.C.DisplayName(), here, q.To.Host, looked)
-	use := hostPort(here, q.To.Port)
+		containerLabel(m.C), q.To.Host, plural(len(m.Networks), "network", "networks"), quoteList(m.Networks), shared[0], src.C.DisplayName(), name, q.To.Host, looked)
+	use := hostPort(name, q.To.Port)
 	if m.C.Compose != nil && m.C.Compose.Service != "" {
 		// Compose recreates the container with the service's aliases, and
 		// would drop one added by hand at its next up.
 		f.Fix = fmt.Sprintf("Use %s, or give %s the alias on %s too: networks: {%s: {aliases: [%s]}} for %s in Compose, then docker compose up -d %s.",
-			use, name, shared[0], composeKey(m.C, shared[0]), q.To.Host, name, m.C.Compose.Service)
+			use, name, shared[0], stripProject(projectOf(m.C), shared[0]), q.To.Host, name, m.C.Compose.Service)
 		return []Finding{f}
 	}
 	// Docker refuses a second connect to a network the container is on, so

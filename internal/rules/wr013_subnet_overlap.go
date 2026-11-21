@@ -174,7 +174,7 @@ func (wr013) describe(f *Finding, v evidence.View, h evidence.HostRoute, n evide
 	case n.Network == evidence.NetworkBridge:
 		move = "Move Docker's default bridge to a range none of your VPN or LAN routes use: set bip in /etc/docker/daemon.json, and restart Docker."
 	case n.Project != "":
-		move = fmt.Sprintf("Move %s to a range none of your VPN or LAN routes use: in its Compose file, set networks: %s: ipam: config: [{subnet: <free range>}], then recreate it (docker compose down, then docker compose up -d).", n.Network, networkName(n))
+		move = fmt.Sprintf("Move %s to a range none of your VPN or LAN routes use: in its Compose file, set networks: %s: ipam: config: [{subnet: <free range>}], then recreate it (docker compose down, then docker compose up -d).", n.Network, stripProject(n.Project, n.Network))
 	default:
 		move = fmt.Sprintf("Move %s to a range none of your VPN or LAN routes use: once its containers are gone, docker network rm %s, then docker network create --subnet <free range> %s.", n.Network, n.Network, n.Network)
 	}
@@ -184,15 +184,4 @@ func (wr013) describe(f *Finding, v evidence.View, h evidence.HostRoute, n evide
 	} else {
 		f.Fix = fmt.Sprintf("If %s is a machine on your LAN or VPN, Docker's network is in its way. %s%s If it was a container's address, connect by the container's name instead.", addr, move, pools)
 	}
-}
-
-// networkName names a Docker network as its Compose file does, without the
-// project prefix Compose adds ("back" for shop_back in project shop).
-func networkName(n evidence.DockerSubnet) string {
-	if n.Project != "" {
-		if k, ok := strings.CutPrefix(n.Network, n.Project+"_"); ok && k != "" {
-			return k
-		}
-	}
-	return n.Network
 }

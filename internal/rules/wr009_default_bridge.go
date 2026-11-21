@@ -99,14 +99,14 @@ func intersect(a, b []string) []string {
 // linked reports a legacy --link that names the target: "/api:/worker/api".
 func linked(c evidence.Container, name string) bool {
 	for _, l := range c.Links {
-		_, alias, ok := strings.Cut(l, ":")
+		target, alias, ok := strings.Cut(l, ":")
 		if !ok {
 			continue
 		}
 		if i := strings.LastIndex(alias, "/"); i >= 0 {
 			alias = alias[i+1:]
 		}
-		if strings.EqualFold(alias, name) || strings.EqualFold(strings.TrimPrefix(strings.Split(l, ":")[0], "/"), name) {
+		if strings.EqualFold(alias, name) || strings.EqualFold(strings.TrimPrefix(target, "/"), name) {
 			return true
 		}
 	}

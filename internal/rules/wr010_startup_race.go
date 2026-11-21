@@ -52,8 +52,6 @@ func (r wr010) Evaluate(v evidence.View) []Finding {
 		name := containerLabel(c)
 		var g Finding
 		switch {
-		case f != nil:
-			continue
 		case c.Health == "starting":
 			g = Finding{Confidence: Medium, Supporting: []string{m.ID}}
 			g.Explanation = fmt.Sprintf("%s started%s and its healthcheck has not passed yet (health: starting)", name, uptime)
@@ -73,13 +71,12 @@ func (r wr010) Evaluate(v evidence.View) []Finding {
 		g.Title = fmt.Sprintf("%s is still starting", replicaName(matches, m))
 		g.Fix = wr010Fix(v, c)
 		f, starting = &g, m
-	}
-	if f != nil {
-		partOfReplicas(f, servingReplicas(v, matches, starting), starting.C.Name)
+		break
 	}
 	if f == nil {
 		return nil
 	}
+	partOfReplicas(f, servingReplicas(v, matches, starting), starting.C.Name)
 	f.Supporting = ids(append(f.Supporting, sourceConnects(v, evidence.OutcomeRefused)...)...)
 	return []Finding{*f}
 }

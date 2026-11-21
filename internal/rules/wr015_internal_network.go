@@ -221,7 +221,7 @@ func netPhrase(nets []string) string {
 func wr015Fix(src, owner evidence.Container, nets []string, host bool) string {
 	var keys []string
 	for _, n := range nets {
-		keys = append(keys, composeKey(owner, n))
+		keys = append(keys, stripProject(projectOf(owner), n))
 	}
 	name := owner.DisplayName()
 	var fix string

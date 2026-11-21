@@ -148,15 +148,7 @@ type silence struct {
 // connects names the timed-out connects: "worker's connect to
 // 172.22.0.3:8080" (or connects, to several addresses).
 func (s silence) connects() string {
-	var parts []string
-	for _, a := range s.addrs {
-		parts = append(parts, hostPort(a.String(), s.port))
-	}
-	noun := "connect"
-	if len(parts) > 1 {
-		noun = "connects"
-	}
-	return fmt.Sprintf("%s's %s to %s", sourceName(s.v), noun, quoteList(parts))
+	return fmt.Sprintf("%s's %s to %s", sourceName(s.v), plural(len(s.addrs), "connect", "connects"), quoteListAddrs(s.addrs, s.port))
 }
 
 func (s silence) timedOut() string {
@@ -273,7 +265,7 @@ func (s silence) icc(dst netnsHolder, owner evidence.ContainerEv, n evidence.Net
 	case n.Network == evidence.NetworkBridge:
 		f.Fix = fmt.Sprintf(`If the containers are meant to talk, remove "icc": false from /etc/docker/daemon.json and restart Docker, or put %s and %s on a user-defined network together, where they also reach each other by name.`, sourceName(s.v), name) + alt
 	case projectOf(owner.C) != "":
-		key := composeKey(owner.C, n.Network)
+		key := stripProject(projectOf(owner.C), n.Network)
 		f.Fix = fmt.Sprintf("If the containers are meant to talk, delete com.docker.network.bridge.enable_icc from networks: %s: driver_opts in the Compose file and recreate the network (docker compose down, then docker compose up -d), or put %s and %s on another network together, one without that option.", key, sourceName(s.v), name) + alt
 	default:
 		f.Fix = fmt.Sprintf("If the containers are meant to talk, create the network again without the option (once its containers are gone, docker network rm %s, then docker network create %s), or put %s and %s on another network together.", n.Network, n.Network, sourceName(s.v), name) + alt

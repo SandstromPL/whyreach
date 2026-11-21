@@ -240,6 +240,8 @@ func (wr014) describe(f *Finding, v evidence.View, a describeArgs) {
 	server := "the server " + a.where
 	var listenFix string
 	switch {
+	case !a.read:
+		listenFix = fmt.Sprintf("make %s listen on %s as well", server, missHP)
 	case a.pub != nil:
 		pm := *a.pub.Published
 		name := a.pub.C.DisplayName()
@@ -257,14 +259,12 @@ func (wr014) describe(f *Finding, v evidence.View, a describeArgs) {
 	case a.miss.name == "IPv6" && slices.ContainsFunc(a.socks, func(s evidence.Socket) bool { return s.Local.Addr().Unmap().IsUnspecified() }):
 		listenFix = fmt.Sprintf("make %s listen on [::]:%d instead of 0.0.0.0:%d, which takes both IPv4 and IPv6", server, port, port)
 	case a.miss.name == "IPv6":
-		listenFix = fmt.Sprintf("make %s listen on [::1]:%d as well as %s", server, port, firstOr(listen, hostPort("127.0.0.1", port)))
+		// Read listeners include one of the other family (Evaluate): a.socks isn't empty.
+		listenFix = fmt.Sprintf("make %s listen on [::1]:%d as well as %s", server, port, a.socks[0].Local.String())
 	case wild6:
 		listenFix = fmt.Sprintf("make %s take IPv4 as well: listen on [::]:%d without IPV6_V6ONLY, or on 0.0.0.0:%d too", server, port, port)
 	default:
 		listenFix = fmt.Sprintf("make %s listen on 127.0.0.1:%d as well as [::1]:%d (a server told to listen on localhost binds only one of the two)", server, port, port)
-	}
-	if !a.read {
-		listenFix = fmt.Sprintf("make %s listen on %s as well", server, missHP)
 	}
 	connectTo := hostPort(loopbackOf(a.have.name), port)
 	if split {
@@ -401,13 +401,6 @@ func addrList(addrs []netip.Addr) string {
 		out = append(out, a.String())
 	}
 	return quoteList(out)
-}
-
-func firstOr(list, fallback string) string {
-	if first, _, _ := strings.Cut(list, ", "); first != "" {
-		return first
-	}
-	return fallback
 }
 
 func upperFirst(s string) string {

@@ -64,7 +64,7 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 				containerLabel(c.C), b[0].ContainerPort, v.HostLabel(), strings.Join(where, ", "), target)
 		}
 		instead := b[0].HostAddr()
-		if a, err := netip.ParseAddr(b[0].HostIP); err == nil && a.IsUnspecified() && a.Is6() {
+		if anyIPv6(b[0].HostIP) {
 			// docker-proxy binds [::] IPv6-only: from the host, [::1] reaches it
 			instead = hostPort("::1", b[0].HostPort)
 			f.Explanation += fmt.Sprintf(" On [::] Docker's proxy accepts IPv6 only, and %s resolves to IPv4.", q.To.Host)
@@ -274,7 +274,7 @@ func hostAccepts(l evidence.Listeners, port uint16, h evidence.HostTarget, v6onl
 func v6Only(v evidence.View, port uint16) bool {
 	for _, c := range v.Containers() {
 		for _, pm := range c.C.PublishedAs(port) {
-			if a, err := netip.ParseAddr(pm.HostIP); err == nil && a.IsUnspecified() && a.Is6() {
+			if anyIPv6(pm.HostIP) {
 				return true
 			}
 		}

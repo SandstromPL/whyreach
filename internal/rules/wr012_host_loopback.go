@@ -46,10 +46,8 @@ func (r wr012) Evaluate(v evidence.View) []Finding {
 	if len(socks) == 0 || hl.L.AcceptsRemote(port) {
 		return nil // nothing listens (WR001), or something reachable does
 	}
-	for _, c := range v.Containers() {
-		if len(c.C.PublishedAs(port)) > 0 {
-			return nil // the loopback listener is a published port: WR006's case
-		}
+	if publishedOnHost(v, port) {
+		return nil // the loopback listener is a published port: WR006's case
 	}
 	if connectedByName(v) {
 		return nil

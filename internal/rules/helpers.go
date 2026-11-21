@@ -212,12 +212,12 @@ func partOfReplicas(f *Finding, s serving, broken string) {
 		quoteList(s.names), plural(len(s.names), "s", ""), plural(len(s.names), "serves", "serve"), broken)
 }
 
-// composeKey is how a Compose file names a network: without the project
-// prefix Compose adds to the Docker network's name ("shop_default" is
-// "default" in project shop).
-func composeKey(c evidence.Container, network string) string {
-	if p := projectOf(c); p != "" {
-		if k, ok := strings.CutPrefix(network, p+"_"); ok && k != "" {
+// stripProject is how a Compose file names a network of its project:
+// without the prefix Compose adds to the Docker network's name
+// ("shop_default" is "default" in project shop).
+func stripProject(project, network string) string {
+	if project != "" {
+		if k, ok := strings.CutPrefix(network, project+"_"); ok && k != "" {
 			return k
 		}
 	}
