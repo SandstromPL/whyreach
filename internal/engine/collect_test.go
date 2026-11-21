@@ -1,12 +1,14 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/executor"
 	"github.com/SandstromPL/whyreach/internal/rules"
 )
 
@@ -89,5 +91,33 @@ func TestSearchBoundLowersWR001(t *testing.T) {
 	d = diagnoseWith(t, w, "host", "localhost:9000", false)
 	if i := slices.IndexFunc(d.Findings, func(f rules.Finding) bool { return f.RuleID == "WR001" }); i < 0 || d.Findings[i].Confidence != rules.High {
 		t.Errorf("within the bound: findings %+v, want WR001 at high confidence", d.Findings)
+	}
+}
+
+// hostListenerRecords lists a diagnosis's records of the host's listeners.
+func hostListenerRecords(d *Diagnosis) []evidence.Evidence {
+	var out []evidence.Evidence
+	for _, e := range d.Evidence {
+		if e.Kind == evidence.KindListeners && e.Context.Kind == evidence.ContextHost {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// TestWindowsHostWithoutContainerList: on Docker Desktop's WSL integration,
+// the host a container reaches through host.docker.internal is Windows.
+// When Docker's container list can't be read, the host's side is collected
+// after the probes without it, and the WSL2 VM's own sockets still aren't
+// passed off as Windows'.
+func TestWindowsHostWithoutContainerList(t *testing.T) {
+	w := shopWorld()
+	w.desktop = true
+	w.failList = errors.New("the daemon timed out")
+	w.host = []string{"127.0.0.1:5432"} // the WSL2 VM's own loopback listener
+	r := diagnoseOn(t, w, wslRoot, true, "container:shop-worker-1", "host.docker.internal:5432")
+	hostL := hostListenerRecords(r.d)
+	if len(hostL) != 1 || hostL[0].Status != evidence.StatusUnsupported || hostL[0].Err == nil || hostL[0].Err.Message != executor.HostNotHere {
+		t.Errorf("host listeners = %+v, want one unsupported record (%q)", hostL, executor.HostNotHere)
 	}
 }

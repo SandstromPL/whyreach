@@ -30,10 +30,7 @@ func (r *run) collect(ctx context.Context) error {
 	}
 	dk := r.docker
 	if dk == nil || (r.q.From.Kind == evidence.SourceContainer && r.q.From.ContainerID == "") {
-		if _, ok := evidence.NewView(r.q, r.store.Snapshot()).HostTarget(); ok {
-			r.store.Add(r.hostListeners())
-			r.hostDone = true
-		}
+		r.hostSide(ctx)
 		return nil
 	}
 	lctx, cancel := context.WithTimeout(ctx, dockerTimeout)
@@ -49,9 +46,13 @@ func (r *run) collect(ctx context.Context) error {
 		return nil
 	}
 	r.list = list
+	r.hostSide(ctx)
+	if r.hostDone {
+		return nil // the target is the host
+	}
 
 	known := r.store.Snapshot()
-	have := map[string]bool{}
+	have := containerIDs(known)
 	var srcNets []string
 	ownerID := ""
 	view := evidence.NewView(r.q, known)
@@ -59,15 +60,6 @@ func (r *run) collect(ctx context.Context) error {
 	if haveOwner && !owner.C.HostNetwork() {
 		srcNets = owner.C.NetworkNames()
 		ownerID = owner.C.ID
-	}
-	for _, e := range known {
-		if c, ok := e.Data.(evidence.Container); ok {
-			have[c.ID] = true
-		}
-	}
-	if _, ok := view.HostTarget(); ok {
-		r.collectHost(ctx, list, have)
-		return nil
 	}
 
 	// What the target means in the container list: a name, or an address
@@ -475,33 +467,48 @@ func (r *run) inspectAll(ctx context.Context, list []docker.Summary) (ok, failed
 	return ok, failed
 }
 
-// inspectFailure records metadata that could not be read, so the diagnosis
-// says so instead of treating the container as absent.
 // hostAfterLookup collects the host's side of a target that only the
 // source's own lookup showed to be the host: a name that resolved to a host
 // address (devbox.lan from a container) or, from the host, to loopback (the
 // machine's own hostname, 127.0.1.1 on Ubuntu). collect couldn't know that
-// before the probes ran.
+// before the probes ran. It also collects it when collect couldn't list the
+// containers.
 func (r *run) hostAfterLookup(ctx context.Context) error {
-	if r.hostDone || ctx.Err() != nil {
-		return nil
+	if ctx.Err() == nil {
+		r.hostSide(ctx)
 	}
-	if _, ok := evidence.NewView(r.q, r.store.Snapshot()).HostTarget(); !ok {
-		return nil
+	return nil
+}
+
+// hostSide collects the host's side of a target that is the host, once,
+// and sets hostDone then: the host's listeners, as the source reaches them,
+// and, with the container list, the containers that publish the port
+// (collectHost). It does nothing for a target that isn't the host.
+func (r *run) hostSide(ctx context.Context) {
+	if r.hostDone {
+		return
+	}
+	ht, ok := evidence.NewView(r.q, r.store.Snapshot()).HostTarget()
+	if !ok {
+		return
 	}
 	if r.docker == nil || r.list == nil {
-		r.store.Add(r.hostListeners())
+		r.store.Add(r.hostListenersFor(&ht))
 		r.hostDone = true
-		return nil
+		return
 	}
+	r.collectHost(ctx, r.list, containerIDs(r.store.Snapshot()))
+}
+
+// containerIDs lists the containers whose metadata items records, by ID.
+func containerIDs(items []evidence.Evidence) map[string]bool {
 	have := map[string]bool{}
-	for _, e := range r.store.Snapshot() {
+	for _, e := range items {
 		if c, ok := e.Data.(evidence.Container); ok {
 			have[c.ID] = true
 		}
 	}
-	r.collectHost(ctx, r.list, have)
-	return nil
+	return have
 }
 
 // skippedContainers records containers whyreach did not inspect because of
@@ -534,6 +541,8 @@ func skippedContainers(g Gap) evidence.Evidence {
 	}
 }
 
+// inspectFailure records metadata that could not be read, so the diagnosis
+// says so instead of treating the container as absent.
 func (r *run) inspectFailure(id, name string, err error) evidence.Evidence {
 	ev := evidence.Evidence{
 		Kind:       evidence.KindContainer,
