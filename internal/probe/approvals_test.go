@@ -124,40 +124,72 @@ func TestPrivateAddressesNeedApproval(t *testing.T) {
 	}
 }
 
-func TestAddrsFlagsRoundTrip(t *testing.T) {
-	lim := Limits{
-		HostResolvers:   []netip.Addr{netip.MustParseAddr("169.254.169.254"), netip.MustParseAddr("fd20:ce::254")},
-		AddrsRestricted: true,
-		Private:         []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
-		Free:            []netip.Prefix{netip.MustParsePrefix("172.17.0.0/16")},
-		Approved:        []netip.AddrPort{netip.MustParseAddrPort("10.0.5.7:5432")},
+// limitsFromArgs decodes ProbeArgs's output as `whyreach __probe` does: a
+// flag is changed when it is given, even with an empty value.
+func limitsFromArgs(t *testing.T, args []string) (Limits, error) {
+	t.Helper()
+	if len(args)%2 != 0 {
+		t.Fatalf("arguments %q are not flag and value pairs", args)
 	}
-	got := Limits{AddrsRestricted: true}
-	for _, f := range lim.AddrsFlags() {
-		var err error
-		switch f[0] {
-		case "--host-resolvers":
-			got.HostResolvers, err = ParseAddrs(f[1])
-		case "--private":
-			got.Private, err = ParsePrefixes(f[1])
-		case "--free":
-			got.Free, err = ParsePrefixes(f[1])
-		case "--approved":
-			got.Approved, err = ParseAddrPorts(f[1])
+	given := map[string]string{}
+	for i := 0; i < len(args); i += 2 {
+		name, ok := strings.CutPrefix(args[i], "--")
+		if !ok {
+			t.Fatalf("argument %q is not a flag", args[i])
 		}
-		if err != nil {
-			t.Fatalf("%s %q: %v", f[0], f[1], err)
+		given[name] = args[i+1]
+	}
+	changed := func(name string) bool { _, ok := given[name]; return ok }
+	return LimitsFromFlags(changed, func(name string) string { return given[name] })
+}
+
+// TestProbeArgsRoundTrip: the limits reach the probe container whole, and a
+// restriction that doesn't apply gives no flag, which means none there.
+func TestProbeArgsRoundTrip(t *testing.T) {
+	tests := []struct {
+		name     string
+		lim      Limits
+		wantArgs int
+	}{
+		{"every limit", Limits{
+			Restricted:      true,
+			Allow:           []netip.Prefix{netip.MustParsePrefix("172.22.0.0/16"), netip.MustParsePrefix("fd00::/8")},
+			NamesRestricted: true,
+			Names:           []string{"example.com", "api.internal"},
+			HostResolvers:   []netip.Addr{netip.MustParseAddr("169.254.169.254"), netip.MustParseAddr("fd20:ce::254")},
+			AddrsRestricted: true,
+			Private:         []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
+			Free:            []netip.Prefix{netip.MustParsePrefix("172.17.0.0/16"), netip.MustParsePrefix("10.0.0.1/32")},
+			Approved:        []netip.AddrPort{netip.MustParseAddrPort("10.0.5.7:5432"), netip.MustParseAddrPort("[fd00::7]:443")},
+		}, 12},
+		{"none", Limits{}, 0},
+		{"restricted to nothing", Limits{Restricted: true, NamesRestricted: true, AddrsRestricted: true}, 10},
+		{"only the host's resolvers", Limits{HostResolvers: []netip.Addr{netip.MustParseAddr("10.0.0.2")}}, 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := tt.lim.ProbeArgs()
+			if len(args) != tt.wantArgs {
+				t.Errorf("args %q, want %d", args, tt.wantArgs)
+			}
+			got, err := limitsFromArgs(t, args)
+			if err != nil {
+				t.Fatalf("%q: %v", args, err)
+			}
+			if diff := cmp.Diff(tt.lim, got, cmpopts.IgnoreUnexported(Limits{}), cmpopts.EquateComparable(netip.Addr{}, netip.Prefix{}, netip.AddrPort{})); diff != "" {
+				t.Errorf("%q (-want +got):\n%s", args, diff)
+			}
+		})
+	}
+	for _, bad := range [][]string{
+		{"--allow", "10.0.0.0/33"},
+		{"--names", "example.com,a b"},
+		{"--host-resolvers", "10.0.0.300"},
+		{"--private", "10.0.0.0/8", "--free", "", "--approved", "10.0.0.1"},
+	} {
+		if _, err := limitsFromArgs(t, bad); err == nil {
+			t.Errorf("%q: decoded without an error", bad)
 		}
-	}
-	if diff := cmp.Diff(lim, got, cmpopts.IgnoreUnexported(Limits{}), cmp.Comparer(func(a, b netip.Addr) bool { return a == b }), cmp.Comparer(func(a, b netip.Prefix) bool { return a == b }),
-		cmp.Comparer(func(a, b netip.AddrPort) bool { return a == b })); diff != "" {
-		t.Errorf("(-want +got):\n%s", diff)
-	}
-	if f := (Limits{}).AddrsFlags(); len(f) != 0 {
-		t.Errorf("unrestricted limits give flags: %v", f)
-	}
-	if _, err := ParseAddrPorts("10.0.0.1"); err == nil {
-		t.Error("an address without a port parsed as approved")
 	}
 }
 

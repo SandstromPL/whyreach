@@ -124,17 +124,73 @@ func inPrefixes(ps []netip.Prefix, a netip.Addr) bool {
 	return slices.ContainsFunc(ps, func(p netip.Prefix) bool { return p.Contains(a) })
 }
 
-// AddrsFlags encodes HostResolvers and the private-address limits for
-// `whyreach __probe`: flag name → value, only for those that apply.
-func (l Limits) AddrsFlags() [][2]string {
-	var out [][2]string
+// The flags of `whyreach __probe` that carry the limits. Each restriction's
+// flag is given only when the restriction applies, so an absent one means
+// none: no --allow, no allowlist; no --names, any name; no --private, no
+// approval for private addresses.
+const (
+	FlagAllow         = "allow"          // Restricted: Allow
+	FlagNames         = "names"          // NamesRestricted: Names
+	FlagHostResolvers = "host-resolvers" // HostResolvers
+	FlagPrivate       = "private"        // AddrsRestricted: Private
+	FlagFree          = "free"           // Free, with --private
+	FlagApproved      = "approved"       // Approved, with --private
+)
+
+// ProbeArgs encodes l as arguments of `whyreach __probe`, the flags of the
+// limits that apply; LimitsFromFlags decodes them. Unrestricted limits give
+// none.
+func (l Limits) ProbeArgs() []string {
+	var args []string
+	if l.Restricted {
+		args = append(args, "--"+FlagAllow, joinStrings(l.Allow))
+	}
+	if l.NamesRestricted {
+		args = append(args, "--"+FlagNames, strings.Join(l.Names, ","))
+	}
 	if len(l.HostResolvers) > 0 {
-		out = append(out, [2]string{"--host-resolvers", joinStrings(l.HostResolvers)})
+		args = append(args, "--"+FlagHostResolvers, joinStrings(l.HostResolvers))
 	}
 	if l.AddrsRestricted {
-		out = append(out, [2]string{"--private", joinStrings(l.Private)}, [2]string{"--free", joinStrings(l.Free)}, [2]string{"--approved", joinStrings(l.Approved)})
+		args = append(args, "--"+FlagPrivate, joinStrings(l.Private), "--"+FlagFree, joinStrings(l.Free), "--"+FlagApproved, joinStrings(l.Approved))
 	}
-	return out
+	return args
+}
+
+// LimitsFromFlags decodes ProbeArgs's flags inside the probe container:
+// changed reports whether a flag was given, get returns its value. A
+// restriction whose flag is absent doesn't apply.
+func LimitsFromFlags(changed func(name string) bool, get func(name string) string) (Limits, error) {
+	var l Limits
+	var err error
+	if changed(FlagAllow) {
+		l.Restricted = true
+		if l.Allow, err = parsePrefixes(get(FlagAllow)); err != nil {
+			return Limits{}, fmt.Errorf("--%s: %w", FlagAllow, err)
+		}
+	}
+	if changed(FlagNames) {
+		l.NamesRestricted = true
+		if l.Names, err = parseNames(get(FlagNames)); err != nil {
+			return Limits{}, fmt.Errorf("--%s: %w", FlagNames, err)
+		}
+	}
+	if l.HostResolvers, err = parseList(get(FlagHostResolvers), netip.ParseAddr); err != nil {
+		return Limits{}, fmt.Errorf("--%s: %w", FlagHostResolvers, err)
+	}
+	if changed(FlagPrivate) {
+		l.AddrsRestricted = true
+		if l.Private, err = parsePrefixes(get(FlagPrivate)); err != nil {
+			return Limits{}, fmt.Errorf("--%s: %w", FlagPrivate, err)
+		}
+		if l.Free, err = parsePrefixes(get(FlagFree)); err != nil {
+			return Limits{}, fmt.Errorf("--%s: %w", FlagFree, err)
+		}
+		if l.Approved, err = parseList(get(FlagApproved), netip.ParseAddrPort); err != nil {
+			return Limits{}, fmt.Errorf("--%s: %w", FlagApproved, err)
+		}
+	}
+	return l, nil
 }
 
 func joinStrings[T fmt.Stringer](xs []T) string {
@@ -145,22 +201,12 @@ func joinStrings[T fmt.Stringer](xs []T) string {
 	return strings.Join(parts, ",")
 }
 
-// ParseAddrs decodes a comma-separated list of addresses.
-func ParseAddrs(s string) ([]netip.Addr, error) {
-	return parseList(s, netip.ParseAddr)
-}
-
-// ParsePrefixes decodes a comma-separated list of prefixes.
-func ParsePrefixes(s string) ([]netip.Prefix, error) {
+// parsePrefixes decodes a comma-separated list of prefixes.
+func parsePrefixes(s string) ([]netip.Prefix, error) {
 	return parseList(s, func(p string) (netip.Prefix, error) {
 		pr, err := netip.ParsePrefix(p)
 		return pr.Masked(), err
 	})
-}
-
-// ParseAddrPorts decodes a comma-separated list of address:port pairs.
-func ParseAddrPorts(s string) ([]netip.AddrPort, error) {
-	return parseList(s, netip.ParseAddrPort)
 }
 
 func parseList[T any](s string, parse func(string) (T, error)) ([]T, error) {
@@ -197,11 +243,9 @@ func (l Limits) CheckName(name string) (reason string, ok bool) {
 	return NameNotApproved, false
 }
 
-// NamesFlag encodes Names for `whyreach __probe --names`.
-func (l Limits) NamesFlag() string { return strings.Join(l.Names, ",") }
-
-// ParseNames decodes NamesFlag's output into restricted limits on names.
-func ParseNames(s string) ([]string, error) {
+// parseNames decodes the --names list: outside names, as
+// target.NormalizeName folds them.
+func parseNames(s string) ([]string, error) {
 	var out []string
 	for _, part := range strings.Split(s, ",") {
 		if strings.TrimSpace(part) == "" {
@@ -231,33 +275,6 @@ func (l Limits) Check(addr netip.Addr) (reason string, ok bool) {
 		}
 	}
 	return fmt.Sprintf("%s is outside the probe allowlist ([probe] allow in the config file)", addr), false
-}
-
-// Flag encodes the limits for `whyreach __probe --allow`. An unrestricted
-// probe gets no flag at all.
-func (l Limits) Flag() string {
-	parts := make([]string, 0, len(l.Allow))
-	for _, p := range l.Allow {
-		parts = append(parts, p.String())
-	}
-	return strings.Join(parts, ",")
-}
-
-// ParseLimits decodes Flag's output: a restricted allowlist, possibly empty.
-func ParseLimits(s string) (Limits, error) {
-	l := Limits{Restricted: true}
-	for _, part := range strings.Split(s, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		p, err := netip.ParsePrefix(part)
-		if err != nil {
-			return Limits{}, fmt.Errorf("allowlist entry %q: %w", part, err)
-		}
-		l.Allow = append(l.Allow, p.Masked())
-	}
-	return l, nil
 }
 
 type limitsKey struct{}

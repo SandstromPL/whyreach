@@ -110,17 +110,7 @@ func (p *ProbeContainer) Run(ctx context.Context, where evidence.ContextRef, spe
 	defer cancel()
 
 	name := "wr-probe-" + randomHex(4)
-	cmd := []string{"--spec", specJSON, "--budget", probeBudget(ctx).String()}
-	lim := probe.LimitsFrom(ctx)
-	if lim.Restricted {
-		cmd = append(cmd, "--allow", lim.Flag())
-	}
-	if lim.NamesRestricted {
-		cmd = append(cmd, "--names", lim.NamesFlag())
-	}
-	for _, f := range lim.AddrsFlags() {
-		cmd = append(cmd, f[0], f[1])
-	}
+	cmd := append([]string{"--spec", specJSON, "--budget", probeBudget(ctx).String()}, probe.LimitsFrom(ctx).ProbeArgs()...)
 	spec := docker.ProbeSpec{Name: name, Image: ref, NetnsOf: where.Container, Cmd: cmd}
 	id, err := p.API.Create(ctx, spec)
 	if errors.Is(err, docker.ErrNotFound) {

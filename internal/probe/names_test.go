@@ -243,20 +243,19 @@ func TestBlockedNameserverComesBeforeTheName(t *testing.T) {
 	}
 }
 
-func TestNamesFlagRoundTrip(t *testing.T) {
-	l := Limits{NamesRestricted: true, Names: []string{"example.com", "api.internal"}}
-	got, err := ParseNames(l.NamesFlag())
+func TestParseNames(t *testing.T) {
+	got, err := parseNames("Example.COM.,api.internal")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if diff := cmp.Diff(l.Names, got); diff != "" {
+	if diff := cmp.Diff([]string{"example.com", "api.internal"}, got); diff != "" {
 		t.Errorf("(-want +got):\n%s", diff)
 	}
-	if got, err := ParseNames(""); err != nil || len(got) != 0 {
+	if got, err := parseNames(""); err != nil || len(got) != 0 {
 		t.Errorf("empty flag: %v, %v", got, err)
 	}
-	if _, err := ParseNames("example.com,a b"); err == nil {
-		t.Error("ParseNames accepted a malformed name")
+	if _, err := parseNames("example.com,a b"); err == nil {
+		t.Error("parseNames accepted a malformed name")
 	}
 }
 

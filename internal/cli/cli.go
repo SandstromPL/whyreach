@@ -193,7 +193,7 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 
 // newProbeEntry is the hidden subcommand the probe container runs.
 func newProbeEntry() *cobra.Command {
-	var spec, allow, names, hostResolvers, private, free, approved string
+	var spec string
 	var budget time.Duration
 	cmd := &cobra.Command{
 		Use:    "__probe",
@@ -201,35 +201,13 @@ func newProbeEntry() *cobra.Command {
 		Hidden: true,
 		Args:   cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			var lim probe.Limits
-			if cmd.Flags().Changed("allow") {
-				var err error
-				if lim, err = probe.ParseLimits(allow); err != nil {
-					return internalErr(err)
-				}
-			}
-			if cmd.Flags().Changed("names") {
-				var err error
-				lim.NamesRestricted = true
-				if lim.Names, err = probe.ParseNames(names); err != nil {
-					return internalErr(err)
-				}
-			}
-			var err error
-			if lim.HostResolvers, err = probe.ParseAddrs(hostResolvers); err != nil {
+			flags := cmd.Flags()
+			lim, err := probe.LimitsFromFlags(flags.Changed, func(name string) string {
+				v, _ := flags.GetString(name) // every limit flag is a string flag defined below
+				return v
+			})
+			if err != nil {
 				return internalErr(err)
-			}
-			if cmd.Flags().Changed("private") {
-				lim.AddrsRestricted = true
-				if lim.Private, err = probe.ParsePrefixes(private); err != nil {
-					return internalErr(err)
-				}
-				if lim.Free, err = probe.ParsePrefixes(free); err != nil {
-					return internalErr(err)
-				}
-				if lim.Approved, err = probe.ParseAddrPorts(approved); err != nil {
-					return internalErr(err)
-				}
 			}
 			if c := probe.Main(cmd.Context(), spec, budget, lim, cmd.OutOrStdout(), cmd.ErrOrStderr()); c != probe.ExitOK {
 				return internalErr(errors.New("probe failed"))
@@ -239,12 +217,12 @@ func newProbeEntry() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&spec, "spec", "", "JSON list of probe specs")
 	cmd.Flags().DurationVar(&budget, "budget", probe.Budget, "time the whole batch may take")
-	cmd.Flags().StringVar(&allow, "allow", "", "comma-separated prefixes connects are restricted to (absent: no allowlist)")
-	cmd.Flags().StringVar(&names, "names", "", "comma-separated outside names that may be sent to a nameserver (absent: any name)")
-	cmd.Flags().StringVar(&hostResolvers, "host-resolvers", "", "comma-separated addresses of the host's own resolvers, asked for DNS even on the block list")
-	cmd.Flags().StringVar(&private, "private", "", "comma-separated prefixes whose addresses need free or approved (absent: no such limit)")
-	cmd.Flags().StringVar(&free, "free", "", "comma-separated prefixes of private addresses that need no approval")
-	cmd.Flags().StringVar(&approved, "approved", "", "comma-separated address:port pairs the user approved")
+	cmd.Flags().String(probe.FlagAllow, "", "comma-separated prefixes connects are restricted to (absent: no allowlist)")
+	cmd.Flags().String(probe.FlagNames, "", "comma-separated outside names that may be sent to a nameserver (absent: any name)")
+	cmd.Flags().String(probe.FlagHostResolvers, "", "comma-separated addresses of the host's own resolvers, asked for DNS even on the block list")
+	cmd.Flags().String(probe.FlagPrivate, "", "comma-separated prefixes whose addresses need free or approved (absent: no such limit)")
+	cmd.Flags().String(probe.FlagFree, "", "comma-separated prefixes of private addresses that need no approval")
+	cmd.Flags().String(probe.FlagApproved, "", "comma-separated address:port pairs the user approved")
 	return cmd
 }
 
