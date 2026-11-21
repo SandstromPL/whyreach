@@ -233,6 +233,39 @@ func TestMaskArg(t *testing.T) {
 	}
 }
 
+// Container, service, project and network names have at most 255
+// characters.
+func TestNamesCapped(t *testing.T) {
+	ok, long := "a"+strings.Repeat("b_.-", 63)+"cd", "a"+strings.Repeat("b_.-", 63)+"cde" // 255 and 256 characters
+	okProject, longProject := strings.Repeat("a_-", 85), strings.Repeat("a_-", 85)+"b"
+	if len(ok) != 255 || len(long) != 256 || len(okProject) != 255 || len(longProject) != 256 {
+		t.Fatal("wrong lengths")
+	}
+	for _, tt := range []struct {
+		parse func(string) error
+		in    string
+		ok    bool
+	}{
+		{fromParser, "container:" + ok, true},
+		{fromParser, "container:" + long, false},
+		{fromParser, "service:" + ok, true},
+		{fromParser, "service:" + long, false},
+		{fromParser, "service:api@" + okProject, true},
+		{fromParser, "service:api@" + longProject, false},
+		{scopeParser, "network:" + ok, true},
+		{scopeParser, "network:" + long, false},
+		{scopeParser, "container:" + ok, true},
+		{scopeParser, "service:api@" + longProject, false},
+	} {
+		if err := tt.parse(tt.in); (err == nil) != tt.ok {
+			t.Errorf("%s (%d characters): %v, want ok %v", tt.in[:min(len(tt.in), 24)], len(tt.in), err, tt.ok)
+		}
+	}
+}
+
+func fromParser(s string) error  { _, err := ParseFrom(s); return err }
+func scopeParser(s string) error { _, err := ParseScope(s); return err }
+
 func TestParseToCapsNames(t *testing.T) {
 	long := strings.Repeat("a.", 127) + "ab" // 256 characters
 	if _, err := ParseTo(long + ":80"); err == nil {

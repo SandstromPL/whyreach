@@ -99,13 +99,25 @@ func (f From) String() string {
 }
 
 var (
-	// Docker container names and IDs: [a-zA-Z0-9][a-zA-Z0-9_.-]*.
-	containerName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$`)
+	// Docker container names and IDs: [a-zA-Z0-9][a-zA-Z0-9_.-]*, of at most
+	// maxName characters (validName). The length isn't a bounded repeat
+	// ({0,254}): Go compiles one into a program that many times as large,
+	// built at startup in every process, the probe container's included.
+	containerName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 	// Compose project names: lowercase letters, digits, dashes and underscores.
-	projectName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,254}$`)
+	projectName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
 	// A host name: labels of letters, digits, '-' and '_' (container names may contain '_').
 	hostName = regexp.MustCompile(`^[a-zA-Z0-9_]([a-zA-Z0-9_-]{0,61}[a-zA-Z0-9_])?(\.[a-zA-Z0-9_]([a-zA-Z0-9_-]{0,61}[a-zA-Z0-9_])?)*\.?$`)
 )
+
+// maxName bounds container, service, project and network names.
+const maxName = 255
+
+// validName reports whether s is a name that re describes, of at most
+// maxName characters. re's characters are ASCII, so bytes count them.
+func validName(re *regexp.Regexp, s string) bool {
+	return len(s) <= maxName && re.MatchString(s)
+}
 
 // ParseFrom parses "host", "container:<name|id>" or "service:<name>[@<project>]".
 // An empty string means the host.
@@ -124,16 +136,16 @@ func ParseFrom(s string) (From, error) {
 	switch kind {
 	case FromContainer:
 		name := strings.TrimPrefix(rest, "/")
-		if !containerName.MatchString(name) {
+		if !validName(containerName, name) {
 			return bad("not a container name or ID")
 		}
 		return From{Kind: FromContainer, Name: name}, nil
 	case FromService:
 		name, project, _ := strings.Cut(rest, "@")
-		if !containerName.MatchString(name) {
+		if !validName(containerName, name) {
 			return bad("not a Compose service name")
 		}
-		if project != "" && !projectName.MatchString(project) {
+		if project != "" && !validName(projectName, project) {
 			return bad("not a Compose project name")
 		}
 		return From{Kind: FromService, Name: name, Project: project}, nil
@@ -295,7 +307,7 @@ func (s Scope) String() string {
 func ParseScope(s string) (Scope, error) {
 	in := strings.TrimSpace(s)
 	if rest, ok := strings.CutPrefix(in, "network:"); ok {
-		if !containerName.MatchString(rest) {
+		if !validName(containerName, rest) {
 			return Scope{}, &Error{Arg: "scope", Input: MaskArg("scope", s), Reason: "not a network name or ID"}
 		}
 		return Scope{Kind: ScopeNetwork, Name: rest}, nil
