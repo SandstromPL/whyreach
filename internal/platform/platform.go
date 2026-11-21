@@ -7,6 +7,7 @@ package platform
 import (
 	"bytes"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -147,12 +148,8 @@ func environment(read func(string) ([]byte, error), exists func(string) bool) (i
 	if b, err := read("/proc/1/cgroup"); err == nil && (bytes.Contains(b, []byte("docker")) || bytes.Contains(b, []byte("containerd"))) {
 		return true, false
 	}
-	if b, err := read("/proc/sys/kernel/osrelease"); err == nil && wslKernel(string(b)) {
-		for _, f := range wslInterop {
-			if exists(f) {
-				return false, true
-			}
-		}
+	if b, err := read("/proc/sys/kernel/osrelease"); err == nil && wslKernel(string(b)) && slices.ContainsFunc(wslInterop, exists) {
+		return false, true
 	}
 	return exists("/.dockerenv") || exists("/run/.containerenv"), false
 }

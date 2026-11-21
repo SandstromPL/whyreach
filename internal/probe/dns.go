@@ -319,8 +319,8 @@ type candidate struct {
 // domains otherwise; a trailing dot means the name is absolute.
 func (c resolvConf) candidates(name string) []candidate {
 	name = strings.ToLower(name)
-	if strings.HasSuffix(name, ".") {
-		return []candidate{{fqdn: name, label: strings.TrimSuffix(name, ".")}}
+	if label, ok := strings.CutSuffix(name, "."); ok {
+		return []candidate{{fqdn: name, label: label}}
 	}
 	abs := candidate{fqdn: dns.Fqdn(name), label: name}
 	var search []candidate

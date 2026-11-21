@@ -211,7 +211,7 @@ func parsePrefixes(s string) ([]netip.Prefix, error) {
 
 func parseList[T any](s string, parse func(string) (T, error)) ([]T, error) {
 	var out []T
-	for _, part := range strings.Split(s, ",") {
+	for part := range strings.SplitSeq(s, ",") {
 		if part = strings.TrimSpace(part); part == "" {
 			continue
 		}
@@ -234,11 +234,8 @@ func (l Limits) CheckName(name string) (reason string, ok bool) {
 	if !l.NamesRestricted || !target.OutsideName(name) {
 		return "", true
 	}
-	n := target.NormalizeName(name)
-	for _, allowed := range l.Names {
-		if n == allowed {
-			return "", true
-		}
+	if slices.Contains(l.Names, target.NormalizeName(name)) {
+		return "", true
 	}
 	return NameNotApproved, false
 }
@@ -247,7 +244,7 @@ func (l Limits) CheckName(name string) (reason string, ok bool) {
 // target.NormalizeName folds them.
 func parseNames(s string) ([]string, error) {
 	var out []string
-	for _, part := range strings.Split(s, ",") {
+	for part := range strings.SplitSeq(s, ",") {
 		if strings.TrimSpace(part) == "" {
 			continue
 		}
