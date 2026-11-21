@@ -88,6 +88,26 @@ func TestFixtures(t *testing.T) {
 	}
 }
 
+// TestExplanationsKeepNames: an explanation that starts with a container's
+// name keeps the name as it is (names are case-sensitive), while one that
+// starts with the host gets a capital.
+func TestExplanationsKeepNames(t *testing.T) {
+	for _, tt := range []struct {
+		rule    Rule
+		fixture string
+		start   string
+	}{
+		{wr014{}, "testdata/WR014/fires-sidecar-ipv4-listener.json", "app's /etc/hosts"},
+		{wr014{}, "testdata/WR014/fires-host-service.json", "The host's /etc/hosts"},
+	} {
+		f := loadFixture(t, tt.fixture)
+		got := tt.rule.Evaluate(evidence.NewView(f.Question, f.Evidence))
+		if len(got) == 0 || !strings.HasPrefix(got[0].Explanation, tt.start) {
+			t.Errorf("%s: want the explanation to start with %q: %+v", tt.fixture, tt.start, got)
+		}
+	}
+}
+
 // checkFinding enforces what every finding must carry.
 func checkFinding(t *testing.T, r Rule, f Finding, v evidence.View) {
 	t.Helper()

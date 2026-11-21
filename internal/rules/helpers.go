@@ -48,6 +48,16 @@ func targetAddr(q evidence.Question, d evidence.Destinations) (netip.Addr, bool)
 	}
 }
 
+// sentence starts a sentence with s: it capitalizes a leading "the" (the
+// host's, the WSL2 VM's) and leaves anything else as it is, a container's
+// name above all, whose case is part of the name.
+func sentence(s string) string {
+	if rest, ok := strings.CutPrefix(s, "the "); ok {
+		return "The " + rest
+	}
+	return s
+}
+
 // fromSource returns the TCP probes that ran in the source's netns.
 func fromSource(v evidence.View) []evidence.TCPEv {
 	q := v.Question()

@@ -235,7 +235,7 @@ func (wr014) describe(f *Finding, v evidence.View, a describeArgs) {
 			}
 		}
 	}
-	f.Explanation = upperFirst(e.String())
+	f.Explanation = sentence(e.String())
 
 	server := "the server " + a.where
 	var listenFix string
