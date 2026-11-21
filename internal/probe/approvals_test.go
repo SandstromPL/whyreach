@@ -72,7 +72,7 @@ func TestHostResolverIsNoConnectTarget(t *testing.T) {
 		if _, ok := lim.CheckConnect(netip.MustParseAddrPort(ap)); ok {
 			t.Errorf("a connect to %s was allowed", ap)
 		}
-		ev := Dial(context.Background(), ap, netip.MustParseAddrPort(ap), evidence.ViaLiteral, lim)
+		ev := dial(context.Background(), nil, ap, netip.MustParseAddrPort(ap), evidence.ViaLiteral, lim)
 		if ev.Status != evidence.StatusSkipped || ev.Err == nil || ev.Err.Code != evidence.CodePolicyDenied {
 			t.Errorf("dial %s: %s %+v", ap, ev.Status, ev.Err)
 		}
@@ -241,7 +241,7 @@ func TestApprovedConnectsAreCounted(t *testing.T) {
 	}
 	// Without the batch's count (a Dial outside Run), an approved address
 	// isn't dialed.
-	if ev := Dial(context.Background(), spec.Host, ap, evidence.ViaLiteral, env.Limits); ev.Err == nil || ev.Err.Message != AddrNotApproved {
+	if ev := dial(context.Background(), nil, spec.Host, ap, evidence.ViaLiteral, env.Limits); ev.Err == nil || ev.Err.Message != AddrNotApproved {
 		t.Errorf("Dial outside a batch: %s %+v", ev.Status, ev.Err)
 	}
 }

@@ -20,18 +20,14 @@ const DialTimeout = 2 * time.Second
 // whether the peer closes it at once (OutcomeClosed). It never sends.
 const AcceptWindow = 100 * time.Millisecond
 
-// Dial connects to addr, waits up to AcceptWindow to see whether the peer
+// dial connects to addr, waits up to AcceptWindow to see whether the peer
 // closes the connection at once, and closes it, without sending any payload.
 // subject labels the evidence ("api:8080"); via says how addr was obtained;
-// lim is checked before dialing. The record's Context is left for the caller
-// to fill in.
-func Dial(ctx context.Context, subject string, addr netip.AddrPort, via string, lim Limits) evidence.Evidence {
-	return dial(ctx, nil, subject, addr, via, lim)
-}
-
-// dial is Dial with the socket created through enter (Env.Enter). A dial to
-// one literal address creates its socket on the calling goroutine, so the
-// socket lives in the namespace enter put the thread in.
+// lim is checked before dialing. The socket is created through enter
+// (Env.Enter; nil means the caller's namespace): a dial to one literal
+// address creates its socket on the calling goroutine, so the socket lives
+// in the namespace enter put the thread in. The record's Context is left
+// for the caller to fill in.
 func dial(ctx context.Context, enter Enter, subject string, addr netip.AddrPort, via string, lim Limits) evidence.Evidence {
 	addr = netip.AddrPortFrom(addr.Addr().Unmap(), addr.Port())
 	ev := evidence.Evidence{

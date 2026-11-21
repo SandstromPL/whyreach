@@ -158,21 +158,21 @@ func TestDialOutcomes(t *testing.T) {
 	_ = ln2.Close()
 	defer func() { _ = ln.Close() }()
 
-	ev := Dial(context.Background(), "x", open, evidence.ViaLiteral, Limits{})
+	ev := dial(context.Background(), nil, "x", open, evidence.ViaLiteral, Limits{})
 	if p := ev.Data.(evidence.TCPProbe); ev.Status != evidence.StatusOK || p.Outcome != evidence.OutcomeConnected {
 		t.Errorf("open port: %+v", ev)
 	}
-	ev = Dial(context.Background(), "x", closed, evidence.ViaLiteral, Limits{})
+	ev = dial(context.Background(), nil, "x", closed, evidence.ViaLiteral, Limits{})
 	if p := ev.Data.(evidence.TCPProbe); ev.Status != evidence.StatusOK || p.Outcome != evidence.OutcomeRefused || p.Errno != "ECONNREFUSED" {
 		t.Errorf("closed port: %+v", ev)
 	}
-	ev = Dial(context.Background(), "x", netip.MustParseAddrPort("169.254.169.254:80"), evidence.ViaLiteral, Limits{})
+	ev = dial(context.Background(), nil, "x", netip.MustParseAddrPort("169.254.169.254:80"), evidence.ViaLiteral, Limits{})
 	if p := ev.Data.(evidence.TCPProbe); ev.Status != evidence.StatusSkipped || p.Outcome != evidence.OutcomeBlocked || ev.Err.Code != evidence.CodePolicyDenied {
 		t.Errorf("metadata address: %+v", ev)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if ev := Dial(ctx, "x", open, evidence.ViaLiteral, Limits{}); ev.Status != evidence.StatusTimeout {
+	if ev := dial(ctx, nil, "x", open, evidence.ViaLiteral, Limits{}); ev.Status != evidence.StatusTimeout {
 		t.Errorf("cancelled context: status %s, want timeout", ev.Status)
 	}
 }
@@ -192,7 +192,7 @@ func TestDialSeesAnImmediateClose(t *testing.T) {
 			_ = c.Close() // what docker-proxy does when the container refuses
 		}
 	}()
-	ev := Dial(context.Background(), "x", netip.MustParseAddrPort(ln.Addr().String()), evidence.ViaLiteral, Limits{})
+	ev := dial(context.Background(), nil, "x", netip.MustParseAddrPort(ln.Addr().String()), evidence.ViaLiteral, Limits{})
 	if p := ev.Data.(evidence.TCPProbe); ev.Status != evidence.StatusOK || p.Outcome != evidence.OutcomeClosed {
 		t.Errorf("accept-then-close: %+v", ev)
 	}
@@ -212,7 +212,7 @@ func TestDialSeesAnImmediateClose(t *testing.T) {
 		time.Sleep(time.Second)
 		_ = c.Close()
 	}()
-	ev = Dial(context.Background(), "x", netip.MustParseAddrPort(ln2.Addr().String()), evidence.ViaLiteral, Limits{})
+	ev = dial(context.Background(), nil, "x", netip.MustParseAddrPort(ln2.Addr().String()), evidence.ViaLiteral, Limits{})
 	if p := ev.Data.(evidence.TCPProbe); p.Outcome != evidence.OutcomeConnected {
 		t.Errorf("banner server: %+v", ev)
 	}
@@ -260,7 +260,7 @@ func TestDialObeysLimits(t *testing.T) {
 	}
 	defer func() { _ = ln.Close() }()
 	only10 := Limits{Restricted: true, Allow: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}}
-	ev := Dial(context.Background(), "x", netip.MustParseAddrPort(ln.Addr().String()), evidence.ViaLiteral, only10)
+	ev := dial(context.Background(), nil, "x", netip.MustParseAddrPort(ln.Addr().String()), evidence.ViaLiteral, only10)
 	if p := ev.Data.(evidence.TCPProbe); ev.Status != evidence.StatusSkipped || p.Outcome != evidence.OutcomeBlocked || ev.Err.Code != evidence.CodePolicyDenied {
 		t.Errorf("outside the allowlist: %+v", ev)
 	}
@@ -480,7 +480,7 @@ func TestResolverLookup(t *testing.T) {
 			rp, hp := writeFiles(t, dockerResolv, dockerHosts)
 			f := &fakeDNS{answers: tt.answers}
 			r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange}
-			ev := r.Lookup(context.Background(), tt.lookup)
+			ev := r.lookupWithin(context.Background(), nil, tt.lookup, Limits{})
 			if ev.Status != tt.wantStatus {
 				t.Fatalf("status = %s (%+v), want %s", ev.Status, ev.Err, tt.wantStatus)
 			}
@@ -496,7 +496,7 @@ func TestResolverTimeoutIsAnObservation(t *testing.T) {
 	f := &fakeDNS{answers: map[string]string{"example.com. A": "timeout", "example.com. AAAA": "timeout"}}
 	r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange, Timeout: 20 * time.Millisecond, Budget: 200 * time.Millisecond}
 	start := time.Now()
-	ev := r.Lookup(context.Background(), "example.com")
+	ev := r.lookupWithin(context.Background(), nil, "example.com", Limits{})
 	if took := time.Since(start); took > time.Second {
 		t.Errorf("lookup took %s, want it bounded by the budget", took)
 	}
@@ -508,7 +508,7 @@ func TestResolverTimeoutIsAnObservation(t *testing.T) {
 
 func TestResolverMissingConfig(t *testing.T) {
 	r := &Resolver{HostsPath: "/nonexistent/hosts", ResolvPath: "/nonexistent/resolv.conf"}
-	ev := r.Lookup(context.Background(), "api")
+	ev := r.lookupWithin(context.Background(), nil, "api", Limits{})
 	if ev.Status != evidence.StatusFailed || ev.Err == nil {
 		t.Errorf("status = %s err = %+v, want failed", ev.Status, ev.Err)
 	}
@@ -622,7 +622,7 @@ func TestResolverFailsOverOnErrors(t *testing.T) {
 	rp, hp := writeFiles(t, "nameserver 10.0.0.53\nnameserver 10.0.0.54\noptions ndots:0\n", "")
 	f := &fakeDNS{refuse: "10.0.0.53:53", answers: map[string]string{"db. A": "10.1.2.3", "db. AAAA": "nodata"}}
 	r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange}
-	ev := r.Lookup(context.Background(), "db")
+	ev := r.lookupWithin(context.Background(), nil, "db", Limits{})
 	p := ev.Data.(evidence.DNSProbe)
 	if len(p.Answers) != 1 || p.Rcode != "NOERROR" {
 		t.Errorf("want the second nameserver's answer after the first refused: %+v\nqueries %v", p, f.queries)
@@ -634,7 +634,7 @@ func TestResolverRcodeDescribesTheNameAsGiven(t *testing.T) {
 	rp, hp := writeFiles(t, "nameserver 127.0.0.53\nsearch corp.example.com\n", "")
 	f := &fakeDNS{answers: map[string]string{"api. A": "SERVFAIL", "api. AAAA": "SERVFAIL"}}
 	r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange}
-	p := r.Lookup(context.Background(), "api").Data.(evidence.DNSProbe)
+	p := r.lookupWithin(context.Background(), nil, "api", Limits{}).Data.(evidence.DNSProbe)
 	if p.Rcode != "SERVFAIL" || p.Attempts[0].Query != "api.<search 1>" {
 		t.Errorf("rcode %q (attempts %+v), want SERVFAIL for api itself", p.Rcode, p.Attempts)
 	}

@@ -178,14 +178,10 @@ type Version struct {
 	} `json:"Platform"`
 	Version       string `json:"Version"`
 	APIVersion    string `json:"ApiVersion"`
-	MinAPIVersion string `json:"MinAPIVersion"`
 	Os            string `json:"Os"`
 	Arch          string `json:"Arch"`
 	KernelVersion string `json:"KernelVersion"`
 }
-
-// Desktop reports a Docker Desktop daemon, whose containers live in a VM.
-func (v Version) Desktop() bool { return strings.Contains(v.Platform.Name, "Desktop") }
 
 // Negotiate asks the daemon for its version (an unversioned request) and
 // settles the API version for later calls.

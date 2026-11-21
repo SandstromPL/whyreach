@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -56,8 +58,25 @@ func Route(dst netip.Addr) (evidence.HostRoute, error) {
 			out.Covering = append(out.Covering, r)
 		}
 	}
-	SortRoutes(out.Covering)
+	sortRoutes(out.Covering)
 	return out, nil
+}
+
+// sortRoutes orders routes the most specific first, then by table and
+// interface, so a record doesn't depend on the kernel's dump order.
+func sortRoutes(rs []evidence.Route) {
+	slices.SortFunc(rs, func(a, b evidence.Route) int {
+		if c := b.Prefix.Bits() - a.Prefix.Bits(); c != 0 {
+			return c
+		}
+		if c := int(a.Table) - int(b.Table); c != 0 {
+			return c
+		}
+		if c := strings.Compare(a.Dev, b.Dev); c != 0 {
+			return c
+		}
+		return a.Prefix.Addr().Compare(b.Prefix.Addr())
+	})
 }
 
 // routeGet sends one RTM_GETROUTE request for dst and reads the reply.

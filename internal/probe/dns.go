@@ -62,18 +62,13 @@ func (r *Resolver) open(ctx context.Context, path string) (io.ReadCloser, error)
 	return os.Open(path) //nolint:gosec // G304: the resolver file paths are fixed by Env, never user input
 }
 
-// Lookup resolves name and records how. It never returns an error: a failed
-// lookup is an observation. Every name may be looked up; the nameservers
-// still pass the block list.
-func (r *Resolver) Lookup(ctx context.Context, name string) evidence.Evidence {
-	return r.lookupWithin(ctx, nil, name, Limits{})
-}
-
-// lookupWithin is Lookup under lim, which may hold back an outside name
-// (Limits.CheckName), with each query run through enter (the batch's
-// Env.Enter), so that its socket lives in the namespace being probed. The
-// hosts file answers first either way, as it does for the app; a name it
-// doesn't answer and lim refuses is never sent.
+// lookupWithin resolves name and records how. It never returns an error: a
+// failed lookup is an observation. lim may hold back an outside name
+// (Limits.CheckName); the nameservers pass the block list either way. Each
+// query runs through enter (the batch's Env.Enter; nil means the caller's
+// namespace), so that its socket lives in the namespace being probed. The
+// hosts file answers first, as it does for the app; a name it doesn't
+// answer and lim refuses is never sent.
 func (r *Resolver) lookupWithin(ctx context.Context, enter Enter, name string, lim Limits) evidence.Evidence {
 	start := time.Now()
 	ev := evidence.Evidence{

@@ -105,7 +105,7 @@ func TestNegotiate(t *testing.T) {
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
-			if err == nil && (c.APIVersion() != tt.want || v.Arch != "amd64" || v.Desktop()) {
+			if err == nil && (c.APIVersion() != tt.want || v.Arch != "amd64" || v.Platform.Name != "Docker Engine - Community") {
 				t.Errorf("version %q (want %q), info %+v", c.APIVersion(), tt.want, v)
 			}
 		})
@@ -511,7 +511,7 @@ func TestProbeLifecycle(t *testing.T) {
 	}
 	id, err := p.Create(ctx, ProbeSpec{
 		Name: "wr-probe-1", Image: "whyreach-probe:0.1.0-abc", NetnsOf: "target",
-		Cmd: []string{"--spec", "[]"}, Labels: map[string]string{ProbeLabel: "0", "io.whyreach.diagnosis": "dg-1"},
+		Cmd: []string{"--spec", "[]"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -520,7 +520,7 @@ func TestProbeLifecycle(t *testing.T) {
 	checks := map[string]bool{
 		"user 65534":         created["User"] == "65534:65534",
 		"no env":             len(created["Env"].([]any)) == 0,
-		"probe label kept":   created["Labels"].(map[string]any)[ProbeLabel] == "1",
+		"the probe label":    len(created["Labels"].(map[string]any)) == 1 && created["Labels"].(map[string]any)[ProbeLabel] == "1",
 		"joins the target":   hc["NetworkMode"] == "container:target",
 		"no AutoRemove":      hc["AutoRemove"] == false,
 		"cap drop ALL":       hc["CapDrop"].([]any)[0] == "ALL",

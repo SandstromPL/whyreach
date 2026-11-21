@@ -139,11 +139,11 @@ func TestResolverReadsItsFilesThroughOpen(t *testing.T) {
 	f := &fakeDNS{answers: map[string]string{"api. A": "172.22.0.3", "api. AAAA": "nodata"}}
 	r := &Resolver{HostsPath: "/etc/hosts", ResolvPath: "/etc/resolv.conf", Exchange: f.exchange, Open: open}
 
-	db := r.Lookup(context.Background(), "db").Data.(evidence.DNSProbe)
+	db := r.lookupWithin(context.Background(), nil, "db", Limits{}).Data.(evidence.DNSProbe)
 	if db.Via != evidence.ViaHosts || len(db.Answers) != 1 || db.Answers[0] != netip.MustParseAddr("10.9.8.7") {
 		t.Errorf("db: %+v, want 10.9.8.7 from the hosts file it was given", db)
 	}
-	api := r.Lookup(context.Background(), "api").Data.(evidence.DNSProbe)
+	api := r.lookupWithin(context.Background(), nil, "api", Limits{}).Data.(evidence.DNSProbe)
 	if api.Server != "127.0.0.11:53" || len(api.Answers) != 1 {
 		t.Errorf("api: %+v, want an answer from the nameserver in the resolv.conf it was given", api)
 	}
@@ -175,7 +175,7 @@ func TestUnreadableHostsFileFailsTheLookup(t *testing.T) {
 				return io.NopCloser(strings.NewReader("nameserver 127.0.0.11\noptions ndots:0\n")), nil
 			}
 			r := &Resolver{HostsPath: "/etc/hosts", ResolvPath: "/etc/resolv.conf", Exchange: f.exchange, Open: open}
-			ev := r.Lookup(context.Background(), "db")
+			ev := r.lookupWithin(context.Background(), nil, "db", Limits{})
 			if ev.Status != tt.wantStatus {
 				t.Errorf("status %s (%+v), want %s", ev.Status, ev.Err, tt.wantStatus)
 			}

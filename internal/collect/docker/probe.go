@@ -84,10 +84,7 @@ func (p *ProbeClient) Negotiate(ctx context.Context) (Version, error) { return p
 
 // Image is the part of an image inspect whyreach uses.
 type Image struct {
-	ID           string `json:"Id"`
-	Os           string `json:"Os"`
-	Architecture string `json:"Architecture"`
-	Config       struct {
+	Config struct {
 		Labels map[string]string `json:"Labels"`
 	} `json:"Config"`
 }
@@ -130,11 +127,10 @@ func (p *ProbeClient) ImageImport(ctx context.Context, tag string, tar io.Reader
 
 // ProbeSpec is what a probe container runs and where.
 type ProbeSpec struct {
-	Name    string            // container name, "wr-probe-…"
-	Image   string            // "whyreach-probe:<tag>"
-	Cmd     []string          // arguments for the image's entrypoint
-	NetnsOf string            // full ID of the container whose network namespace to join
-	Labels  map[string]string // extra labels; the probe label is always set
+	Name    string   // container name, "wr-probe-…"
+	Image   string   // "whyreach-probe:<tag>"
+	Cmd     []string // arguments for the image's entrypoint
+	NetnsOf string   // full ID of the container whose network namespace to join
 }
 
 // Create creates a hardened probe container (INITIAL.md §3.3): uid 65534,
@@ -149,18 +145,12 @@ func (p *ProbeClient) Create(ctx context.Context, spec ProbeSpec) (string, error
 	if spec.NetnsOf == "" {
 		return "", errors.New("a probe container must join a container's network namespace")
 	}
-	labels := map[string]string{ProbeLabel: "1"}
-	for k, v := range spec.Labels {
-		if k != ProbeLabel {
-			labels[k] = v
-		}
-	}
 	body := map[string]any{
 		"Image":           spec.Image,
 		"Cmd":             spec.Cmd,
 		"User":            probeUser,
 		"Env":             []string{},
-		"Labels":          labels,
+		"Labels":          map[string]string{ProbeLabel: "1"},
 		"Tty":             false,
 		"AttachStdin":     false,
 		"OpenStdin":       false,

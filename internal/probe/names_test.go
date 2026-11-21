@@ -67,7 +67,7 @@ func TestLookupWithoutLimitsSendsAnyName(t *testing.T) {
 	rp, hp := writeFiles(t, "nameserver 127.0.0.11\noptions ndots:0\n", "")
 	f := &fakeDNS{answers: map[string]string{"example.com. A": "93.184.216.34"}}
 	r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange}
-	if ev := r.Lookup(context.Background(), "example.com"); ev.Status != evidence.StatusOK {
+	if ev := r.lookupWithin(context.Background(), nil, "example.com", Limits{}); ev.Status != evidence.StatusOK {
 		t.Fatalf("status %s, err %+v", ev.Status, ev.Err)
 	}
 }
@@ -111,7 +111,7 @@ func TestLookupSkipsBlockedNameservers(t *testing.T) {
 			rp, hp := writeFiles(t, tt.resolv+"options ndots:0\n", "")
 			f := &fakeDNS{answers: map[string]string{"api. A": "172.22.0.3"}}
 			r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange}
-			ev := r.Lookup(context.Background(), "api")
+			ev := r.lookupWithin(context.Background(), nil, "api", Limits{})
 			if ev.Status != tt.wantStatus {
 				t.Fatalf("status %s, err %+v", ev.Status, ev.Err)
 			}
@@ -145,7 +145,7 @@ func TestLookupUsesThreeNameservers(t *testing.T) {
 	rp, hp := writeFiles(t, "nameserver 10.0.0.1\nnameserver 169.254.169.253\nnameserver 169.254.169.252\nnameserver 10.0.0.4\noptions ndots:0\n", "")
 	f := &fakeDNS{refuse: "10.0.0.1:53"}
 	r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange}
-	r.Lookup(context.Background(), "api")
+	r.lookupWithin(context.Background(), nil, "api", Limits{})
 	for _, q := range f.queries {
 		if strings.HasSuffix(q, "10.0.0.4:53") {
 			t.Errorf("asked a fourth nameserver: %v", f.queries)
@@ -182,7 +182,7 @@ func TestLookupStopsBeforeBlockedNameserver(t *testing.T) {
 			rp, hp := writeFiles(t, tt.resolv+"options ndots:0\n", "")
 			f := &fakeDNS{answers: tt.answers, refuse: tt.refuse}
 			r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange, Timeout: 50 * time.Millisecond}
-			ev := r.Lookup(context.Background(), "api")
+			ev := r.lookupWithin(context.Background(), nil, "api", Limits{})
 			if ev.Status != tt.want {
 				t.Fatalf("status %s, err %+v", ev.Status, ev.Err)
 			}
@@ -215,7 +215,7 @@ func TestNameserverFormsOfTheCLibrary(t *testing.T) {
 		rp, hp := writeFiles(t, "nameserver "+form+" # metadata\nnameserver 10.0.0.2\noptions ndots:0\n", "")
 		f := &fakeDNS{answers: map[string]string{"api. A": "172.22.0.3"}}
 		r := &Resolver{HostsPath: hp, ResolvPath: rp, Exchange: f.exchange}
-		ev := r.Lookup(context.Background(), "api")
+		ev := r.lookupWithin(context.Background(), nil, "api", Limits{})
 		if ev.Status != evidence.StatusSkipped || len(f.queries) != 0 {
 			t.Errorf("%s: status %s, sent %v; want the first-nameserver refusal", form, ev.Status, f.queries)
 		}
