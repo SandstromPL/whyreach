@@ -33,8 +33,8 @@ WR007  localhost inside worker is worker itself, not api
        not the host's or another container's. Nothing in worker listens on
        port 8080, while api (listening on 0.0.0.0:8080 in api, network
        whyreach-demo_default) does.
-  facts  • listening on port 8080 in api: 0.0.0.0:8080/tcp  [ev-06]
-         • nothing listens on port 8080 in worker           [ev-07]
+  facts  • listening on port 8080 in api: 0.0.0.0:8080/tcp  [ev-07]
+         • nothing listens on port 8080 in worker           [ev-08]
   fix    Connect to api:8080 instead of localhost:8080: the Compose service
          name resolves on the shared network.
   …
