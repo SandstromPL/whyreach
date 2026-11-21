@@ -20,7 +20,7 @@ Nothing needs filling in: the commands find your user names themselves. Every st
 
 ## Before you leave the dev box
 
-The code comes as a git bundle, since the WSL2 work isn't on GitHub until main is pushed. On the dev box, in the repository:
+The code comes as a git bundle, which pins the exact commit the run tests and needs no network to fetch (cloning `main` from GitHub works too: step 3). On the dev box, in the repository:
 
 ```bash
 mkdir -p bin/wsl2
