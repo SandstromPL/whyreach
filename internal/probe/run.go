@@ -62,20 +62,39 @@ func (s Spec) Validate() error {
 		default:
 			return fmt.Errorf("unknown via %q", s.Via)
 		}
-		_, err := target.ParseTo(s.subject())
+		_, err := target.ParseTo(s.Subject())
 		return err
 	default:
 		return fmt.Errorf("unknown spec kind %q", s.Kind)
 	}
 }
 
-// subject is the spec's target as host:port.
-func (s Spec) subject() string {
+// Subject is what the spec's records are about: the name a dns spec looks
+// up, "listeners", or a tcp spec's host:port, an IPv6 address in brackets.
+func (s Spec) Subject() string {
+	switch s.Kind {
+	case SpecDNS:
+		return s.Host
+	case SpecListeners:
+		return "listeners"
+	}
 	host := s.Host
 	if a, err := netip.ParseAddr(host); err == nil && a.Is6() && !a.Is4In6() {
 		host = "[" + host + "]"
 	}
 	return host + ":" + strconv.Itoa(int(s.Port))
+}
+
+// EvidenceKind is the kind of the records the spec produces.
+func (s Spec) EvidenceKind() evidence.Kind {
+	switch s.Kind {
+	case SpecDNS:
+		return evidence.KindDNS
+	case SpecListeners:
+		return evidence.KindListeners
+	default:
+		return evidence.KindTCP
+	}
 }
 
 // Env is where the probes find the netns's configuration. Inside a probe
@@ -188,7 +207,7 @@ func listeners(env Env) evidence.Evidence {
 
 // connect dials every address the spec's host stands for, in parallel.
 func connect(ctx context.Context, env Env, l *lookups, s Spec) []evidence.Evidence {
-	subject := s.subject()
+	subject := s.Subject()
 	if a, err := netip.ParseAddr(s.Host); err == nil {
 		via := evidence.ViaLiteral
 		if s.Via == evidence.ViaMetadata || s.Via == evidence.ViaControl {
@@ -238,15 +257,8 @@ func invalid(s Spec, err error) evidence.Evidence {
 	if errors.As(err, &te) && te.Policy {
 		status, code = evidence.StatusSkipped, evidence.CodePolicyDenied
 	}
-	kind := evidence.KindTCP
-	switch s.Kind {
-	case SpecDNS:
-		kind = evidence.KindDNS
-	case SpecListeners:
-		kind = evidence.KindListeners
-	}
 	return evidence.Evidence{
-		Kind: kind, Subject: s.subject(), Status: status, ObservedAt: time.Now(),
+		Kind: s.EvidenceKind(), Subject: s.Subject(), Status: status, ObservedAt: time.Now(),
 		Err: &evidence.Error{Code: code, Message: err.Error()},
 	}
 }
