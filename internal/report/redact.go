@@ -42,6 +42,7 @@ const (
 	ClassIP        = "ips"
 	ClassHost      = "hostnames"
 	ClassContainer = "container_ids"
+	ClassIface     = "interfaces"
 )
 
 var (
@@ -63,6 +64,50 @@ func NewRedactor(redactPrivate bool, home string) *Redactor {
 func (r *Redactor) Learn(d *engine.Diagnosis) {
 	r.scanAddresses(d)
 	q := d.Question
+	// A route that isn't Docker's maps the user's other networks (a VPN, a
+	// LAN): its range and interface, and the host's own addresses on that
+	// interface, get pseudonyms even where private addresses are kept
+	// (WR013's host.route records).
+	keep := map[netip.Addr]bool{q.To.Addr.Unmap(): true}
+	foreign := map[string]bool{}
+	for _, e := range d.Evidence {
+		if hr, ok := e.Data.(evidence.HostRoute); ok {
+			keep[hr.Dst] = true
+			for _, n := range hr.Networks {
+				keep[n.Subnet.Addr()] = true
+			}
+		}
+	}
+	for _, e := range d.Evidence {
+		hr, ok := e.Data.(evidence.HostRoute)
+		if !ok {
+			continue
+		}
+		routes := slices.Clone(hr.Covering)
+		if hr.Chosen != nil {
+			routes = append(routes, *hr.Chosen)
+		}
+		for _, rt := range routes {
+			if rt.Docker {
+				r.bridge(rt.Dev)
+				continue
+			}
+			if a := rt.Prefix.Addr(); !keep[a] {
+				r.always(a)
+			}
+			if rt.Dev != "" && rt.Dev != "lo" {
+				foreign[rt.Dev] = true
+				// A plain word (lan, vpn) identifies nothing, and would
+				// match the same word in the report's prose.
+				if strings.ContainsAny(rt.Dev, "0123456789-_.:") {
+					r.addRepl(asciiLower(rt.Dev), ClassIface, "if-"+r.mac(rt.Dev))
+				}
+			}
+		}
+		for _, n := range hr.Networks {
+			r.bridge(n.Bridge)
+		}
+	}
 	if q.To.Class == evidence.TargetName {
 		r.host(q.To.Host)
 	}
@@ -134,12 +179,12 @@ func (r *Redactor) Learn(d *engine.Diagnosis) {
 		case evidence.HostAddrs:
 			for _, i := range v.Interfaces {
 				for _, p := range i.Addrs {
+					if foreign[i.Name] {
+						r.always(p.Addr())
+					}
 					r.ip(p.Addr())
 				}
-				// A user-defined network's bridge is br-<its short ID>.
-				if id, ok := strings.CutPrefix(i.Name, "br-"); ok && len(id) == 12 && strings.Trim(id, "0123456789abcdef") == "" {
-					r.addRepl(i.Name, ClassContainer, "br-"+r.mac(id))
-				}
+				r.bridge(i.Name)
 			}
 		}
 	}
@@ -182,6 +227,24 @@ func (r *Redactor) host(name string) {
 		// spells it so: replace that form too.
 		r.addRepl(clean, ClassHost, "host-"+r.mac(name))
 	}
+}
+
+// bridge learns a Docker bridge's name: a user-defined network's is
+// br-<its short ID>, which gets the same suffix as the ID's pseudonym.
+func (r *Redactor) bridge(name string) {
+	if id, ok := strings.CutPrefix(name, "br-"); ok && len(id) == 12 && strings.Trim(id, "0123456789abcdef") == "" {
+		r.addRepl(name, ClassContainer, "br-"+r.mac(id))
+	}
+}
+
+// always learns an address that gets a pseudonym even when private
+// addresses are kept.
+func (r *Redactor) always(a netip.Addr) {
+	a = a.Unmap()
+	if !a.IsValid() || a.IsLoopback() || a.IsUnspecified() {
+		return
+	}
+	r.addRepl(a.String(), ClassIP, "ip-"+r.mac(a.String()))
 }
 
 // ip learns an address and returns its pseudonym, "" when it is kept.

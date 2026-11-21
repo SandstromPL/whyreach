@@ -443,7 +443,8 @@ func (r *run) gapsFrom(v evidence.View) []Gap {
 		switch {
 		case slices.Equal(kinds[k], []string{kindLabel(evidence.KindListeners)}):
 			prep = "in"
-		case slices.Equal(kinds[k], []string{kindLabel(evidence.KindContainer)}), slices.Equal(kinds[k], []string{kindLabel(evidence.KindHostAddrs)}):
+		case slices.Equal(kinds[k], []string{kindLabel(evidence.KindContainer)}), slices.Equal(kinds[k], []string{kindLabel(evidence.KindHostAddrs)}),
+			slices.Equal(kinds[k], []string{kindLabel(evidence.KindHostRoute)}):
 			prep = "of"
 		}
 		g.What = fmt.Sprintf("%s %s %s", joinAnd(kinds[k]), prep, k.ctx)
@@ -486,6 +487,8 @@ func (r *run) howToEnable(e evidence.Evidence) string {
 		return executor.PIDsHiddenAdvice + "."
 	case e.Err.Message == executor.HostNotHere:
 		return executor.HostNotHereAdvice + "."
+	case e.Err.Message == RoutesElsewhere:
+		return RoutesElsewhereAdvice
 	case e.Err.Message == executor.PIDsElsewhere:
 		return fmt.Sprintf("Allow probe containers (the user's decision, not an agent's): approve them when an MCP client asks, or set probe_containers = true under [permissions] in %s. On Docker Desktop they are the only way whyreach reads containers' listening sockets: each read is a short-lived, hardened container joined to the container's network namespace, labeled io.whyreach.probe=1 and removed afterwards.", cfg)
 	case executor.CannotEnter(e.Err):
@@ -527,6 +530,8 @@ func kindLabel(k evidence.Kind) string {
 		return "container metadata"
 	case evidence.KindHostAddrs:
 		return "the interfaces"
+	case evidence.KindHostRoute:
+		return "the routes"
 	default:
 		return string(k)
 	}

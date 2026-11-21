@@ -29,9 +29,18 @@ type world struct {
 	dns         map[string][]string
 	tcp         map[string]string // "addr:port" → outcome; missing means timeout
 	desktop     bool
-	failInspect map[string]error // container name → inspect error
-	failList    error            // the error of listing all containers (resolving a service still works)
-	internal    map[string]bool  // network name → internal: true
+	failInspect map[string]error              // container name → inspect error
+	failList    error                         // the error of listing all containers (resolving a service still works)
+	internal    map[string]bool               // network name → internal: true
+	nets        []docker.Network              // networks no container of the world is on
+	routes      map[string]evidence.HostRoute // address → how the host routes it; missing means no route
+}
+
+// route is the world's answer to a host route lookup (Deps.Routes).
+func (w *world) route(a netip.Addr) (evidence.HostRoute, error) {
+	r := w.routes[a.String()]
+	r.Dst = a
+	return r, nil
 }
 
 func (w *world) Negotiate(context.Context) (docker.Version, error) {
@@ -115,7 +124,10 @@ func (w *world) ListNetworks(context.Context) ([]docker.Network, error) {
 				continue
 			}
 			seen[a.Network] = true
-			n := docker.Network{ID: a.Network + "-id", Name: a.Network, Driver: "bridge", Internal: w.internal[a.Network]}
+			n := docker.Network{ID: a.Network + "-id", Name: a.Network, Driver: "bridge", Internal: w.internal[a.Network], Bridge: "br-" + a.Network}
+			if a.Network == evidence.NetworkBridge {
+				n.Bridge = "docker0"
+			}
 			if a.IPv4.IsValid() {
 				n.Subnets = []netip.Prefix{netip.PrefixFrom(a.IPv4, 16).Masked()}
 				n.Gateways = []netip.Addr{n.Subnets[0].Addr().Next()}
@@ -123,6 +135,7 @@ func (w *world) ListNetworks(context.Context) ([]docker.Network, error) {
 			out = append(out, n)
 		}
 	}
+	out = append(out, w.nets...)
 	slices.SortFunc(out, func(a, b docker.Network) int { return strings.Compare(a.Name, b.Name) })
 	return out, nil
 }

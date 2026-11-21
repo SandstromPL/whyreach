@@ -345,7 +345,9 @@ func TestNetworks(t *testing.T) {
 		switch r.URL.Path {
 		case "/v1.56/networks":
 			writeJSON(w, []any{network, map[string]any{"Name": "bridge", "Id": "b1", "Driver": "bridge",
-				"IPAM": map[string]any{"Config": []map[string]string{{"Subnet": "172.17.0.0/16", "Gateway": "172.17.0.1"}}}}})
+				"IPAM": map[string]any{"Config": []map[string]string{{"Subnet": "172.17.0.0/16", "Gateway": "172.17.0.1"}}}},
+				map[string]any{"Name": "lan", "Id": "c0ffee00c0ffee00", "Driver": "bridge", "Options": map[string]string{"com.docker.network.bridge.name": "br-lan", "com.docker.network.driver.mtu": "1500"}},
+				map[string]any{"Name": "wire", "Id": "d00d00d00d00d00d", "Driver": "macvlan"}})
 		case "/v1.56/networks/shop_default":
 			writeJSON(w, network)
 		default:
@@ -358,15 +360,22 @@ func TestNetworks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list) != 2 || list[0].Name != "bridge" || list[1].Members != nil {
-		t.Fatalf("want two networks sorted by name, without members: %+v", list)
+	if len(list) != 4 || list[0].Name != "bridge" || list[2].Members != nil {
+		t.Fatalf("want four networks sorted by name, without members: %+v", list)
+	}
+	// A bridge network's interface: docker0, the one its options name, or
+	// br-<12 hex digits of its ID>; none for other drivers.
+	for i, want := range []string{"docker0", "br-lan", "br-c8b1", ""} {
+		if list[i].Bridge != want {
+			t.Errorf("%s: bridge %q, want %q", list[i].Name, list[i].Bridge, want)
+		}
 	}
 	got, err := c.InspectNetwork(context.Background(), "shop_default")
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := Network{
-		ID: "c8b1", Name: "shop_default", Driver: "bridge", Scope: "local", Internal: true, Compose: "shop",
+		ID: "c8b1", Name: "shop_default", Driver: "bridge", Scope: "local", Internal: true, Compose: "shop", Bridge: "br-c8b1",
 		Subnets:  []netip.Prefix{netip.MustParsePrefix("172.22.0.0/16")},
 		Gateways: []netip.Addr{netip.MustParseAddr("172.22.0.1")},
 		Members: []NetworkMember{

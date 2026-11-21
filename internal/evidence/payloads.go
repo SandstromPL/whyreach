@@ -599,6 +599,65 @@ func (i Interface) IPv4() (netip.Addr, bool) {
 	return netip.Addr{}, false
 }
 
+// HostRoute is how the host routes one of the target's addresses that lies
+// in a Docker bridge network's subnet (WR013): the route the kernel picks
+// for it, every route in any table that covers it, and the Docker networks
+// whose subnets hold it. Only routes that cover the address are kept, and
+// of each only its prefix, interface and table: no gateway, source address
+// or metric (INITIAL.md §4.8).
+type HostRoute struct {
+	Dst netip.Addr `json:"dst"`
+	// Chosen is the routing table entry the kernel picks for Dst (as `ip
+	// route get fibmatch` shows it); nil when it has no route at all.
+	Chosen *Route `json:"chosen,omitempty"`
+	// Covering are the unicast routes, in any table, whose prefix holds
+	// Dst: the most specific first.
+	Covering []Route `json:"covering,omitempty"`
+	// Networks are the Docker bridge networks whose subnets hold Dst, the
+	// most specific first.
+	Networks []DockerSubnet `json:"networks,omitempty"`
+}
+
+// Route is one routing table entry, cut down to what WR013 needs.
+type Route struct {
+	Prefix netip.Prefix `json:"prefix"`          // 0.0.0.0/0 for a default route
+	Dev    string       `json:"dev,omitempty"`   // the interface; empty for a multipath route
+	Table  uint32       `json:"table,omitempty"` // the routing table; omitted for main
+	// Docker is set when Dev is one of Docker's bridges.
+	Docker bool `json:"docker,omitempty"`
+}
+
+// MainTable is the kernel's main routing table, where ip route adds
+// routes by default; a Route records it as 0.
+const MainTable = 254
+
+// Default reports a default route, or one of the two halves (/1) VPN
+// clients add to take every address without replacing it: such a route
+// covers any address, so it says nothing about the range the address
+// belongs to.
+func (r Route) Default() bool { return r.Prefix.Bits() <= 1 }
+
+// String renders a route as ip route does: "10.8.0.0/16 dev tun0".
+func (r Route) String() string {
+	s := r.Prefix.String()
+	if r.Dev != "" {
+		s += " dev " + r.Dev
+	}
+	if r.Table != 0 {
+		s += " table " + strconv.FormatUint(uint64(r.Table), 10)
+	}
+	return s
+}
+
+// DockerSubnet is a Docker bridge network's subnet and the host interface
+// that is its bridge.
+type DockerSubnet struct {
+	Network string       `json:"network"`
+	Subnet  netip.Prefix `json:"subnet"`
+	Bridge  string       `json:"bridge"`
+	Project string       `json:"compose_project,omitempty"`
+}
+
 // ByName reports whether the address came from resolving the target the way
 // the app would (or was given literally), as opposed to Docker metadata.
 // Only such probes decide whether the problem reproduced.

@@ -12,17 +12,26 @@ import (
 // Network is the part of a Docker network's metadata whyreach uses. MAC
 // addresses and driver options are never kept.
 type Network struct {
-	ID       string          `json:"id"`
-	Name     string          `json:"name"`
-	Driver   string          `json:"driver"`
-	Scope    string          `json:"scope,omitempty"`
-	Internal bool            `json:"internal,omitempty"`
-	IPv6     bool            `json:"ipv6,omitempty"`
-	Subnets  []netip.Prefix  `json:"subnets,omitempty"`
-	Gateways []netip.Addr    `json:"gateways,omitempty"`
-	Compose  string          `json:"compose_project,omitempty"`
-	Members  []NetworkMember `json:"members,omitempty"` // only from InspectNetwork, sorted by name
+	ID       string         `json:"id"`
+	Name     string         `json:"name"`
+	Driver   string         `json:"driver"`
+	Scope    string         `json:"scope,omitempty"`
+	Internal bool           `json:"internal,omitempty"`
+	IPv6     bool           `json:"ipv6,omitempty"`
+	Subnets  []netip.Prefix `json:"subnets,omitempty"`
+	Gateways []netip.Addr   `json:"gateways,omitempty"`
+	Compose  string         `json:"compose_project,omitempty"`
+	// Bridge is the host interface of a bridge network: docker0 for the
+	// default one, br-<12 hex digits of its ID> for the others, unless the
+	// network names its own (com.docker.network.bridge.name). Empty for
+	// other drivers.
+	Bridge  string          `json:"bridge,omitempty"`
+	Members []NetworkMember `json:"members,omitempty"` // only from InspectNetwork, sorted by name
 }
+
+// optBridgeName is the network option that names a bridge network's
+// interface.
+const optBridgeName = "com.docker.network.bridge.name"
 
 // NetworkMember is a container attached to a network.
 type NetworkMember struct {
@@ -46,6 +55,7 @@ type networkJSON struct {
 		} `json:"Config"`
 	} `json:"IPAM"`
 	Labels     map[string]string `json:"Labels"`
+	Options    map[string]string `json:"Options"`
 	Containers map[string]struct {
 		Name        string `json:"Name"`
 		IPv4Address string `json:"IPv4Address"`
@@ -57,6 +67,16 @@ func (n networkJSON) toNetwork() Network {
 	out := Network{
 		ID: n.ID, Name: n.Name, Driver: n.Driver, Scope: n.Scope, Internal: n.Internal, IPv6: n.EnableIPv6,
 		Compose: n.Labels[LabelComposeProject],
+	}
+	if n.Driver == "bridge" {
+		switch {
+		case n.Options[optBridgeName] != "":
+			out.Bridge = n.Options[optBridgeName]
+		case n.Name == "bridge":
+			out.Bridge = "docker0"
+		default:
+			out.Bridge = "br-" + n.ID[:min(12, len(n.ID))]
+		}
 	}
 	for _, c := range n.IPAM.Config {
 		if p, err := netip.ParsePrefix(c.Subnet); err == nil {

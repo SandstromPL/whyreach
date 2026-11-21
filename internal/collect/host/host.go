@@ -1,10 +1,11 @@
 // Package host reads the host's own network state: its interfaces and
-// addresses (tier 0, INITIAL.md §4.9). It knows nothing about rules.
+// addresses, and how it routes an address (tier 0, INITIAL.md §4.9). It
+// knows nothing about rules.
 //
 // Interfaces come from the standard library's net.Interfaces, which asks
 // the kernel over netlink on Linux (RTM_GETLINK, RTM_GETADDR) and never
-// runs a command. Route lookups (netlink RouteGet) arrive with WR013 in
-// v0.2. Listening sockets are read by package probe from /proc/net.
+// runs a command. Route lookups (Route: netlink RTM_GETROUTE, Linux only)
+// serve WR013. Listening sockets are read by package probe from /proc/net.
 package host
 
 import (

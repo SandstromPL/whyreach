@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/evidence"
 	"github.com/SandstromPL/whyreach/internal/rules"
 	"github.com/SandstromPL/whyreach/internal/target"
@@ -31,7 +32,7 @@ func diagnoseWith(t *testing.T, w *world, from, to string, probes bool) *Diagnos
 	if err != nil {
 		t.Fatal(err)
 	}
-	deps := Deps{Docker: w, Listeners: w, Interfaces: hostIfaces, Host: &scripted{w: w, name: evidence.ExecutorHost}}
+	deps := Deps{Docker: w, Listeners: w, Interfaces: hostIfaces, Routes: w.route, Host: &scripted{w: w, name: evidence.ExecutorHost}}
 	if probes {
 		deps.Probe = &scripted{w: w, name: evidence.ExecutorProbeContainer}
 	}
@@ -486,5 +487,63 @@ func TestLocalhostFamilies(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// overlapWorld is shopWorld plus a network no container is on, shop_back,
+// whose range a VPN's route (10.8.0.0/16 via tun0) covers too; the host's
+// route lookups are scripted, a default route included.
+func overlapWorld(desktop bool) *world {
+	w := shopWorld()
+	w.desktop = desktop
+	w.nets = []docker.Network{{ID: "back-id", Name: "shop_back", Driver: "bridge", Bridge: "br-back", Compose: "shop",
+		Subnets: []netip.Prefix{netip.MustParsePrefix("10.8.1.0/24")}, Gateways: []netip.Addr{netip.MustParseAddr("10.8.1.1")}}}
+	viaBack := evidence.Route{Prefix: netip.MustParsePrefix("10.8.1.0/24"), Dev: "br-back"}
+	viaDefault := evidence.Route{Prefix: netip.MustParsePrefix("172.22.0.0/16"), Dev: "br-shop_default"}
+	dflt := evidence.Route{Prefix: netip.MustParsePrefix("0.0.0.0/0"), Dev: "eth0"}
+	w.routes = map[string]evidence.HostRoute{
+		"10.8.1.5":     {Chosen: &viaBack, Covering: []evidence.Route{viaBack, {Prefix: netip.MustParsePrefix("10.8.0.0/16"), Dev: "tun0"}, dflt}},
+		"172.22.0.200": {Chosen: &viaDefault, Covering: []evidence.Route{viaDefault, {Prefix: netip.MustParsePrefix("172.20.0.0/14"), Dev: "wg0"}, dflt}},
+	}
+	return w
+}
+
+func routeRecords(d *Diagnosis) []evidence.Evidence {
+	var out []evidence.Evidence
+	for _, e := range d.Evidence {
+		if e.Kind == evidence.KindHostRoute {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// TestRouteRecords: a target address in a Docker bridge network's subnet,
+// held by no container, gets a host route record, with probe containers or
+// without and from the host or a container: the default route left out,
+// Docker's bridges marked, the networks named. An address a container
+// holds gets none. On Docker Desktop the record is a gap with advice.
+func TestRouteRecords(t *testing.T) {
+	for _, probes := range []bool{false, true} {
+		for _, from := range []string{"host", "container:shop-worker-1"} {
+			recs := routeRecords(diagnoseWith(t, overlapWorld(false), from, "10.8.1.5:5432", probes))
+			if len(recs) != 1 || !recs[0].OK() {
+				t.Fatalf("%s, probes=%v: route records %+v", from, probes, recs)
+			}
+			rt := recs[0].Data.(evidence.HostRoute)
+			want := []evidence.Route{{Prefix: netip.MustParsePrefix("10.8.1.0/24"), Dev: "br-back", Docker: true}, {Prefix: netip.MustParsePrefix("10.8.0.0/16"), Dev: "tun0"}}
+			if rt.Dst != netip.MustParseAddr("10.8.1.5") || rt.Chosen == nil || !rt.Chosen.Docker || !slices.Equal(rt.Covering, want) ||
+				len(rt.Networks) != 1 || rt.Networks[0].Bridge != "br-back" || rt.Networks[0].Network != "shop_back" {
+				t.Errorf("%s, probes=%v: route record %+v", from, probes, rt)
+			}
+		}
+	}
+	if recs := routeRecords(diagnoseWith(t, overlapWorld(false), "host", "172.22.0.3:8080", false)); len(recs) != 0 {
+		t.Errorf("a route was looked up for api's own address: %+v", recs)
+	}
+	d := diagnoseWith(t, overlapWorld(true), "host", "10.8.1.5:5432", false)
+	if recs := routeRecords(d); len(recs) != 1 || recs[0].Status != evidence.StatusUnsupported ||
+		!slices.ContainsFunc(d.Gaps, func(g Gap) bool { return g.What == "the routes of the host" && g.HowToEnable == RoutesElsewhereAdvice }) {
+		t.Errorf("Docker Desktop: route records %+v, gaps %+v", recs, d.Gaps)
 	}
 }

@@ -156,6 +156,23 @@ func (v View) HostListeners() (ListenersEv, bool) {
 	return ListenersEv{}, false
 }
 
+// HostRouteEv is a host.route observation with its record ID.
+type HostRouteEv struct {
+	ID string
+	R  HostRoute
+}
+
+// HostRoutes returns the host's route lookups, in ID order.
+func (v View) HostRoutes() []HostRouteEv {
+	var out []HostRouteEv
+	for _, e := range v.items {
+		if r, ok := e.Data.(HostRoute); ok && e.Kind == KindHostRoute && e.OK() {
+			out = append(out, HostRouteEv{ID: e.ID, R: r})
+		}
+	}
+	return out
+}
+
 // TCPEv is a probe.tcp observation with its record ID.
 type TCPEv struct {
 	ID      string

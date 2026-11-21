@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"log/slog"
+	"net/netip"
 	"runtime"
 	"time"
 
@@ -75,6 +76,9 @@ type Deps struct {
 	Netns      executor.Executor
 	Listeners  Listeners
 	Interfaces func() (evidence.HostAddrs, error)
+	// Routes looks up how whyreach's own network namespace routes an
+	// address (WR013); nil leaves route lookups out.
+	Routes     func(netip.Addr) (evidence.HostRoute, error)
 	ConfigPath string // named in the advice for enabling tier 2b
 	// Self is the ID of the Docker container whyreach runs in, if any:
 	// doctor doesn't try its listeners, which its own cgroup can't name.
@@ -207,6 +211,7 @@ func (e *Engine) Diagnose(ctx context.Context, from target.From, to evidence.Tar
 	_ = stage("collect", r.collect)
 	_ = stage("probe", r.probe)
 	_ = stage("host", r.hostAfterLookup)
+	_ = stage("route", r.routes)
 
 	t := time.Now()
 	items := r.store.Finalize()

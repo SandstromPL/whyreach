@@ -89,8 +89,9 @@ type Deps struct {
 	DockerErr  error
 	Listeners  engine.Listeners
 	Interfaces func() (evidence.HostAddrs, error)
-	Host       executor.Executor // runs probes in the host's network namespace
-	Self       string            // the ID of the Docker container whyreach runs in, if any
+	Routes     func(netip.Addr) (evidence.HostRoute, error) // how the host routes an address (WR013)
+	Host       executor.Executor                            // runs probes in the host's network namespace
+	Self       string                                       // the ID of the Docker container whyreach runs in, if any
 	// Platform is where whyreach runs (platform.Detect): the engine
 	// classifies the platform from it and the daemon's answer (INITIAL.md
 	// §3.7). The zero value means natively, outside WSL and containers.
@@ -201,6 +202,7 @@ func New(d Deps) (*Policy, error) {
 		Netns:      netns,
 		Listeners:  d.Listeners,
 		Interfaces: d.Interfaces,
+		Routes:     d.Routes,
 		ConfigPath: d.Settings.ConfigPath,
 		Self:       d.Self,
 		Platform:   d.Platform,

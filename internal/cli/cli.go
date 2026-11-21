@@ -415,6 +415,7 @@ func buildPolicy(o Options, logger *slog.Logger, client string) (*policy.Policy,
 		Platform:   pl,
 		Listeners:  procListeners{},
 		Interfaces: host.Addrs,
+		Routes:     host.Route,
 		Host:       executor.NewHost(),
 		// The host's own resolvers, read for each batch, since they change
 		// (DHCP, VPNs): a probe may ask them even on the block list, for DNS
@@ -532,11 +533,12 @@ func warnForeignDirs(logger *slog.Logger) {
 	}
 }
 
-// hideHost makes the host's side unsupported: its interfaces, its
-// listening sockets and checks run from it. Containers' listeners, read
+// hideHost makes the host's side unsupported: its interfaces, its routes,
+// its listening sockets and checks run from it. Containers' listeners, read
 // through /proc/<pid> (with --pid host), stay.
 func hideHost(d *policy.Deps) {
 	d.Interfaces = func() (evidence.HostAddrs, error) { return evidence.HostAddrs{}, hostHidden{} }
+	d.Routes = func(a netip.Addr) (evidence.HostRoute, error) { return evidence.HostRoute{Dst: a}, hostHidden{} }
 	d.Listeners = hiddenHostListeners{d.Listeners}
 	d.Host = executor.Unsupported{Executor: evidence.ExecutorHost, Reason: executor.HostHidden}
 }

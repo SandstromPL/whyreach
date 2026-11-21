@@ -196,6 +196,50 @@ func TestRedactorRawSpellings(t *testing.T) {
 	}
 }
 
+// TestRedactorHostRoutes: a route that isn't Docker's maps the user's
+// other networks (a VPN, a LAN), so its range, its interface and the host's
+// own address on that interface get pseudonyms even where private
+// addresses are kept; Docker's subnet, its bridge's ID and the target stay
+// readable as before (WR013).
+func TestRedactorHostRoutes(t *testing.T) {
+	d := identifying()
+	netID := strings.Repeat("7e", 32)
+	bridge := "br-" + netID[:12]
+	d.Question.To = evidence.Target{Host: "10.8.1.5", Port: 5432, Proto: "tcp", Class: evidence.TargetIP, Addr: netip.MustParseAddr("10.8.1.5")}
+	d.Evidence = append(d.Evidence,
+		evidence.Evidence{ID: "ev-04", Kind: evidence.KindHostAddrs, Status: evidence.StatusOK, Data: evidence.HostAddrs{Interfaces: []evidence.Interface{
+			{Name: bridge, Addrs: []netip.Prefix{netip.MustParsePrefix("10.8.1.1/24")}},
+			{Name: "wg7", Addrs: []netip.Prefix{netip.MustParsePrefix("10.8.0.5/16")}},
+		}}},
+		evidence.Evidence{ID: "ev-05", Kind: evidence.KindHostRoute, Status: evidence.StatusOK, Data: evidence.HostRoute{
+			Dst:    netip.MustParseAddr("10.8.1.5"),
+			Chosen: &evidence.Route{Prefix: netip.MustParsePrefix("10.8.1.0/24"), Dev: bridge, Docker: true},
+			Covering: []evidence.Route{
+				{Prefix: netip.MustParsePrefix("10.8.1.0/24"), Dev: bridge, Docker: true},
+				{Prefix: netip.MustParsePrefix("10.8.0.0/16"), Dev: "wg7", Table: 51820},
+				{Prefix: netip.MustParsePrefix("10.0.0.0/8"), Dev: "lan"},
+			},
+			Networks: []evidence.DockerSubnet{{Network: "back", Subnet: netip.MustParsePrefix("10.8.1.0/24"), Bridge: bridge}},
+		}})
+	for _, private := range []bool{false, true} {
+		r := NewRedactor(private, "")
+		r.Learn(d)
+		text := r.Apply("the route 10.8.0.0/16 dev wg7 table 51820 and 10.8.0.5 on wg7, the route 10.0.0.0/8 dev lan, a VPN or LAN route; " +
+			"back 10.8.1.0/24 on " + bridge + ", target 10.8.1.5")
+		for _, leak := range []string{"10.8.0.0", "wg7", "10.8.0.5", "10.0.0.0", netID[:12]} {
+			if strings.Contains(text, leak) {
+				t.Errorf("private=%v: not redacted: %q in %q", private, leak, text)
+			}
+		}
+		if !strings.Contains(text, "dev lan") || !strings.Contains(text, "a VPN or LAN route") {
+			t.Errorf("private=%v: a plain word is left, in a name and in prose: %q", private, text)
+		}
+		if !private && (!strings.Contains(text, "back 10.8.1.0/24") || !strings.Contains(text, "target 10.8.1.5")) {
+			t.Errorf("Docker's subnet and the target stay readable: %q", text)
+		}
+	}
+}
+
 // TestReportMarkdownIsSanitized: report.md carries the summary and the
 // evidence lines, which can hold label text.
 func TestReportMarkdownIsSanitized(t *testing.T) {
