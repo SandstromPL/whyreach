@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
 	"slices"
@@ -237,7 +238,8 @@ func TestSkippedPeersLowerWR005(t *testing.T) {
 // DNS answers SERVFAIL for external names at once; that is the network's
 // isolation (WR015), not a failing upstream (WR020; M2 review). The source's
 // attachment carries the network list's internal flag and subnets, which
-// WR015 decides from.
+// WR015 decides from, and its gateways, known on internal networks too,
+// where Docker gives the container none.
 func TestInternalNetworkIsNotUpstreamDNS(t *testing.T) {
 	for _, internal := range []bool{false, true} {
 		w := shopWorld()
@@ -269,7 +271,41 @@ func TestInternalNetworkIsNotUpstreamDNS(t *testing.T) {
 				if want := []netip.Prefix{netip.MustParsePrefix("172.22.0.0/16")}; !slices.Equal(a.Subnets, want) {
 					t.Errorf("internal=%v: the source's attachment has subnets %v, want %v", internal, a.Subnets, want)
 				}
+				if want := []netip.Addr{netip.MustParseAddr("172.22.0.1")}; !slices.Equal(a.Gateways, want) {
+					t.Errorf("internal=%v: the source's attachment has gateways %v, want %v", internal, a.Gateways, want)
+				}
 			}
+		}
+	}
+}
+
+// TestUnreadableContainerList: when Docker's list of containers can't be
+// read, nothing shows which containers have a name or an address. A record
+// says the other containers went unread, beside the list's gap (not a
+// second one), and rules that would claim no container has it drop a level.
+func TestUnreadableContainerList(t *testing.T) {
+	for _, c := range []struct{ to, rule string }{
+		{"dbx:5432", "WR005"},
+	} {
+		w := shopWorld()
+		w.failList = errors.New("the daemon timed out")
+		d := diagnoseWith(t, w, "container:shop-worker-1", c.to, false)
+		if p := d.Primary(); p == nil || p.RuleID != c.rule || p.Confidence != rules.Low {
+			t.Errorf("%s: primary = %+v, want %s at low confidence", c.to, p, c.rule)
+		}
+		if !slices.ContainsFunc(d.Evidence, func(e evidence.Evidence) bool {
+			return e.Kind == evidence.KindContainer && e.Status == evidence.StatusSkipped && e.Err != nil && e.Err.Code == evidence.CodeDockerUnavailable
+		}) {
+			t.Errorf("%s: no record of the containers left unread", c.to)
+		}
+		var gaps []string
+		for _, g := range d.Gaps {
+			if strings.Contains(g.What, "container") {
+				gaps = append(gaps, g.What+" ("+g.Why+")")
+			}
+		}
+		if want := []string{"the list of containers (failed)"}; !slices.Equal(gaps, want) {
+			t.Errorf("%s: gaps about containers %q, want %q", c.to, gaps, want)
 		}
 	}
 }

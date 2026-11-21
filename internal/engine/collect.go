@@ -39,7 +39,12 @@ func (r *run) collect(ctx context.Context) error {
 	list, err := dk.ListContainers(lctx, true)
 	cancel()
 	if err != nil {
-		r.gaps = append(r.gaps, Gap{What: "the list of containers", Why: "failed", Detail: err.Error()})
+		g := Gap{What: "the list of containers", Why: "failed", Detail: err.Error()}
+		r.gaps = append(r.gaps, g)
+		// A record too, as for skipped containers: rules must not claim that
+		// no container has a name or an address when none could be listed.
+		r.metadataIncomplete = true
+		r.store.Add(unlisted(g))
 		return nil
 	}
 	r.list = list
@@ -429,6 +434,21 @@ func (r *run) hostAfterLookup(ctx context.Context) error {
 // skippedContainers records containers whyreach did not inspect because of
 // a bound. Its status keeps it out of the gaps derived from records (the gap
 // is added with it), while View.Incomplete sees it.
+// unlisted is the record of the containers whose metadata went unread
+// because Docker's list of containers couldn't be read: skipped, so the
+// gap the failed list already makes isn't made twice.
+func unlisted(g Gap) evidence.Evidence {
+	return evidence.Evidence{
+		Kind:       evidence.KindContainer,
+		Context:    evidence.ContextRef{Kind: evidence.ContextHost, Name: "docker"},
+		Subject:    "the other containers",
+		Status:     evidence.StatusSkipped,
+		ObservedAt: time.Now(),
+		Err:        &evidence.Error{Code: evidence.CodeDockerUnavailable, Message: "the list of containers could not be read: " + g.Detail},
+		Source:     "docker GET /containers/json",
+	}
+}
+
 func skippedContainers(g Gap) evidence.Evidence {
 	return evidence.Evidence{
 		Kind:       evidence.KindContainer,

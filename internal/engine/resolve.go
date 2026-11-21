@@ -158,6 +158,7 @@ func (r *run) inspectEv(ctx context.Context, idOrName string) (evidence.Containe
 		if n, ok := r.networks[c.Networks[i].Network]; ok {
 			c.Networks[i].Internal = n.Internal
 			c.Networks[i].Subnets = n.Subnets
+			c.Networks[i].Gateways = n.Gateways
 		}
 	}
 	return c, evidence.Evidence{

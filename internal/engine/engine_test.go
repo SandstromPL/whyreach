@@ -30,6 +30,7 @@ type world struct {
 	tcp         map[string]string // "addr:port" → outcome; missing means timeout
 	desktop     bool
 	failInspect map[string]error // container name → inspect error
+	failList    error            // the error of listing all containers (resolving a service still works)
 	internal    map[string]bool  // network name → internal: true
 }
 
@@ -46,6 +47,9 @@ func (w *world) Endpoint() string   { return "unix:///var/run/docker.sock" }
 func (w *world) APIVersion() string { return "1.56" }
 
 func (w *world) ListContainers(_ context.Context, _ bool, labels ...string) ([]docker.Summary, error) {
+	if w.failList != nil && len(labels) == 0 {
+		return nil, w.failList
+	}
 	var out []docker.Summary
 	for _, c := range w.containers {
 		s := docker.Summary{ID: c.ID, Names: []string{"/" + c.Name}, State: c.State, Labels: map[string]string{}}
@@ -110,6 +114,7 @@ func (w *world) ListNetworks(context.Context) ([]docker.Network, error) {
 			n := docker.Network{ID: a.Network + "-id", Name: a.Network, Driver: "bridge", Internal: w.internal[a.Network]}
 			if a.IPv4.IsValid() {
 				n.Subnets = []netip.Prefix{netip.PrefixFrom(a.IPv4, 16).Masked()}
+				n.Gateways = []netip.Addr{n.Subnets[0].Addr().Next()}
 			}
 			out = append(out, n)
 		}

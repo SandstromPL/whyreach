@@ -121,6 +121,11 @@ type NetAttachment struct {
 	// on the network and what lies outside it); empty when it couldn't be
 	// read.
 	Subnets []netip.Prefix `json:"subnets,omitempty"`
+	// Gateways are the network's gateway addresses, from the same list:
+	// the side of a bridge that isn't a container's (the host's, or on
+	// Docker Desktop its VM's). Unlike Gateway, they are known on internal
+	// networks too, where Docker gives the container no gateway (WR024).
+	Gateways []netip.Addr `json:"gateways,omitempty"`
 }
 
 // PortMap is one published port: container port → host address. A running
