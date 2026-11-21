@@ -8,7 +8,7 @@
 
 **Why does it exist?** Errors like `Connection refused` or a timeout don't say what's wrong. The cause could be a wrong address or port, a service that only listens to itself, containers on different networks, or a service that isn't ready yet. whyreach finds the real one.
 
-**Who is it for?** Developers who run several services with Docker Compose on Linux, often together with an AI coding agent such as Claude Code, Codex or Cursor. Docker Desktop on macOS and Windows comes later.
+**Who is it for?** Developers who run several services with Docker Compose on Linux, or on Windows inside WSL2 (from v0.2), often together with an AI coding agent such as Claude Code, Codex or Cursor. Docker Desktop on macOS and native Windows builds come later.
 
 **Why was it needed?** Finding the cause by hand takes many commands, and you need to know Docker networking well. Small images often don't have the tools to check from inside. AI agents doing the same take many steps and may run commands that change things.
 
@@ -40,11 +40,11 @@ WR007  localhost inside worker is worker itself, not api
   …
 ```
 
-> **Status: v0.1.** Linux with Docker Engine only. Docker Desktop, macOS and Windows come later ([INITIAL.md §3.7](INITIAL.md)).
+> **Status: v0.1.** Linux with Docker Engine. **Windows through WSL2** (Docker Engine in the distro, or Docker Desktop's WSL integration) passed its lab runs on Windows and ships with v0.2; v0.1.0 doesn't have it, so until v0.2 is out, build it from source: [docs/wsl2.md](docs/wsl2.md). Docker Desktop on macOS and native Windows builds come later ([INITIAL.md §3.7](INITIAL.md)).
 
 ## Install
 
-You need Linux on amd64 or arm64, Docker Engine, and access to the Docker socket (your user in the `docker` group). whyreach is one static binary.
+You need Linux on amd64 or arm64, Docker Engine, and access to the Docker socket (your user in the `docker` group). whyreach is one static binary. On Windows, it runs inside WSL2: see [docs/wsl2.md](docs/wsl2.md).
 
 Download the archive for your machine and `checksums.txt` from the [releases page](https://github.com/SandstromPL/whyreach/releases), check the checksum, and put the binary on your `PATH`:
 

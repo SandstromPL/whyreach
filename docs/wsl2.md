@@ -1,6 +1,6 @@
 # whyreach on Windows, through WSL2
 
-> **Status: built for v0.2, not yet validated.** whyreach claims WSL2 support only once the manual lab runs on Windows pass (`docs/wsl2-lab.md`). Until then, this page is the setup those runs check, and the README doesn't mention it.
+> **Status: supported from v0.2.** Both setups below passed the lab on Windows on 2026-11-21 (WSL 3.0.5), and so did starting whyreach from Windows through `wsl.exe` the way an MCP client does ([the lab runs](wsl2-lab.md), [ADR 0004](adr/0004-wsl2.md)). The v0.1.0 release doesn't have it: until v0.2 is released, build whyreach from source (below).
 
 whyreach is a Linux program. On Windows it runs inside a WSL2 distro, next to Docker, and an MCP client on Windows starts it there through `wsl.exe`. Two setups work, and whyreach tells them apart by itself (`whyreach doctor` prints which one it found):
 
@@ -13,7 +13,16 @@ Windows containers aren't supported, and neither is a native Windows build (v0.3
 
 ## Install
 
-Inside the distro, follow the README's install steps for Linux (`linux_amd64` or `linux_arm64` archive, checksum, `~/.local/bin`). Then check it from the distro:
+From v0.2, follow the README's install steps for Linux inside the distro (`linux_amd64` or `linux_arm64` archive, checksum, `~/.local/bin`).
+
+Until v0.2 is released, build it from `main` inside the distro. That needs `git`, `make` and Go 1.27 or later ([the lab runs' step 2](wsl2-lab.md) installs them):
+
+```bash
+git clone https://github.com/SandstromPL/whyreach ~/whyreach && cd ~/whyreach && make build
+install -D -m 0755 bin/whyreach ~/.local/bin/whyreach
+```
+
+Then check it from the distro:
 
 ```bash
 whyreach doctor
@@ -77,6 +86,8 @@ Environment variables in a Windows client's MCP configuration don't reach the di
 
 When the client closes, whyreach sees its input end and exits at once, so nothing stays running in the distro.
 
+The lab runs check this launch the way these clients make it: `wsl.exe` started with pipes, no shell and no console window, from a running distro and from a stopped WSL. The configurations above follow each client's documented format; they haven't each been tried in the client itself.
+
 ## What differs from Linux
 
 - **The host is the WSL2 VM.** Host-side facts (the host's listening sockets, interfaces, connections from the host) describe the distro's VM, and whyreach says "the WSL2 VM" for them. A service on Windows itself isn't visible from WSL.
@@ -87,5 +98,6 @@ When the client closes, whyreach sees its input end and exits at once, so nothin
 ## Troubleshooting
 
 - `wsl.exe -d Ubuntu-24.04 --exec /home/you/.local/bin/whyreach doctor`, from PowerShell, shows what the client's whyreach sees.
+- The client's log says "There is no distribution with the supplied name": the name after `-d` must match `wsl --list --verbose` exactly. `wsl.exe` keeps quotes as part of the name, so where quotes reach it as typed (`cmd.exe`, a raw command line), leave them out.
 - `doctor`'s `docker` line fails: on `wsl2-engine`, start `dockerd` (`sudo systemctl start docker`) and check that your user is in the `docker` group; on `wsl2-desktop`, start Docker Desktop and turn its WSL integration on for the distro.
 - The `platform` line says `linux-engine` in WSL: WSL's interop is off in `/etc/wsl.conf`, so whyreach can't confirm WSL2. Nothing unsafe follows; only the host's side is called "the host" instead of "the WSL2 VM".
