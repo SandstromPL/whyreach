@@ -253,27 +253,38 @@ func describeHostAddr(v evidence.View, a netip.AddrPort) string {
 // firewallFix says how to let the source's networks in, with the commands
 // of the usual firewalls.
 func firewallFix(v evidence.View, src evidence.ContainerEv, host string, port uint16, hostToo bool) string {
-	allow, subnet := src.C.DisplayName()+"'s network", "<that subnet>"
-	if owner, ok := v.NetnsOwner(); ok {
-		var nets []string
-		for _, a := range owner.C.Networks {
-			for _, p := range a.Subnets {
-				if p.Addr().Is4() {
-					nets = append(nets, p.String())
-				}
-			}
-		}
-		if len(nets) > 0 {
-			allow = fmt.Sprintf("%s's %s (%s)", src.C.DisplayName(), plural(len(nets), "network", "networks"), quoteList(nets))
-		}
-		if len(nets) == 1 {
-			subnet = nets[0]
-		}
-	}
+	allow, subnet := allowSubnets(v, src.C.DisplayName(), src.C.DisplayName()+"'s network")
 	check := fmt.Sprintf("Check %s's firewall for port %d (sudo ufw status verbose, sudo firewall-cmd --list-all, or sudo iptables -S INPUT)", host, port)
 	if hostToo {
 		check = fmt.Sprintf("Find the rule of %s's firewall that rejects port %d (sudo nft list ruleset, or sudo iptables -S INPUT)", host, port)
 	}
 	return fmt.Sprintf("%s and allow %s in to it: with ufw, sudo ufw allow from %s to any port %d proto tcp; with firewalld, sudo firewall-cmd --permanent --zone=trusted --add-source=%s, then sudo firewall-cmd --reload; with iptables, an ACCEPT rule for that subnet before the one that rejects or drops it. Run the same diagnosis afterwards.",
 		check, allow, subnet, port, subnet)
+}
+
+// allowSubnets says what a firewall should let in from the source: the
+// IPv4 subnets of its network namespace's networks, "who's networks
+// (172.18.0.0/16 and 172.19.0.0/16)", or fallback when none is known; and
+// the subnet a command can name, "<that subnet>" unless there is just one.
+func allowSubnets(v evidence.View, who, fallback string) (allow, subnet string) {
+	allow, subnet = fallback, "<that subnet>"
+	owner, ok := v.NetnsOwner()
+	if !ok {
+		return allow, subnet
+	}
+	var nets []string
+	for _, a := range owner.C.Networks {
+		for _, p := range a.Subnets {
+			if p.Addr().Is4() {
+				nets = append(nets, p.String())
+			}
+		}
+	}
+	if len(nets) > 0 {
+		allow = fmt.Sprintf("%s's %s (%s)", who, plural(len(nets), "network", "networks"), quoteList(nets))
+	}
+	if len(nets) == 1 {
+		subnet = nets[0]
+	}
+	return allow, subnet
 }

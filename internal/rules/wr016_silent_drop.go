@@ -373,23 +373,7 @@ func (s silence) host(d evidence.Destinations) {
 	}
 	fmt.Fprintf(&e, " Something drops the traffic on the way, most often %s (ufw, firewalld or iptables INPUT rules), which by default doesn't let Docker's networks in.", what)
 	f.Explanation = e.String()
-	allow, subnet := "Docker's networks", "<that subnet>"
-	if owner, ok := v.NetnsOwner(); ok {
-		var nets []string
-		for _, a := range owner.C.Networks {
-			for _, p := range a.Subnets {
-				if p.Addr().Is4() {
-					nets = append(nets, p.String())
-				}
-			}
-		}
-		if len(nets) > 0 {
-			allow = fmt.Sprintf("%s's %s (%s)", src, plural(len(nets), "network", "networks"), quoteList(nets))
-		}
-		if len(nets) == 1 {
-			subnet = nets[0]
-		}
-	}
+	allow, subnet := allowSubnets(v, src, "Docker's networks")
 	f.Fix = fmt.Sprintf("Check %s for port %d (sudo ufw status verbose, sudo firewall-cmd --list-all, or sudo iptables -S INPUT) and allow connections from %s to it; with ufw, for example: sudo ufw allow from %s to any port %d proto tcp.", what, port, allow, subnet, port)
 }
 
