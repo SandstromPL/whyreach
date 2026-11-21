@@ -10,6 +10,12 @@ expect:
   confidence: medium
   fix_contains: is a machine on your LAN or VPN
   must_not_fire: [WR001, WR004, WR015, WR019, WR024]
+  # The connect times out (whyreach gives up before ARP does): the route
+  # explains it, so WR016 is only suppressed.
+  suppressed: {WR016: WR013}
+# The second run starts while ARP for the address is still under way, so
+# its connect may get "no route to host" before whyreach's 2 s timeout:
+# then WR016 has no timeout to judge, and only the first run checks it.
 expect_without_probe:
   verdict: likely_cause
   top_rule: WR013

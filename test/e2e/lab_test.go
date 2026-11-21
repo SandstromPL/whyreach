@@ -28,6 +28,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/netip"
 	"os"
@@ -110,6 +111,11 @@ type expect struct {
 	// GapContains is text that some gap must hold (its what, detail or
 	// how to enable the check).
 	GapContains string `yaml:"gap_contains"`
+	// Suppressed maps a rule to the rule that must suppress it: the
+	// finding is a consequence of the cause, listed among the suppressed
+	// ones and never a finding of its own (WR016's timeout behind WR024's
+	// stale address, say).
+	Suppressed map[string]string `yaml:"suppressed"`
 }
 
 type lab struct {
@@ -670,6 +676,15 @@ func check(t *testing.T, d *engine.Diagnosis, e expect) {
 	if e.NoFindings {
 		for _, f := range append(slices.Clone(d.Findings), suppressedAsFindings(d)...) {
 			t.Errorf("no rule may fire: %s (%s) %s", f.RuleID, f.Confidence, f.Title)
+		}
+	}
+	for _, id := range slices.Sorted(maps.Keys(e.Suppressed)) {
+		by := e.Suppressed[id]
+		if slices.ContainsFunc(d.Findings, func(f rules.Finding) bool { return f.RuleID == id }) {
+			t.Errorf("%s must only be suppressed (by %s), not a finding\n%s", id, by, dump())
+		}
+		if !slices.ContainsFunc(d.Suppressed, func(s rules.Suppressed) bool { return s.RuleID == id && s.By == by }) {
+			t.Errorf("want %s suppressed by %s, suppressed %+v", id, by, d.Suppressed)
 		}
 	}
 	if e.GapContains != "" && !slices.ContainsFunc(d.Gaps, func(g engine.Gap) bool {

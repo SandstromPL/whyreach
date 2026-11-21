@@ -1,0 +1,77 @@
+{
+  "description": "EACCES: the source's own kernel refused to send (a prohibit route, measured), not a drop on the way",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "10.8.20.5",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "ip",
+      "addr": "10.8.20.5"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "platform",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "platform",
+      "status": "ok",
+      "data": {
+        "name": "linux-engine"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "10.8.20.5:5432",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "10.8.20.5:5432",
+        "addr": "10.8.20.5:5432",
+        "via": "literal",
+        "outcome": "error",
+        "rtt_ns": 100000,
+        "errno": "EACCES",
+        "error": "dial tcp 10.8.20.5:5432: connect: permission denied"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    }
+  ],
+  "want": []
+}

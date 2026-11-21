@@ -1,0 +1,18 @@
+description: worker connects to api on the network they share, and the connect times out although api listens
+from: service:worker@${PROJECT}
+to: api:8080
+# The network's options name the dropper, and the connect that timed out
+# confirms it (Probe? yes): high.
+expect:
+  verdict: cause_identified
+  top_rule: WR016
+  confidence: high
+  fix_contains: com.docker.network.bridge.enable_icc
+  must_not_fire: [WR001, WR002, WR003, WR004, WR005, WR007, WR008, WR009, WR010, WR013, WR015, WR024]
+  tcp_outcomes: ["dns:timeout"]
+# Without a connect from worker (no probe containers), WR016 isn't
+# evaluated: the probe's gap says how to allow it.
+expect_without_probe:
+  verdict: inconclusive
+  must_not_fire: [WR016, WR001, WR002, WR004, WR005, WR024]
+  gap_contains: probe_containers = true

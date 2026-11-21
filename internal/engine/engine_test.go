@@ -32,6 +32,7 @@ type world struct {
 	failInspect map[string]error              // container name → inspect error
 	failList    error                         // the error of listing all containers (resolving a service still works)
 	internal    map[string]bool               // network name → internal: true
+	iccOff      map[string]bool               // network name → com.docker.network.bridge.enable_icc=false
 	nets        []docker.Network              // networks no container of the world is on
 	routes      map[string]evidence.HostRoute // address → how the host routes it; missing means no route
 }
@@ -124,7 +125,7 @@ func (w *world) ListNetworks(context.Context) ([]docker.Network, error) {
 				continue
 			}
 			seen[a.Network] = true
-			n := docker.Network{ID: a.Network + "-id", Name: a.Network, Driver: "bridge", Internal: w.internal[a.Network], Bridge: "br-" + a.Network}
+			n := docker.Network{ID: a.Network + "-id", Name: a.Network, Driver: "bridge", Internal: w.internal[a.Network], ICCDisabled: w.iccOff[a.Network], Bridge: "br-" + a.Network}
 			if a.Network == evidence.NetworkBridge {
 				n.Bridge = "docker0"
 			}

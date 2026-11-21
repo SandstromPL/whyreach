@@ -22,7 +22,7 @@
 
 ## How it works
 
-When a service gets `Connection refused`, a timeout or a name that doesn't resolve, whyreach collects evidence from the right network namespaces: Docker metadata, the listening sockets inside each container, DNS as the source container sees it, and a TCP connect from the source. Then it names the cause from a catalog of 18 rules, such as `localhost` used inside a container, a server bound to `127.0.0.1`, or two Compose projects that share no network. Each finding comes with the evidence behind it and a fix.
+When a service gets `Connection refused`, a timeout or a name that doesn't resolve, whyreach collects evidence from the right network namespaces: Docker metadata, the listening sockets inside each container, DNS as the source container sees it, and a TCP connect from the source. Then it names the cause from a catalog of 19 rules, such as `localhost` used inside a container, a server bound to `127.0.0.1`, or two Compose projects that share no network. Each finding comes with the evidence behind it and a fix.
 
 ```
 $ whyreach --from service:worker@whyreach-demo localhost:8080
@@ -212,7 +212,7 @@ whyreach mcp serve
 
 **Reports.** `--report` saves the diagnosis with all its evidence as a bundle in `~/.local/share/whyreach/reports/`. The bundle holds a manifest, the diagnosis, the evidence and a Markdown report, and it isn't redacted: it's your own record. To share one, for example in an issue, run `whyreach report export ID`. It writes a redacted copy, `ID.tar.gz`, next to the bundle. Public addresses, host names and container IDs become pseudonyms, and your home directory becomes `~`. Private addresses are hidden too with `--redact-private`. Check the copy before you share it. Bundles saved through MCP (`save_report`) are always redacted.
 
-**Rules.** `whyreach rules list` shows the 18 rules, and `whyreach rules explain WR007` prints a rule's page: the pitfall, the evidence, the fix and the known false positives. The same pages are in [docs/rules](docs/rules).
+**Rules.** `whyreach rules list` shows the 19 rules, and `whyreach rules explain WR007` prints a rule's page: the pitfall, the evidence, the fix and the known false positives. The same pages are in [docs/rules](docs/rules).
 
 ## As a container
 

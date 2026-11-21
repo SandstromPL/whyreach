@@ -1,0 +1,107 @@
+{
+  "description": "the host connects to 10.8.20.5, a private address that no route of the host's covers but the default one: the route to it is missing (a VPN that is down)",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "10.8.20.5",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "ip",
+      "addr": "10.8.20.5"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "platform",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "platform",
+      "status": "ok",
+      "data": {
+        "name": "linux-engine"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "host.route",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "10.8.20.5",
+      "status": "ok",
+      "source": "the kernel's routing tables (netlink RTM_GETROUTE), in whyreach's own network namespace",
+      "data": {
+        "dst": "10.8.20.5",
+        "chosen": {
+          "prefix": "0.0.0.0/0",
+          "dev": "eth0"
+        }
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "10.8.20.5:5432",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "10.8.20.5:5432",
+        "addr": "10.8.20.5:5432",
+        "via": "literal",
+        "outcome": "timeout",
+        "rtt_ns": 2000000000,
+        "error": "dial tcp 10.8.20.5:5432: i/o timeout"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR016",
+      "confidence": "low",
+      "supporting": [
+        "ev-03",
+        "ev-04"
+      ],
+      "fix_contains": "a VPN that is down",
+      "fix_lacks": "nc -vz"
+    }
+  ]
+}

@@ -1,0 +1,223 @@
+{
+  "description": "the network was made with docker network create -o com.docker.network.bridge.enable_icc=false, so the fix creates it again without the option",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-worker-1",
+      "container_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    "to": {
+      "host": "api",
+      "port": 8080,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "platform",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "platform",
+      "status": "ok",
+      "data": {
+        "name": "linux-engine"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "dddddddddddd",
+        "name": "worker"
+      },
+      "subject": "container:worker",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "name": "worker",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "isolated",
+        "networks": [
+          {
+            "network": "isolated",
+            "network_id": "4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b",
+            "ipv4": "172.26.0.3",
+            "gateway": "172.26.0.1",
+            "names": [
+              "worker"
+            ],
+            "subnets": [
+              "172.26.0.0/16"
+            ],
+            "gateways": [
+              "172.26.0.1"
+            ],
+            "icc_disabled": true
+          }
+        ],
+        "pid": 106
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "api"
+      },
+      "subject": "container:api",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "api",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "isolated",
+        "networks": [
+          {
+            "network": "isolated",
+            "network_id": "4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b",
+            "ipv4": "172.26.0.2",
+            "gateway": "172.26.0.1",
+            "names": [
+              "api"
+            ],
+            "subnets": [
+              "172.26.0.0/16"
+            ],
+            "gateways": [
+              "172.26.0.1"
+            ],
+            "icc_disabled": true
+          }
+        ],
+        "pid": 103
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "api"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "source": "/proc/<pid>/net/tcp{,6} read from the host",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:8080"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "dddddddddddd",
+        "name": "worker"
+      },
+      "subject": "api",
+      "status": "ok",
+      "data": {
+        "name": "api",
+        "answered": "api",
+        "via": "dns",
+        "server": "127.0.0.11:53",
+        "rcode": "NOERROR",
+        "answers": [
+          "172.26.0.2"
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-06"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "container",
+        "container": "dddddddddddd",
+        "name": "worker",
+        "executor": "probe-container"
+      },
+      "subject": "api:8080",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "api:8080",
+        "addr": "172.26.0.2:8080",
+        "via": "dns",
+        "outcome": "timeout",
+        "rtt_ns": 2000000000,
+        "error": "dial tcp 172.26.0.2:8080: i/o timeout"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-07"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR016",
+      "confidence": "high",
+      "supporting": [
+        "ev-03",
+        "ev-04",
+        "ev-05",
+        "ev-06",
+        "ev-07"
+      ],
+      "fix_contains": "docker network rm isolated, then docker network create isolated"
+    }
+  ]
+}

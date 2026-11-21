@@ -1,0 +1,186 @@
+{
+  "description": "on Docker Desktop, worker connects to an address on its own network that no container holds: the traffic stays in Desktop's VM, so WR016 fires (and WR024 supersedes it, as on Engine)",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-worker-1",
+      "container_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    "to": {
+      "host": "172.22.0.200",
+      "port": 8080,
+      "proto": "tcp",
+      "class": "ip",
+      "addr": "172.22.0.200"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Desktop 4.50.0 (204312)",
+        "linux_engine": false
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "platform",
+      "context": {
+        "kind": "host",
+        "name": "WSL2 VM"
+      },
+      "subject": "platform",
+      "status": "ok",
+      "data": {
+        "name": "wsl2-desktop",
+        "wsl": true,
+        "desktop": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "dddddddddddd",
+        "name": "worker"
+      },
+      "subject": "container:shop-worker-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "name": "shop-worker-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "compose": {
+          "project": "shop",
+          "service": "worker"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+            "ipv4": "172.22.0.3",
+            "gateway": "172.22.0.1",
+            "names": [
+              "shop-worker-1",
+              "worker"
+            ],
+            "subnets": [
+              "172.22.0.0/16"
+            ],
+            "gateways": [
+              "172.22.0.1"
+            ]
+          }
+        ],
+        "pid": 106
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "api"
+      },
+      "subject": "container:shop-api-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "shop-api-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "compose": {
+          "project": "shop",
+          "service": "api"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+            "ipv4": "172.22.0.2",
+            "gateway": "172.22.0.1",
+            "names": [
+              "api",
+              "shop-api-1"
+            ],
+            "subnets": [
+              "172.22.0.0/16"
+            ],
+            "gateways": [
+              "172.22.0.1"
+            ]
+          }
+        ],
+        "pid": 103
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "container",
+        "container": "dddddddddddd",
+        "name": "worker",
+        "executor": "probe-container"
+      },
+      "subject": "172.22.0.200:8080",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "172.22.0.200:8080",
+        "addr": "172.22.0.200:8080",
+        "via": "literal",
+        "outcome": "timeout",
+        "rtt_ns": 2000000000,
+        "error": "dial tcp 172.22.0.200:8080: i/o timeout"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR016",
+      "confidence": "low",
+      "supporting": [
+        "ev-03",
+        "ev-05"
+      ],
+      "fix_contains": "Connect by the name"
+    }
+  ]
+}

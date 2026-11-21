@@ -1,0 +1,34 @@
+# WR016: worker and api share the project's network, whose bridge has
+# inter-container communication disabled (the driver option
+# com.docker.network.bridge.enable_icc: "false", set to keep a stack's
+# containers apart). Docker drops the traffic between the network's
+# containers without an answer, so worker's connect to api times out
+# although api listens on 0.0.0.0:8080: a silent drop that stays on this
+# machine (measured on Engine 29.9.3). Names still resolve, and each
+# container still reaches the host, so the healthchecks work.
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  api:
+    <<: *server
+    command: ["serve", "0.0.0.0:8080"]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "/labserver", "check", "127.0.0.1:8080"]
+  worker:
+    <<: *server
+    command: ["serve", "0.0.0.0:7000"]
+
+networks:
+  default:
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
+    labels: { io.whyreach.lab: "1" }

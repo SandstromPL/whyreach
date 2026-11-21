@@ -1,0 +1,126 @@
+{
+  "description": "on Docker Desktop, the WSL2 VM reaches containers only through Desktop's forwarding: a timeout to a container's address is no drop to fix",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "172.22.0.2",
+      "port": 8080,
+      "proto": "tcp",
+      "class": "ip",
+      "addr": "172.22.0.2"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Desktop 4.50.0 (204312)",
+        "linux_engine": false
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "platform",
+      "context": {
+        "kind": "host",
+        "name": "WSL2 VM"
+      },
+      "subject": "platform",
+      "status": "ok",
+      "data": {
+        "name": "wsl2-desktop",
+        "wsl": true,
+        "desktop": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "api"
+      },
+      "subject": "container:shop-api-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "shop-api-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "compose": {
+          "project": "shop",
+          "service": "api"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+            "ipv4": "172.22.0.2",
+            "gateway": "172.22.0.1",
+            "names": [
+              "api",
+              "shop-api-1"
+            ],
+            "subnets": [
+              "172.22.0.0/16"
+            ],
+            "gateways": [
+              "172.22.0.1"
+            ]
+          }
+        ],
+        "pid": 103
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "172.22.0.2:8080",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "172.22.0.2:8080",
+        "addr": "172.22.0.2:8080",
+        "via": "literal",
+        "outcome": "timeout",
+        "rtt_ns": 2000000000,
+        "error": "dial tcp 172.22.0.2:8080: i/o timeout"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    }
+  ],
+  "want": []
+}
