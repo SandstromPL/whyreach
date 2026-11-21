@@ -58,14 +58,8 @@ func (r wr012) Evaluate(v evidence.View) []Finding {
 		RuleID: r.ID(), Layer: r.Layer(), DocURL: DocURL(r.ID()), Confidence: High,
 		Supporting: append([]string{src.ID, hl.ID}, d.Host.Evidence...),
 	}
-	refused := false
-	for _, t := range v.SourceTCP() {
-		if t.P.Outcome == evidence.OutcomeRefused {
-			f.Supporting = append(f.Supporting, t.ID)
-			refused = true
-		}
-	}
-	f.Supporting = ids(f.Supporting...)
+	refused := sourceConnects(v, evidence.OutcomeRefused)
+	f.Supporting = ids(append(f.Supporting, refused...)...)
 	srcName := src.C.DisplayName()
 	host := v.HostLabel()
 	arrives := host + "'s address"
@@ -90,7 +84,7 @@ func (r wr012) Evaluate(v evidence.View) []Finding {
 		// Engine (WR011): this is what happens once it does.
 		f.Explanation = fmt.Sprintf("On %s, port %d is served only on %s, which accepts connections from %s itself. Once %s resolves in %s (WR011), its connections will arrive at %s's address, where nothing listens.",
 			host, port, socketList(socks), host, v.Question().To.Host, srcName, host)
-	case refused:
+	case len(refused) > 0:
 		f.Explanation = strings.TrimSuffix(f.Explanation, ".") + ", so it is refused."
 	}
 	contradictedByPath(v, &f)

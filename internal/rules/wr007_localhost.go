@@ -77,11 +77,7 @@ func (r wr007) Evaluate(v evidence.View) []Finding {
 		f.Confidence = High
 		f.Supporting = append(f.Supporting, local.ID)
 	}
-	for _, t := range v.SourceTCP() {
-		if t.P.Outcome == evidence.OutcomeRefused {
-			f.Supporting = append(f.Supporting, t.ID)
-		}
-	}
+	f.Supporting = append(f.Supporting, sourceConnects(v, evidence.OutcomeRefused)...)
 
 	type candidate struct {
 		name, listen, network string

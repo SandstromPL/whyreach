@@ -38,7 +38,7 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 	if read && hostAccepts(hl.L, port, *d.Host, v6Only(v, port)) {
 		return nil // something on the host answers there
 	}
-	if !read && !hostRefused(v) {
+	if !read && len(sourceConnects(v, evidence.OutcomeRefused)) == 0 {
 		// Without the host's listeners, only a refused connect from the
 		// host shows that nothing there takes the port; the host's own
 		// service might (a gap says why they weren't read).
@@ -55,7 +55,7 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 			where = append(where, pm.HostAddr())
 		}
 		name := c.C.DisplayName()
-		f.Supporting = r.confirm(v, c.ID)
+		f.Supporting = refusedFrom(v, []string{c.ID})
 		f.Title = fmt.Sprintf("%s publishes port %d only on %s", name, port, strings.Join(where, ", "))
 		f.Explanation = fmt.Sprintf("%s publishes its port %d on %s as %s, which accepts connections only to that address, and %s goes to %s.",
 			containerLabel(c.C), b[0].ContainerPort, v.HostLabel(), strings.Join(where, ", "), target, d.Host.Addr)
@@ -78,7 +78,7 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 	if pubs := byNameOrder(v, func(c evidence.Container) []evidence.PortMap { return c.PublishesPort(port) }); len(pubs) > 0 {
 		c, b := pubs[0].c, pubs[0].b
 		name := c.C.DisplayName()
-		f.Supporting = r.confirm(v, c.ID)
+		f.Supporting = refusedFrom(v, []string{c.ID})
 		// Prefer a binding that accepts the address the client uses; else
 		// name the binding's own address.
 		pm := b[0]
@@ -123,7 +123,7 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 	}
 	s := servers[0]
 	name := s.C.DisplayName()
-	f.Supporting = r.confirm(v, append([]string{s.ID}, listenIDs...)...)
+	f.Supporting = refusedFrom(v, append([]string{s.ID}, listenIDs...))
 	f.Title = fmt.Sprintf("%s listens on port %d but doesn't publish it", name, port)
 	addrHint := ""
 	// Where Docker Engine runs on whyreach's machine, its bridges are
@@ -235,23 +235,6 @@ func (r wr019) byName(v evidence.View, d evidence.Destinations) []Finding {
 		f.Fix = fmt.Sprintf("Publish the port: ports: [\"%d:%d\"] for %s in Compose (-p %d:%d), then connect to localhost:%d.", q.To.Port, q.To.Port, name, q.To.Port, q.To.Port, q.To.Port)
 	}
 	return []Finding{f}
-}
-
-// hostRefused reports a connect from the host that was refused: nothing on
-// the host took the port at that address.
-func hostRefused(v evidence.View) bool {
-	return slices.ContainsFunc(v.SourceTCP(), func(t evidence.TCPEv) bool { return t.P.Outcome == evidence.OutcomeRefused })
-}
-
-// confirm adds the refused or closed connects from the host to supporting IDs.
-func (wr019) confirm(v evidence.View, base ...string) []string {
-	out := slices.Clone(base)
-	for _, t := range v.SourceTCP() {
-		if t.P.Outcome == evidence.OutcomeRefused || t.P.Outcome == evidence.OutcomeClosed {
-			out = append(out, t.ID)
-		}
-	}
-	return ids(out...)
 }
 
 // hostAccepts reports a host listener that takes connections to the port at

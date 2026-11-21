@@ -80,12 +80,7 @@ func (r wr010) Evaluate(v evidence.View) []Finding {
 	if f == nil {
 		return nil
 	}
-	for _, t := range v.SourceTCP() {
-		if t.P.Outcome == evidence.OutcomeRefused {
-			f.Supporting = append(f.Supporting, t.ID)
-		}
-	}
-	f.Supporting = ids(f.Supporting...)
+	f.Supporting = ids(append(f.Supporting, sourceConnects(v, evidence.OutcomeRefused)...)...)
 	return []Finding{*f}
 }
 

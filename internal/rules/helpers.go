@@ -58,6 +58,18 @@ func sentence(s string) string {
 	return s
 }
 
+// sourceConnects returns the IDs of the source's connects that ended in
+// one of outcomes, in ID order.
+func sourceConnects(v evidence.View, outcomes ...string) []string {
+	var out []string
+	for _, t := range v.SourceTCP() {
+		if slices.Contains(outcomes, t.P.Outcome) {
+			out = append(out, t.ID)
+		}
+	}
+	return out
+}
+
 // resolvedFromSource reports that the target name resolved from the source.
 func resolvedFromSource(v evidence.View) bool {
 	q := v.Question()
