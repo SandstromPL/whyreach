@@ -108,10 +108,7 @@ func (wr013) describe(f *Finding, v evidence.View, h evidence.HostRoute, n evide
 		label = "Docker's default bridge network"
 	}
 	netText := fmt.Sprintf("%s (%s, bridge %s)", label, n.Subnet, n.Bridge)
-	src := v.HostLabel()
-	if s, ok := v.Source(); ok {
-		src = s.C.DisplayName()
-	}
+	src := sourceName(v)
 	var c evidence.Route
 	dev := ""
 	if len(competing) > 0 {

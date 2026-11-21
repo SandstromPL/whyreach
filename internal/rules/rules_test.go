@@ -110,6 +110,36 @@ func TestExplanationsKeepNames(t *testing.T) {
 	}
 }
 
+// TestWSL2NamesTheVM: under WSL2, whyreach's host-side network namespace
+// is the WSL2 VM's (INITIAL.md §3.7), so prose about a source there names
+// the WSL2 VM, never the host.
+func TestWSL2NamesTheVM(t *testing.T) {
+	for _, tt := range []struct {
+		rule    Rule
+		fixture string
+		want    []string
+	}{
+		{wr002{}, "testdata/WR002/fires-from-wsl2-connect-timed-out.json", []string{"so the WSL2 VM can't reach it", "But the WSL2 VM's connect timed out"}},
+		{wr019{}, "testdata/WR019/fires-container-name-from-wsl2.json", []string{"the WSL2 VM can't resolve api", "From the WSL2 VM's network namespace"}},
+	} {
+		f := loadFixture(t, tt.fixture)
+		got := tt.rule.Evaluate(evidence.NewView(f.Question, f.Evidence))
+		if len(got) == 0 {
+			t.Errorf("%s: no finding", tt.fixture)
+			continue
+		}
+		text := got[0].Title + "\n" + got[0].Explanation
+		for _, w := range tt.want {
+			if !strings.Contains(text, w) {
+				t.Errorf("%s: want %q in:\n%s", tt.fixture, w, text)
+			}
+		}
+		if strings.Contains(text, "the host") {
+			t.Errorf("%s: names the host under WSL2:\n%s", tt.fixture, text)
+		}
+	}
+}
+
 // checkFinding enforces what every finding must carry.
 func checkFinding(t *testing.T, r Rule, f Finding, v evidence.View) {
 	t.Helper()

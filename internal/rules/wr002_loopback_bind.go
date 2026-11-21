@@ -84,10 +84,11 @@ func (r wr002) Evaluate(v evidence.View) []Finding {
 	return nil
 }
 
-// sourceName names the source for prose.
+// sourceName names the source for prose: its container, or the host's
+// side, "the host" ("the WSL2 VM" under WSL2).
 func sourceName(v evidence.View) string {
 	if src, ok := v.Source(); ok {
 		return src.C.DisplayName()
 	}
-	return "the host"
+	return v.HostLabel()
 }

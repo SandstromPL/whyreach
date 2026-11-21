@@ -1,0 +1,118 @@
+{
+  "description": "under WSL2 (Docker Engine in the distro), the WSL2 VM uses a container name, which only Docker's DNS answers; the prose names the source the WSL2 VM, not the host",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "api",
+      "port": 8080,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "platform",
+      "context": {
+        "kind": "host",
+        "name": "WSL2 VM"
+      },
+      "subject": "platform",
+      "status": "ok",
+      "data": {
+        "name": "wsl2-engine",
+        "wsl": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "api"
+      },
+      "subject": "container:shop-api-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "shop-api-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "pid": 4097,
+        "compose": {
+          "project": "shop",
+          "service": "api"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "names": [
+              "api",
+              "shop-api-1"
+            ],
+            "ipv4": "172.22.0.3"
+          }
+        ]
+      },
+      "id": "ev-02",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "host",
+        "name": "WSL2 VM"
+      },
+      "subject": "api",
+      "status": "ok",
+      "data": {
+        "name": "api",
+        "server": "127.0.0.53:53",
+        "rcode": "SERVFAIL",
+        "upstream": [],
+        "attempts": [
+          {
+            "query": "api",
+            "type": "A",
+            "rcode": "SERVFAIL",
+            "answers": 0
+          },
+          {
+            "query": "api",
+            "type": "AAAA",
+            "rcode": "SERVFAIL",
+            "answers": 0
+          }
+        ]
+      },
+      "source": "resolver",
+      "id": "ev-03",
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR019",
+      "confidence": "high",
+      "supporting": [
+        "ev-02",
+        "ev-03"
+      ],
+      "fix_contains": "ports: [\"8080:8080\"]"
+    }
+  ]
+}

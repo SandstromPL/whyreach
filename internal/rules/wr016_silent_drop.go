@@ -156,7 +156,7 @@ func (s silence) connects() string {
 	if len(parts) > 1 {
 		noun = "connects"
 	}
-	return fmt.Sprintf("%s's %s to %s", s.source(), noun, quoteList(parts))
+	return fmt.Sprintf("%s's %s to %s", sourceName(s.v), noun, quoteList(parts))
 }
 
 func (s silence) timedOut() string {
@@ -164,13 +164,6 @@ func (s silence) timedOut() string {
 		return "timed out: nothing answered any of them, not even with a refusal"
 	}
 	return "timed out: nothing answered, not even with a refusal"
-}
-
-func (s silence) source() string {
-	if src, ok := s.v.Source(); ok {
-		return src.C.DisplayName()
-	}
-	return s.v.HostLabel()
 }
 
 // listening sorts the listeners on the port into those that take a
@@ -215,8 +208,8 @@ func (s silence) container(dst netnsHolder, owner evidence.ContainerEv) {
 		// on (WR004's case: Docker drops traffic between networks).
 		f.Confidence = Low
 		f.Title = fmt.Sprintf("nothing answered %s at %s", name, quoteListAddrs(s.addrs, s.port))
-		f.Explanation = fmt.Sprintf("%s %s %s holds that address on a network %s isn't on, and Docker drops traffic between its networks.", s.connects(), s.timedOut()+".", name, s.source())
-		f.Fix = fmt.Sprintf("Put %s and %s on a network together, and connect by %s's name.", s.source(), name, name)
+		f.Explanation = fmt.Sprintf("%s %s %s holds that address on a network %s isn't on, and Docker drops traffic between its networks.", s.connects(), s.timedOut()+".", name, sourceName(s.v))
+		f.Fix = fmt.Sprintf("Put %s and %s on a network together, and connect by %s's name.", sourceName(s.v), name, name)
 		return
 	}
 	if shared.ICCDisabled {
@@ -232,13 +225,13 @@ func (s silence) container(dst netnsHolder, owner evidence.ContainerEv) {
 		s.queue(name, name+"'s app", queued, dst.m.Port)
 		return
 	}
-	f.Title = fmt.Sprintf("something drops the traffic between %s and %s silently", s.source(), name)
+	f.Title = fmt.Sprintf("something drops the traffic between %s and %s silently", sourceName(s.v), name)
 	var e strings.Builder
 	where := "runs on network " + shared.Network
 	if dst.netns.ID != dst.m.ID {
 		where = fmt.Sprintf("runs in %s's network namespace (network_mode: container), on network %s", dst.netns.C.DisplayName(), shared.Network)
 	}
-	fmt.Fprintf(&e, "%s %s %s %s, which %s shares", s.connects(), s.timedOut()+".", name, where, s.source())
+	fmt.Fprintf(&e, "%s %s %s %s, which %s shares", s.connects(), s.timedOut()+".", name, where, sourceName(s.v))
 	switch {
 	case !read:
 		f.Confidence = Low
@@ -253,7 +246,7 @@ func (s silence) container(dst netnsHolder, owner evidence.ContainerEv) {
 	e.WriteString(" Something on the way drops the traffic without a word: a firewall in either container's network namespace (a VPN client's kill switch drops what it doesn't expect, for example), a rule in the host's DOCKER-USER chain, or another of Docker's rules.")
 	f.Explanation = e.String()
 	f.Fix = fmt.Sprintf("Find what drops the traffic between %s and %s on %s: firewall rules in either container's network namespace (a VPN or security container sharing it), the host's DOCKER-USER chain (sudo iptables -S DOCKER-USER), or the network's options (docker network inspect %s). Run the same diagnosis after each change: the connect times out as long as something drops it.",
-		s.source(), name, shared.Network, shared.Network)
+		sourceName(s.v), name, shared.Network, shared.Network)
 }
 
 // icc: the shared network disables inter-container communication, and
@@ -272,18 +265,18 @@ func (s silence) icc(dst netnsHolder, owner evidence.ContainerEv, n evidence.Net
 		label = "Docker's default bridge network"
 		setting = `the daemon's "icc": false`
 	}
-	f.Title = fmt.Sprintf("%s disables inter-container communication, so Docker drops the traffic between %s and %s", label, s.source(), name)
+	f.Title = fmt.Sprintf("%s disables inter-container communication, so Docker drops the traffic between %s and %s", label, sourceName(s.v), name)
 	f.Explanation = fmt.Sprintf("%s and %s share %s, and %s tells Docker to drop the traffic between its containers. Docker drops it without an answer, so %s %s",
-		s.source(), name, label, setting, s.connects(), s.timedOut()+".")
+		sourceName(s.v), name, label, setting, s.connects(), s.timedOut()+".")
 	alt := fmt.Sprintf(" If the isolation is on purpose, publish %s's port and connect through the host instead.", name)
 	switch {
 	case n.Network == evidence.NetworkBridge:
-		f.Fix = fmt.Sprintf(`If the containers are meant to talk, remove "icc": false from /etc/docker/daemon.json and restart Docker, or put %s and %s on a user-defined network together, where they also reach each other by name.`, s.source(), name) + alt
+		f.Fix = fmt.Sprintf(`If the containers are meant to talk, remove "icc": false from /etc/docker/daemon.json and restart Docker, or put %s and %s on a user-defined network together, where they also reach each other by name.`, sourceName(s.v), name) + alt
 	case projectOf(owner.C) != "":
 		key := composeKey(owner.C, n.Network)
-		f.Fix = fmt.Sprintf("If the containers are meant to talk, delete com.docker.network.bridge.enable_icc from networks: %s: driver_opts in the Compose file and recreate the network (docker compose down, then docker compose up -d), or put %s and %s on another network together, one without that option.", key, s.source(), name) + alt
+		f.Fix = fmt.Sprintf("If the containers are meant to talk, delete com.docker.network.bridge.enable_icc from networks: %s: driver_opts in the Compose file and recreate the network (docker compose down, then docker compose up -d), or put %s and %s on another network together, one without that option.", key, sourceName(s.v), name) + alt
 	default:
-		f.Fix = fmt.Sprintf("If the containers are meant to talk, create the network again without the option (once its containers are gone, docker network rm %s, then docker network create %s), or put %s and %s on another network together.", n.Network, n.Network, s.source(), name) + alt
+		f.Fix = fmt.Sprintf("If the containers are meant to talk, create the network again without the option (once its containers are gone, docker network rm %s, then docker network create %s), or put %s and %s on another network together.", n.Network, n.Network, sourceName(s.v), name) + alt
 	}
 }
 
@@ -338,7 +331,7 @@ func (s silence) host(d evidence.Destinations) {
 		}
 		return
 	}
-	src := s.source()
+	src := sourceName(s.v)
 	fromHost := v.HostSource()
 	what := "the host's firewall"
 	if v.HostLabel() != "the host" {
@@ -437,10 +430,10 @@ func (s silence) outside(ownNet string) {
 	host := v.HostLabel()
 	f.Confidence = Low
 	if ownNet != "" {
-		f.Title = fmt.Sprintf("nothing answered the connect to %s on %s's own network", quoteListAddrs(s.addrs, s.port), s.source())
+		f.Title = fmt.Sprintf("nothing answered the connect to %s on %s's own network", quoteListAddrs(s.addrs, s.port), sourceName(s.v))
 		f.Explanation = fmt.Sprintf("%s %s %s lies on %s's own network %s, where no container holds it: nothing there answers.",
-			s.connects(), s.timedOut()+".", s.addrs[0], s.source(), ownNet)
-		f.Fix = fmt.Sprintf("Connect by the name of the container %s means, not by an address: addresses change when containers are recreated.", s.source())
+			s.connects(), s.timedOut()+".", s.addrs[0], sourceName(s.v), ownNet)
+		f.Fix = fmt.Sprintf("Connect by the name of the container %s means, not by an address: addresses change when containers are recreated.", sourceName(s.v))
 		return
 	}
 	f.Title = fmt.Sprintf("nothing answered the connect to %s, so something on the way drops it silently", quoteListAddrs(s.addrs, s.port))
@@ -477,7 +470,7 @@ func (s silence) outside(ownNet string) {
 		return
 	}
 	f.Fix = fmt.Sprintf("Check that %s is the right address and port, and whether it answers from %s (nc -vz -w 3 %s %d). If it times out there too, the drop is outside Docker: the destination's firewall, or the network path to it (a VPN that is down). If it answers from %s but not from %s, Docker's forwarding is in the way: ip_forward, or the FORWARD policy of %s's firewall.",
-		target, host, s.addrs[0], s.port, host, s.source(), host)
+		target, host, s.addrs[0], s.port, host, sourceName(s.v), host)
 }
 
 // privateAddr reports an address of a private range (RFC 1918, ULA) or the

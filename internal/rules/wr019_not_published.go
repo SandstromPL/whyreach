@@ -214,11 +214,12 @@ func (r wr019) byName(v evidence.View, d evidence.Destinations) []Finding {
 	name := m.C.DisplayName()
 	f.Supporting = append(f.Supporting, m.ID)
 	f.Title = fmt.Sprintf("%s can't resolve %s: container names resolve only inside Docker networks", sourceName(v), q.To.Host)
-	f.Explanation = fmt.Sprintf("%s is a container (%s), and Docker's DNS answers its name only inside its networks. From the host's network namespace, reach a container through a port it publishes.", q.To.Host, containerLabel(m.C))
+	hl := v.HostLabel()
+	f.Explanation = fmt.Sprintf("%s is a container (%s), and Docker's DNS answers its name only inside its networks. From %s's network namespace, reach a container through a port it publishes.", q.To.Host, containerLabel(m.C), hl)
 	if src, ok := v.Source(); ok {
 		f.Supporting = append(f.Supporting, src.ID)
-		f.Explanation = fmt.Sprintf("%s is a container (%s), and Docker's DNS answers its name only inside its networks. %s uses the host's network namespace (network_mode: host), so it resolves names the way the host does; reach the container through a port it publishes.",
-			q.To.Host, containerLabel(m.C), src.C.DisplayName())
+		f.Explanation = fmt.Sprintf("%s is a container (%s), and Docker's DNS answers its name only inside its networks. %s uses %s's network namespace (network_mode: host), so it resolves names the way %s does; reach the container through a port it publishes.",
+			q.To.Host, containerLabel(m.C), src.C.DisplayName(), hl, hl)
 	}
 	f.Supporting = ids(f.Supporting...)
 	if b := m.C.PublishesPort(q.To.Port); len(b) > 0 {
