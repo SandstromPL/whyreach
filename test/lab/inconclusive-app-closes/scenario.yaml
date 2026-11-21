@@ -3,8 +3,8 @@ from: service:worker@${PROJECT}
 to: api:8080
 expect:
   verdict: inconclusive
-  must_not_fire: [WR001, WR002, WR003, WR004, WR005, WR006, WR007, WR008, WR009, WR010, WR011, WR012, WR019, WR020]
+  no_findings: true
   tcp_outcomes: ["dns:closed"]
 expect_without_probe:
   verdict: inconclusive
-  must_not_fire: [WR001, WR002, WR003, WR004, WR005, WR006, WR007, WR008, WR009, WR010, WR011, WR012, WR019, WR020]
+  no_findings: true

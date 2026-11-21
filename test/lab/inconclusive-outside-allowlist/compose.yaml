@@ -1,0 +1,25 @@
+# Must stay inconclusive (INITIAL.md §6.3): worker connects to 198.51.100.7,
+# a documentation address standing in for a service outside Docker and
+# outside this machine. whyreach's probe policy doesn't connect to such an
+# address by default (its allowlist admits loopback, RFC 1918 and Docker's
+# networks), so nothing is sent and no rule can settle it: the gap says how
+# to allow the connect ([probe] allow). No rule to come explains it either:
+# WR016 needs a timeout, which the policy never lets happen.
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck:
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  worker:
+    <<: *server
+    command: ["serve", "0.0.0.0:7000"]
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

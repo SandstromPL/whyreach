@@ -1,0 +1,12 @@
+description: worker connects to an address outside Docker that whyreach doesn't connect to by default
+from: service:worker@${PROJECT}
+to: 198.51.100.7:8080
+expect:
+  verdict: inconclusive
+  no_findings: true
+  tcp_outcomes: ["literal:blocked"]
+  gap_contains: allow under [probe]
+  side_effects_max: 0
+expect_without_probe:
+  verdict: inconclusive
+  no_findings: true

@@ -103,6 +103,13 @@ type expect struct {
 	FixContains    string   `yaml:"fix_contains"`
 	TCPOutcomes    []string `yaml:"tcp_outcomes"` // "via:outcome" that some TCP probe must show
 	SideEffectsMax *int     `yaml:"side_effects_max"`
+	// NoFindings: no rule may fire, not even suppressed, so that a rule
+	// built later can't claim a scenario that must stay inconclusive
+	// unnoticed (INITIAL.md §6.3).
+	NoFindings bool `yaml:"no_findings"`
+	// GapContains is text that some gap must hold (its what, detail or
+	// how to enable the check).
+	GapContains string `yaml:"gap_contains"`
 }
 
 type lab struct {
@@ -660,6 +667,16 @@ func check(t *testing.T, d *engine.Diagnosis, e expect) {
 			t.Errorf("%s must not fire, even suppressed: %s", s.RuleID, s.Title)
 		}
 	}
+	if e.NoFindings {
+		for _, f := range append(slices.Clone(d.Findings), suppressedAsFindings(d)...) {
+			t.Errorf("no rule may fire: %s (%s) %s", f.RuleID, f.Confidence, f.Title)
+		}
+	}
+	if e.GapContains != "" && !slices.ContainsFunc(d.Gaps, func(g engine.Gap) bool {
+		return strings.Contains(g.What+" "+g.Detail+" "+g.HowToEnable, e.GapContains)
+	}) {
+		t.Errorf("no gap holds %q\n%s", e.GapContains, dump())
+	}
 	for _, want := range e.TCPOutcomes {
 		via, outcome, _ := strings.Cut(want, ":")
 		found := slices.ContainsFunc(d.Evidence, func(ev evidence.Evidence) bool {
@@ -722,7 +739,7 @@ func degradedProblems(d *engine.Diagnosis, e expect) []string {
 		}
 	}
 	for _, f := range append(slices.Clone(d.Findings), suppressedAsFindings(d)...) {
-		if slices.Contains(e.MustNotFire, f.RuleID) {
+		if e.NoFindings || slices.Contains(e.MustNotFire, f.RuleID) {
 			out = append(out, fmt.Sprintf("%s must not fire: %s", f.RuleID, f.Title))
 		}
 	}
