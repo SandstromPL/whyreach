@@ -36,6 +36,15 @@ func (r *run) compose(v evidence.View, ranked rules.Ranked, sideEffects []string
 		d.Findings = append(d.Findings, ranked.AlsoFound...)
 	}
 	connected, connAddr := connectedFromSource(v)
+	// When the target means several addresses and the app's own client
+	// picks among them (localhost: 127.0.0.1 and ::1), a finding about the
+	// ones that refused stands even though whyreach's connect worked
+	// through another (WR014; INITIAL.md §4.4).
+	partly := connected && ranked.Primary != nil && ranked.Primary.Confidence.Rank() >= rules.Medium.Rank() &&
+		rules.ReachesPartly(ranked.Primary.RuleID)
+	if partly {
+		connected = false
+	}
 	switch {
 	case connected:
 		d.Verdict = VerdictNoProblem
@@ -51,7 +60,7 @@ func (r *run) compose(v evidence.View, ranked rules.Ranked, sideEffects []string
 	if d.Gaps == nil {
 		d.Gaps = []Gap{}
 	}
-	d.Summary = summary(d, v, connAddr)
+	d.Summary = summary(d, v, connAddr) // connAddr is set only when it connected, partly included
 	d.NextChecks = nextChecks(d)
 	return d
 }
@@ -69,6 +78,18 @@ func connectedFromSource(v evidence.View) (bool, string) {
 		}
 	}
 	return false, ""
+}
+
+// refusedFromSource names the first address the source's connect through
+// the target's name (or literal address) was refused at.
+func refusedFromSource(v evidence.View) string {
+	q := v.Question()
+	for _, t := range v.TCP() {
+		if inSource(q, t.Context) && t.P.ByName() && t.P.Outcome == evidence.OutcomeRefused {
+			return t.P.Addr.String()
+		}
+	}
+	return "another of its addresses"
 }
 
 func inSource(q evidence.Question, c evidence.ContextRef) bool {
@@ -100,9 +121,19 @@ func summary(d *Diagnosis, v evidence.View, connAddr string) string {
 			s += " Also found: " + d.Findings[0].Title + "."
 		}
 		return s
-	case VerdictCause:
-		return fmt.Sprintf("%s can't reach %s: %s.", src, to, d.Findings[0].Title)
-	case VerdictLikelyCause:
+	case VerdictCause, VerdictLikelyCause:
+		how := "because"
+		if d.Verdict == VerdictLikelyCause {
+			how = "probably because"
+		}
+		if connAddr != "" {
+			// It connected through one of the target's addresses and was
+			// refused through another (WR014).
+			return fmt.Sprintf("%s connected to %s through %s but was refused through %s, %s %s.", src, to, connAddr, refusedFromSource(v), how, d.Findings[0].Title)
+		}
+		if d.Verdict == VerdictCause {
+			return fmt.Sprintf("%s can't reach %s: %s.", src, to, d.Findings[0].Title)
+		}
 		return fmt.Sprintf("%s can't reach %s, probably because %s.", src, to, d.Findings[0].Title)
 	}
 	switch {

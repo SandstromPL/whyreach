@@ -6,7 +6,7 @@ expect:
   top_rule: WR019
   confidence: high
   fix_contains: "Connect to [::1]:"
-  must_not_fire: [WR002, WR012]
+  must_not_fire: [WR002, WR012, WR014]
   tcp_outcomes: ["hosts:refused"]
 # From the host, probes run in-process: no probe container either way.
 expect_without_probe:

@@ -1,0 +1,191 @@
+{
+  "description": "app's dev server was told to listen on localhost and bound ::1 alone (measured: Node.js 18 and 24 both do), so a client that uses 127.0.0.1 is refused (measured: Node.js 20+ in a glibc container on a network without IPv6, whose lookup leaves ::1 out)",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-app-1",
+      "container_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "to": {
+      "host": "localhost",
+      "port": 5173,
+      "proto": "tcp",
+      "class": "loopback"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app"
+      },
+      "subject": "container:shop-app-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "shop-app-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 103,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "compose": {
+          "project": "shop",
+          "service": "app"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "ipv4": "172.29.0.2",
+            "gateway": "172.29.0.1",
+            "names": [
+              "app",
+              "shop-app-1"
+            ],
+            "subnets": [
+              "172.29.0.0/16"
+            ],
+            "gateways": [
+              "172.29.0.1"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "source": "/proc/<pid>/net/tcp{,6} read from the host, after /proc/<pid>/cgroup named the container",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp6",
+            "local": "[::1]:5173"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app"
+      },
+      "subject": "localhost",
+      "status": "ok",
+      "data": {
+        "name": "localhost",
+        "answered": "localhost",
+        "via": "hosts",
+        "rcode": "NOERROR",
+        "answers": [
+          "127.0.0.1",
+          "::1"
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app",
+        "executor": "probe-container"
+      },
+      "subject": "localhost:5173",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "localhost:5173",
+        "addr": "127.0.0.1:5173",
+        "via": "hosts",
+        "outcome": "refused",
+        "rtt_ns": 100000,
+        "errno": "ECONNREFUSED",
+        "error": "dial tcp 127.0.0.1:5173: connect: connection refused"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app",
+        "executor": "probe-container"
+      },
+      "subject": "localhost:5173",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "localhost:5173",
+        "addr": "[::1]:5173",
+        "via": "hosts",
+        "outcome": "connected",
+        "rtt_ns": 100000
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-06"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR014",
+      "confidence": "medium",
+      "supporting": [
+        "ev-02",
+        "ev-03",
+        "ev-04",
+        "ev-05",
+        "ev-06"
+      ],
+      "fix_contains": "listen on 127.0.0.1:5173 as well as [::1]:5173"
+    }
+  ]
+}

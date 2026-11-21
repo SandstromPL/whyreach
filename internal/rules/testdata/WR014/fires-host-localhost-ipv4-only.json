@@ -1,0 +1,151 @@
+{
+  "description": "Ubuntu's /etc/hosts maps localhost to 127.0.0.1 alone, and the host's server listens on [::1]:3000 alone: every client there fails",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "localhost",
+      "port": 3000,
+      "proto": "tcp",
+      "class": "loopback"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "docker0",
+            "up": true,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "br-shopdefault",
+            "up": true,
+            "addrs": [
+              "172.29.0.1/16"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "addrs": [
+              "192.0.2.10/24"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "source": "/proc/thread-self/net/tcp{,6} in whyreach's own network namespace",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp6",
+            "local": "[::1]:3000"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "localhost",
+      "status": "ok",
+      "data": {
+        "name": "localhost",
+        "answered": "localhost",
+        "via": "hosts",
+        "rcode": "NOERROR",
+        "answers": [
+          "127.0.0.1"
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "localhost:3000",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "localhost:3000",
+        "addr": "127.0.0.1:3000",
+        "via": "hosts",
+        "outcome": "refused",
+        "rtt_ns": 100000,
+        "errno": "ECONNREFUSED",
+        "error": "dial tcp 127.0.0.1:3000: connect: connection refused"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR014",
+      "confidence": "high",
+      "supporting": [
+        "ev-03",
+        "ev-04",
+        "ev-05"
+      ],
+      "fix_contains": "listen on 127.0.0.1:3000 as well as [::1]:3000"
+    }
+  ]
+}

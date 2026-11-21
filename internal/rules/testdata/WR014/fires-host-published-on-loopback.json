@@ -1,0 +1,253 @@
+{
+  "description": "on a host whose /etc/hosts maps localhost to ::1 too (Debian, Fedora), db publishes 5432 on 127.0.0.1 alone: Docker's proxy listens on 127.0.0.1:5432 and [::1]:5432 is refused",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "localhost",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "loopback"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "docker0",
+            "up": true,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "br-shopdefault",
+            "up": true,
+            "addrs": [
+              "172.29.0.1/16"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "addrs": [
+              "192.0.2.10/24"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "cccccccccccc",
+        "name": "db"
+      },
+      "subject": "container:shop-db-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "name": "shop-db-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 102,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "compose": {
+          "project": "shop",
+          "service": "db"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "ipv4": "172.29.0.3",
+            "gateway": "172.29.0.1",
+            "names": [
+              "db",
+              "shop-db-1"
+            ],
+            "subnets": [
+              "172.29.0.0/16"
+            ],
+            "gateways": [
+              "172.29.0.1"
+            ]
+          }
+        ],
+        "ports": [
+          {
+            "container_port": 5432,
+            "proto": "tcp",
+            "host_ip": "127.0.0.1",
+            "host_port": 5432
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "source": "/proc/thread-self/net/tcp{,6} in whyreach's own network namespace",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "127.0.0.1:5432"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "cccccccccccc",
+        "name": "db"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "source": "/proc/<pid>/net/tcp{,6} read from the host, after /proc/<pid>/cgroup named the container",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:5432"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "localhost",
+      "status": "ok",
+      "data": {
+        "name": "localhost",
+        "answered": "localhost",
+        "via": "hosts",
+        "rcode": "NOERROR",
+        "answers": [
+          "127.0.0.1",
+          "::1"
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-06"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "localhost:5432",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "localhost:5432",
+        "addr": "127.0.0.1:5432",
+        "via": "hosts",
+        "outcome": "connected",
+        "rtt_ns": 100000
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-07"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "localhost:5432",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "localhost:5432",
+        "addr": "[::1]:5432",
+        "via": "hosts",
+        "outcome": "refused",
+        "rtt_ns": 100000,
+        "errno": "ECONNREFUSED",
+        "error": "dial tcp [::1]:5432: connect: connection refused"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-08"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR014",
+      "confidence": "medium",
+      "supporting": [
+        "ev-03",
+        "ev-04",
+        "ev-06",
+        "ev-07",
+        "ev-08"
+      ],
+      "fix_contains": "ports: [\"127.0.0.1:5432:5432\", \"[::1]:5432:5432\"] for db, then docker compose up -d db; or connect to 127.0.0.1:5432 instead of localhost:5432"
+    }
+  ]
+}

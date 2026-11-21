@@ -1,0 +1,174 @@
+{
+  "description": "a service on the host (not in Docker) listens on 127.0.0.1:27017 alone, as a default install often does, and the host's localhost means ::1 too",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "localhost",
+      "port": 27017,
+      "proto": "tcp",
+      "class": "loopback"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "docker0",
+            "up": true,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "br-shopdefault",
+            "up": true,
+            "addrs": [
+              "172.29.0.1/16"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "addrs": [
+              "192.0.2.10/24"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "source": "/proc/thread-self/net/tcp{,6} in whyreach's own network namespace",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "127.0.0.1:27017"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "localhost",
+      "status": "ok",
+      "data": {
+        "name": "localhost",
+        "answered": "localhost",
+        "via": "hosts",
+        "rcode": "NOERROR",
+        "answers": [
+          "127.0.0.1",
+          "::1"
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "localhost:27017",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "localhost:27017",
+        "addr": "127.0.0.1:27017",
+        "via": "hosts",
+        "outcome": "connected",
+        "rtt_ns": 100000
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "localhost:27017",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "localhost:27017",
+        "addr": "[::1]:27017",
+        "via": "hosts",
+        "outcome": "refused",
+        "rtt_ns": 100000,
+        "errno": "ECONNREFUSED",
+        "error": "dial tcp [::1]:27017: connect: connection refused"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-06"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR014",
+      "confidence": "medium",
+      "supporting": [
+        "ev-03",
+        "ev-04",
+        "ev-05",
+        "ev-06"
+      ],
+      "fix_contains": "Make the server on the host listen on [::1]:27017 as well as 127.0.0.1:27017"
+    }
+  ]
+}

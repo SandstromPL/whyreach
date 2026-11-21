@@ -392,3 +392,99 @@ func TestStoppedFixedAddress(t *testing.T) {
 		}
 	}
 }
+
+// TestLocalhostFamilies: localhost means 127.0.0.1 and ::1 in a container
+// (the scripted lookup answers as Docker's /etc/hosts does), and a listener
+// that takes one family refuses the other (WR014). When one address works,
+// the finding still decides the verdict, since the app's own client picks
+// the address (INITIAL.md §4.4); without probe containers WR014 isn't
+// evaluated, and the gap says how to allow the check.
+func TestLocalhostFamilies(t *testing.T) {
+	type tc struct {
+		name, from, to string
+		w              func() *world
+		verdict        string
+		conf           rules.Confidence // WR014's; "" means it must not fire
+		text           string           // in the summary (or, for a fix, in the fix)
+	}
+	shop := func(mut func(*world)) func() *world {
+		return func() *world {
+			w := shopWorld()
+			mut(w)
+			return w
+		}
+	}
+	tests := []tc{
+		{name: "IPv4-only listener", from: "container:shop-worker-1", to: "localhost:7000", verdict: VerdictLikelyCause, conf: rules.Medium,
+			text: "connected to localhost:7000 through 127.0.0.1:7000 but was refused through [::1]:7000, probably because localhost also means ::1 in worker",
+			w: shop(func(w *world) {
+				w.sockets[100] = []string{"127.0.0.1:7000", "127.0.0.11:40000"}
+				w.tcp["127.0.0.1:7000"], w.tcp["[::1]:7000"] = evidence.OutcomeConnected, evidence.OutcomeRefused
+			})},
+		{name: "IPv6-only listener", from: "container:shop-worker-1", to: "localhost:7000", verdict: VerdictLikelyCause, conf: rules.Medium,
+			text: "listen on 127.0.0.1:7000 as well as [::1]:7000",
+			w: shop(func(w *world) {
+				w.sockets[100] = []string{"[::1]:7000", "127.0.0.11:40000"}
+				w.tcp["127.0.0.1:7000"], w.tcp["[::1]:7000"] = evidence.OutcomeRefused, evidence.OutcomeConnected
+			})},
+		{name: "literal ::1", from: "container:shop-worker-1", to: "[::1]:7000", verdict: VerdictCause, conf: rules.High,
+			text: "worker can't reach [::1]:7000: ::1 is an IPv6 address",
+			w: shop(func(w *world) {
+				w.sockets[100] = []string{"127.0.0.1:7000", "127.0.0.11:40000"}
+				w.tcp["[::1]:7000"] = evidence.OutcomeRefused
+			})},
+		{name: "dual-stack listener", from: "container:shop-worker-1", to: "localhost:7000", verdict: VerdictNoProblem,
+			w: shop(func(w *world) {
+				w.sockets[100] = []string{"[::]:7000", "127.0.0.11:40000"}
+				w.tcp["127.0.0.1:7000"], w.tcp["[::1]:7000"] = evidence.OutcomeConnected, evidence.OutcomeConnected
+			})},
+		{name: "port published on the host's loopback", from: "host", to: "localhost:15432", verdict: VerdictLikelyCause, conf: rules.Medium,
+			text: `ports: ["127.0.0.1:15432:5432", "[::1]:15432:5432"] for db`,
+			w: shop(func(w *world) {
+				db := ctr("d", "shop-db-1", "shop", "db", "shop_default", "172.22.0.5", 300)
+				db.Ports = []evidence.PortMap{{ContainerPort: 5432, Proto: "tcp", HostIP: "127.0.0.1", HostPort: 15432}}
+				w.containers = append(w.containers, db)
+				w.sockets[300] = []string{"0.0.0.0:5432"}
+				w.host = []string{"127.0.0.1:15432"} // Docker's proxy
+				w.tcp["127.0.0.1:15432"], w.tcp["[::1]:15432"] = evidence.OutcomeConnected, evidence.OutcomeRefused
+			})},
+	}
+	for _, tt := range tests {
+		for _, probes := range []bool{true, false} {
+			name := tt.name + map[bool]string{true: "/probe-containers", false: "/default-config"}[probes]
+			t.Run(name, func(t *testing.T) {
+				d := diagnoseWith(t, tt.w(), tt.from, tt.to, probes)
+				var wr014 *rules.Finding
+				for i := range d.Findings {
+					if d.Findings[i].RuleID == "WR014" {
+						wr014 = &d.Findings[i]
+					}
+				}
+				hostSource := tt.from == "host" // the host's probes run in-process: no probe container needed
+				if !probes && !hostSource {
+					if wr014 != nil || d.Verdict != VerdictInconclusive {
+						t.Fatalf("without probe containers: verdict %s, WR014 %+v; want inconclusive and no WR014", d.Verdict, wr014)
+					}
+					if !slices.ContainsFunc(d.Gaps, func(g Gap) bool { return strings.Contains(g.HowToEnable, "probe_containers = true") }) {
+						t.Errorf("no gap says how to allow probe containers: %+v", d.Gaps)
+					}
+					return
+				}
+				if d.Verdict != tt.verdict {
+					t.Errorf("verdict %s, want %s (%s)", d.Verdict, tt.verdict, d.Summary)
+				}
+				switch {
+				case tt.conf == "" && wr014 != nil:
+					t.Fatalf("WR014 fired: %+v", wr014)
+				case tt.conf == "":
+					return
+				case wr014 == nil || d.Primary() == nil || d.Primary().RuleID != "WR014" || wr014.Confidence != tt.conf:
+					t.Fatalf("primary %+v, want WR014 at %s; findings %+v", d.Primary(), tt.conf, d.Findings)
+				}
+				if !strings.Contains(d.Summary, tt.text) && !strings.Contains(wr014.Fix, tt.text) {
+					t.Errorf("neither the summary nor the fix has %q:\n%s\n%s", tt.text, d.Summary, wr014.Fix)
+				}
+			})
+		}
+	}
+}

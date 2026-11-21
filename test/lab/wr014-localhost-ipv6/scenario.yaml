@@ -1,0 +1,19 @@
+description: app shares proxy's network namespace; proxy listens on 127.0.0.1:7100 alone, and localhost means ::1 there as well
+from: service:app@${PROJECT}
+to: localhost:7100
+# whyreach's own connect works through 127.0.0.1 and is refused at ::1:
+# whether the app fails depends on its client, so WR014 is medium, and the
+# finding decides the verdict (INITIAL.md §4.4).
+expect:
+  verdict: likely_cause
+  top_rule: WR014
+  confidence: medium
+  fix_contains: "listen on [::1]:7100 as well as 127.0.0.1:7100"
+  tcp_outcomes: ["hosts:connected", "hosts:refused"]
+  must_not_fire: [WR001, WR002, WR003, WR007]
+# WR014 needs the source's lookup and connects (Probe? yes): without probe
+# containers it isn't evaluated, and the gap says how to allow them.
+expect_without_probe:
+  verdict: inconclusive
+  no_findings: true
+  gap_contains: probe_containers = true

@@ -1,0 +1,194 @@
+{
+  "description": "WR012's case: app reaches the host through host.docker.internal, which means the docker0 address, and the host's service listens on 127.0.0.1:5432 alone",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-app-1",
+      "container_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "to": {
+      "host": "host.docker.internal",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "docker0",
+            "up": true,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "br-shopdefault",
+            "up": true,
+            "addrs": [
+              "172.29.0.1/16"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "addrs": [
+              "192.0.2.10/24"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app"
+      },
+      "subject": "container:shop-app-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "shop-app-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 103,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "compose": {
+          "project": "shop",
+          "service": "app"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "ipv4": "172.29.0.2",
+            "gateway": "172.29.0.1",
+            "names": [
+              "app",
+              "shop-app-1"
+            ],
+            "subnets": [
+              "172.29.0.0/16"
+            ],
+            "gateways": [
+              "172.29.0.1"
+            ]
+          }
+        ],
+        "extra_hosts": [
+          "host.docker.internal:host-gateway"
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "source": "/proc/thread-self/net/tcp{,6} in whyreach's own network namespace",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "127.0.0.1:5432"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app"
+      },
+      "subject": "host.docker.internal",
+      "status": "ok",
+      "data": {
+        "name": "host.docker.internal",
+        "answered": "host.docker.internal",
+        "via": "hosts",
+        "rcode": "NOERROR",
+        "answers": [
+          "172.17.0.1"
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app",
+        "executor": "probe-container"
+      },
+      "subject": "host.docker.internal:5432",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "host.docker.internal:5432",
+        "addr": "172.17.0.1:5432",
+        "via": "hosts",
+        "outcome": "refused",
+        "rtt_ns": 100000,
+        "errno": "ECONNREFUSED",
+        "error": "dial tcp 172.17.0.1:5432: connect: connection refused"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-06"
+    }
+  ],
+  "want": []
+}

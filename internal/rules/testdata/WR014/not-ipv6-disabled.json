@@ -1,0 +1,183 @@
+{
+  "description": "with IPv6 disabled in the container (sysctl net.ipv6.conf.all.disable_ipv6=1), Docker leaves ::1 out of /etc/hosts: localhost means 127.0.0.1 alone, which the listener takes",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-app-1",
+      "container_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "to": {
+      "host": "localhost",
+      "port": 7100,
+      "proto": "tcp",
+      "class": "loopback"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app"
+      },
+      "subject": "container:shop-app-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "shop-app-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 103,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "container:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "compose": {
+          "project": "shop",
+          "service": "app"
+        }
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "proxy"
+      },
+      "subject": "container:shop-proxy-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "shop-proxy-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 105,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "compose": {
+          "project": "shop",
+          "service": "proxy"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "ipv4": "172.29.0.5",
+            "gateway": "172.29.0.1",
+            "names": [
+              "proxy",
+              "shop-proxy-1"
+            ],
+            "subnets": [
+              "172.29.0.0/16"
+            ],
+            "gateways": [
+              "172.29.0.1"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "proxy"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "source": "/proc/<pid>/net/tcp{,6} read from the host, after /proc/<pid>/cgroup named the container",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "127.0.0.1:7100"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app"
+      },
+      "subject": "localhost",
+      "status": "ok",
+      "data": {
+        "name": "localhost",
+        "answered": "localhost",
+        "via": "hosts",
+        "rcode": "NOERROR",
+        "answers": [
+          "127.0.0.1"
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app",
+        "executor": "probe-container"
+      },
+      "subject": "localhost:7100",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "localhost:7100",
+        "addr": "127.0.0.1:7100",
+        "via": "hosts",
+        "outcome": "connected",
+        "rtt_ns": 100000
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-06"
+    }
+  ],
+  "want": []
+}

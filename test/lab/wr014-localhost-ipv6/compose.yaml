@@ -1,0 +1,32 @@
+# WR014: app shares proxy's network namespace (a sidecar), and proxy listens
+# on 127.0.0.1:7100 alone, which takes IPv4 only. Docker's /etc/hosts maps
+# localhost to both 127.0.0.1 and ::1 in every container, on IPv4-only
+# networks too, so a client in app that tries ::1 and doesn't fall back
+# (Node.js 17–19, busybox wget) gets ECONNREFUSED ::1:7100, while one that
+# falls back connects. Measured on Engine 29.9.3 (ADR 0002's M6 amendment).
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  proxy:
+    <<: *server
+    command: ["serve", "127.0.0.1:7100"]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "/labserver", "check", "127.0.0.1:7100"]
+  app:
+    <<: *server
+    command: ["serve", "0.0.0.0:7000"]
+    network_mode: "service:proxy"
+    depends_on: [proxy]
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }
