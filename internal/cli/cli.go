@@ -183,8 +183,9 @@ Exit codes: 0 no problem reproduced, 1 cause or likely cause found,
 		Use:   "version",
 		Short: "Print whyreach's version",
 		Args:  cobra.NoArgs,
-		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintf(cmd.OutOrStdout(), "whyreach %s\n", o.Version)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			_, err := fmt.Fprintf(cmd.OutOrStdout(), "whyreach %s\n", o.Version)
+			return wrote(err)
 		},
 	})
 	root.AddCommand(newProbeEntry())
@@ -266,7 +267,7 @@ func runDiagnose(cmd *cobra.Command, o Options, f diagnoseFlags, to string, code
 	out := cmd.OutOrStdout()
 	if f.json {
 		if err := writeJSON(out, d); err != nil {
-			return internalErr(err)
+			return err
 		}
 	} else {
 		report.RenderText(out, d)
@@ -375,10 +376,21 @@ func probeHowTo(p *policy.Policy) func(evidence.Evidence) string {
 	}
 }
 
+// writeJSON writes v as indented JSON; a failure is an internal error.
 func writeJSON(w io.Writer, v any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	return enc.Encode(v)
+	return wrote(enc.Encode(v))
+}
+
+// wrote turns a failed write of a command's output into an internal error
+// (exit 4): it is never the caller's mistake, which an unwrapped error would
+// claim (exit 3).
+func wrote(err error) error {
+	if err != nil {
+		return internalErr(err)
+	}
+	return nil
 }
 
 // newLogger writes JSON logs to stderr only; stdout carries results and,

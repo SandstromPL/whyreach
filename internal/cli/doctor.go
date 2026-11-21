@@ -84,15 +84,14 @@ Exit codes: 0 nothing failed, 1 something failed, 3 usage error, 4 internal erro
 			if asJSON {
 				return writeJSON(cmd.OutOrStdout(), r)
 			}
-			renderDoctor(cmd.OutOrStdout(), r)
-			return nil
+			return wrote(renderDoctor(cmd.OutOrStdout(), r))
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print the checks as JSON")
 	return cmd
 }
 
-func renderDoctor(w io.Writer, r doctorReport) {
+func renderDoctor(w io.Writer, r doctorReport) error {
 	var b strings.Builder
 	marks := map[string]string{engine.CheckOK: "✓", engine.CheckWarn: "!", engine.CheckFail: "✗", engine.CheckInfo: "·"}
 	for _, c := range r.Checks {
@@ -106,5 +105,6 @@ func renderDoctor(w io.Writer, r doctorReport) {
 	} else {
 		b.WriteString("\nSome checks failed; see above.\n")
 	}
-	_, _ = io.WriteString(w, report.Sanitize(b.String()))
+	_, err := io.WriteString(w, report.Sanitize(b.String()))
+	return err
 }

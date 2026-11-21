@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
 	"net/netip"
 	"os"
@@ -167,6 +169,62 @@ func TestCommands(t *testing.T) {
 				t.Errorf("stdout shows %q:\n%s", tt.notStdout, stdout)
 			}
 		})
+	}
+}
+
+// fullWriter fails every write, as stdout redirected to /dev/full does.
+type fullWriter struct{}
+
+func (fullWriter) Write([]byte) (int, error) {
+	return 0, errors.New("write /dev/full: no space left on device")
+}
+
+// A command whose output can't be written exits 4 (internal), never 3: the
+// caller made no mistake.
+func TestFailedWriteIsInternal(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "config"))
+	run := func(stdout io.Writer, args ...string) (int, string) {
+		var stderr bytes.Buffer
+		code := Execute(context.Background(), args, Options{
+			Version: "test", Stdout: stdout, Stderr: &stderr, Getenv: func(string) string { return "" }, NewPolicy: fakePolicy,
+		})
+		return code, stderr.String()
+	}
+	for _, args := range [][]string{{"report", "list"}, {"report", "list", "--json"}} { // no bundles yet
+		if code, stderr := run(fullWriter{}, args...); code != ExitInternal {
+			t.Errorf("%q: exit %d, want %d (%s)", args, code, ExitInternal, stderr)
+		}
+	}
+	var saved bytes.Buffer
+	if code, stderr := run(&saved, "--from", "container:shop-worker-1", "api:8080", "--json", "--report"); code != ExitCause {
+		t.Fatalf("diagnose --report: exit %d (%s)", code, stderr)
+	}
+	var d struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(saved.Bytes(), &d); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"version"},
+		{"rules", "list"},
+		{"rules", "list", "--json"},
+		{"rules", "explain", "WR002"},
+		{"doctor"},
+		{"doctor", "--json"},
+		{"inspect", "container", "shop-api-1", "--json"},
+		{"probe", "listeners", "--from", "container:shop-api-1", "--json"},
+		{"--from", "container:shop-worker-1", "api:8080", "--json"},
+		{"report", "list"},
+		{"report", "list", "--json"},
+		{"report", "show", d.ID},
+		{"report", "export", d.ID},
+	} {
+		if code, stderr := run(fullWriter{}, args...); code != ExitInternal || !strings.Contains(stderr, "no space left") {
+			t.Errorf("%q: exit %d, want %d (%s)", args, code, ExitInternal, stderr)
+		}
 	}
 }
 

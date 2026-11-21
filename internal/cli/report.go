@@ -69,8 +69,8 @@ not redacted; the MCP tool save_report saves a redacted one.
 				return writeJSON(out, bundles)
 			}
 			if len(bundles) == 0 {
-				fmt.Fprintf(out, "No report bundles in %s. Save one with whyreach diagnose --report, or save_report through MCP.\n", report.Sanitize(dir))
-				return nil
+				_, err := fmt.Fprintf(out, "No report bundles in %s. Save one with whyreach diagnose --report, or save_report through MCP.\n", report.Sanitize(dir))
+				return wrote(err)
 			}
 			tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(tw, "ID\tSAVED (UTC)\tREDACTED\tVERDICT\tRULE\tFROM → TO")
@@ -85,7 +85,7 @@ not redacted; the MCP tool save_report saves a redacted one.
 				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", b.ID, b.CreatedAt.UTC().Format("2006-01-02 15:04"), redacted,
 					report.Sanitize(b.Verdict), report.Sanitize(rule), report.Sanitize(b.From+" → "+b.To))
 			}
-			return tw.Flush()
+			return wrote(tw.Flush())
 		},
 	}
 	list.Flags().BoolVar(&asJSON, "json", false, "print the list as JSON")
@@ -104,8 +104,8 @@ not redacted; the MCP tool save_report saves a redacted one.
 			if err != nil {
 				return internalErr(err)
 			}
-			fmt.Fprint(cmd.OutOrStdout(), report.Sanitize(string(md)))
-			return nil
+			_, err = fmt.Fprint(cmd.OutOrStdout(), report.Sanitize(string(md)))
+			return wrote(err)
 		},
 	}
 
@@ -149,10 +149,10 @@ Check the copy before you share it.`,
 			if !ex.PrivateKept {
 				private = "private addresses replaced too"
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%s\nRedacted copy of %s: %s, %s and %s replaced; %s. Check it before you share it.\n",
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s\nRedacted copy of %s: %s, %s and %s replaced; %s. Check it before you share it.\n",
 				report.Sanitize(ex.Path), b.ID, count(ex.Replaced[report.ClassIP], "address", "addresses"),
 				count(ex.Replaced[report.ClassHost], "host name", "host names"), count(ex.Replaced[report.ClassContainer], "container ID", "container IDs"), private)
-			return nil
+			return wrote(err)
 		},
 	}
 	export.Flags().BoolVar(&redactPrivate, "redact-private", false, "replace private (RFC 1918) addresses too")
@@ -233,10 +233,10 @@ func newRules() *cobra.Command {
 				fmt.Fprintf(tw, "%s\t%d %s\t%s\n", r.ID, r.Layer, r.LayerName, strings.ReplaceAll(r.Title, "`", ""))
 			}
 			if err := tw.Flush(); err != nil {
-				return err
+				return wrote(err)
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "\nThe earliest layer with a finding gives the primary cause. whyreach rules explain WRxxx prints a rule's page.")
-			return nil
+			_, err := fmt.Fprintln(cmd.OutOrStdout(), "\nThe earliest layer with a finding gives the primary cause. whyreach rules explain WRxxx prints a rule's page.")
+			return wrote(err)
 		},
 	}
 	list.Flags().BoolVar(&asJSON, "json", false, "print the rules as JSON")
@@ -262,8 +262,8 @@ func newRules() *cobra.Command {
 			if !ok {
 				return internalErr(fmt.Errorf("this build has no page for %s", id))
 			}
-			fmt.Fprint(cmd.OutOrStdout(), string(page))
-			return nil
+			_, err := fmt.Fprint(cmd.OutOrStdout(), string(page))
+			return wrote(err)
 		},
 	}
 	cmd.AddCommand(list, explain)
