@@ -294,12 +294,19 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 	if !view.HostSource() || hostAccepts || len(view.Destinations().Published) > 0 {
 		return
 	}
+	// The containers past the bound go unread too: each is a skipped record
+	// among the unread below, so "nothing listens" isn't settled (WR001).
+	var unscanned []evidence.Evidence
 	if len(others) > maxScan {
-		r.gaps = append(r.gaps, Gap{
+		g := Gap{
 			What:   fmt.Sprintf("the listeners of %d more running containers", len(others)-maxScan),
 			Why:    "skipped",
 			Detail: fmt.Sprintf("whyreach reads at most %d containers' listeners to find the one that serves port %d", maxScan, port),
-		})
+		}
+		r.gaps = append(r.gaps, g)
+		for _, s := range others[maxScan:] {
+			unscanned = append(unscanned, scanSkipped(s, g))
+		}
 		others = others[:maxScan]
 	}
 	scanned, failed := r.inspectAll(ctx, others)
@@ -336,11 +343,29 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 		}
 		r.store.Add(ev, l)
 	}
+	unread = append(unread, unscanned...)
 	if len(unread) > 0 {
 		r.store.Add(scanUnread(unread, port))
 	}
 	if len(cut) > 0 {
 		r.gaps = append(r.gaps, r.probeListenersGap(cut)) // a skipped record makes no gap of its own
+	}
+}
+
+// scanSkipped is the record of a running container whose listeners the
+// search for an unpublished server (WR019) left unread at its bound, for
+// scanUnread; g is the bound's gap, which says why, so the record is
+// skipped rather than another gap.
+func scanSkipped(s docker.Summary, g Gap) evidence.Evidence {
+	name := s.Labels[docker.LabelComposeService] // as InContainer names an inspected one
+	if name == "" {
+		name = s.Name()
+	}
+	return evidence.Evidence{
+		Kind: evidence.KindListeners, Subject: "listeners", Status: evidence.StatusSkipped,
+		Context:    evidence.ContextRef{Kind: evidence.ContextContainer, Container: evidence.ShortID(s.ID), Name: name},
+		ObservedAt: time.Now(), Source: "docker GET /containers/json (the running containers)",
+		Err: &evidence.Error{Code: evidence.CodeLimit, Message: g.Detail},
 	}
 }
 

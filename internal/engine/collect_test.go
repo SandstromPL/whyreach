@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
+	"github.com/SandstromPL/whyreach/internal/rules"
 )
 
 // exposers returns n running containers that expose port without
@@ -56,5 +57,37 @@ func TestHostPortPublisherAmongManyExposers(t *testing.T) {
 		if f.RuleID == "WR001" && strings.Contains(f.Title, "on the host") {
 			t.Errorf("WR001 says nothing on the host listens, while zz-web-1 publishes the port: %+v", f)
 		}
+	}
+}
+
+// TestSearchBoundLowersWR001: from the host, when nothing answers a port,
+// whyreach reads at most maxScan running containers' listeners to find one
+// that serves it unpublished (WR019). The ones past the bound went unread,
+// so "nothing on the host listens" (WR001) is only likely, as when probe
+// containers' reads are cut.
+func TestSearchBoundLowersWR001(t *testing.T) {
+	w := &world{
+		containers: exposers(maxScan+2, 7000), // none mentions port 9000
+		sockets:    map[int][]string{},
+		tcp:        map[string]string{"127.0.0.1:9000": evidence.OutcomeRefused, "[::1]:9000": evidence.OutcomeRefused},
+	}
+	d := diagnoseWith(t, w, "host", "localhost:9000", false)
+	i := slices.IndexFunc(d.Findings, func(f rules.Finding) bool { return f.RuleID == "WR001" })
+	if i < 0 || d.Findings[i].Confidence != rules.Medium {
+		t.Errorf("findings %+v, want WR001 at medium confidence", d.Findings)
+	}
+	if !slices.ContainsFunc(d.Evidence, func(e evidence.Evidence) bool {
+		return e.Kind == evidence.KindListeners && e.Context.Name == "2 running containers" && e.Err != nil && e.Err.Code == evidence.CodeLimit
+	}) {
+		t.Error("no record of the containers left unread")
+	}
+	if !slices.ContainsFunc(d.Gaps, func(g Gap) bool { return g.What == "the listeners of 2 more running containers" }) {
+		t.Errorf("gaps %+v, want the bound's", d.Gaps)
+	}
+	// Within the bound, every container's listeners were read: settled.
+	w.containers = w.containers[:maxScan]
+	d = diagnoseWith(t, w, "host", "localhost:9000", false)
+	if i := slices.IndexFunc(d.Findings, func(f rules.Finding) bool { return f.RuleID == "WR001" }); i < 0 || d.Findings[i].Confidence != rules.High {
+		t.Errorf("within the bound: findings %+v, want WR001 at high confidence", d.Findings)
 	}
 }
