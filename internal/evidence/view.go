@@ -495,12 +495,7 @@ func (h HostTarget) Addresses() []netip.Addr {
 // coveredBy reports whether a port binding accepts connections to the host
 // address the target stands for.
 func (h HostTarget) coveredBy(pm PortMap) bool {
-	for _, a := range h.Addresses() {
-		if pm.Covers(a) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(h.Addresses(), pm.Covers)
 }
 
 // HostSource reports a source that runs in the host's network namespace:

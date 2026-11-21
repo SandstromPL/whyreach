@@ -396,7 +396,7 @@ func hostAddrOf(pm evidence.PortMap) string {
 }
 
 func addrList(addrs []netip.Addr) string {
-	var out []string
+	out := make([]string, 0, len(addrs))
 	for _, a := range addrs {
 		out = append(out, a.String())
 	}

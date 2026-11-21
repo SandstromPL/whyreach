@@ -133,7 +133,7 @@ func wr004Fix(src, owner, dst evidence.Container) string {
 			return fmt.Sprintf("%s runs with network_mode: none, so nothing can reach it. Remove network_mode: none and attach it to %s's network %s (in Compose, list %s under its networks).",
 				dstName, srcName, srcNets[0], srcNets[0])
 		}
-		return fmt.Sprintf("%s runs with network_mode: none, so nothing can reach it. Remove network_mode: none and attach both containers to one user-defined network.", dstName)
+		return dstName + " runs with network_mode: none, so nothing can reach it. Remove network_mode: none and attach both containers to one user-defined network."
 	case len(dst.UserDefinedNetworks()) > 0:
 		net := dst.UserDefinedNetworks()[0]
 		return fmt.Sprintf("Put %s on %s's network: in %s's Compose file, declare networks: {%s: {external: true}} and list %s under the %s service's networks (keep default too if it needs its own services). Or run both services in one Compose project. To test without editing files: docker network connect %s %s.",

@@ -195,7 +195,7 @@ func hostWhat(v evidence.View, owner evidence.Container, h evidence.HostTarget) 
 	case evidence.HostViaAddress:
 		return fmt.Sprintf("%s is one of %s's own addresses%s", t, v.HostLabel(), detail)
 	default:
-		return fmt.Sprintf("%s is the host", t)
+		return t + " is the host"
 	}
 }
 
@@ -219,7 +219,7 @@ func netPhrase(nets []string) string {
 // wr015Fix gives the netns owner a way out, and keeps the internal networks
 // for what must stay cut off.
 func wr015Fix(src, owner evidence.Container, nets []string, host bool) string {
-	var keys []string
+	keys := make([]string, 0, len(nets))
 	for _, n := range nets {
 		keys = append(keys, stripProject(projectOf(owner), n))
 	}

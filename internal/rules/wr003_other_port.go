@@ -114,7 +114,7 @@ func otherPorts(l evidence.Listeners, port uint16) []uint16 {
 func portList(ports []uint16) string { return quoteList(portStrings(ports)) }
 
 func portStrings(ports []uint16) []string {
-	var s []string
+	s := make([]string, 0, len(ports))
 	for _, p := range ports {
 		s = append(s, strconv.Itoa(int(p)))
 	}

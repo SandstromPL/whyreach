@@ -57,28 +57,28 @@ func (r wr008) Evaluate(v evidence.View) []Finding {
 	switch c.State {
 	case evidence.StateRestarting:
 		f.Confidence = High
-		f.Title = fmt.Sprintf("%s is restarting", c.DisplayName())
+		f.Title = c.DisplayName() + " is restarting"
 		f.Explanation = fmt.Sprintf("%s is restarting (%d %s so far, last exit code %d). A restarting container has no network address, so nothing can connect to it.",
 			name, c.RestartCount, plural(c.RestartCount, "restart", "restarts"), c.ExitCode)
 		f.Fix = fmt.Sprintf("Find out why it keeps exiting (docker logs %s) and fix that; the connection will work once it stays up.", c.Name)
 	case evidence.StatePaused:
 		f.Confidence = High
-		f.Title = fmt.Sprintf("%s is paused", c.DisplayName())
-		f.Explanation = fmt.Sprintf("%s is paused: its processes are frozen and can't accept connections.", name)
+		f.Title = c.DisplayName() + " is paused"
+		f.Explanation = name + " is paused: its processes are frozen and can't accept connections."
 		f.Fix = fmt.Sprintf("Unpause it: docker unpause %s.", c.Name)
 	case evidence.StateRunning:
 		f.Confidence = Medium
 		if c.Health == "unhealthy" {
-			f.Title = fmt.Sprintf("%s is running but unhealthy", c.DisplayName())
-			f.Explanation = fmt.Sprintf("%s is running, but its healthcheck fails, so it may not be serving yet or at all.", name)
+			f.Title = c.DisplayName() + " is running but unhealthy"
+			f.Explanation = name + " is running, but its healthcheck fails, so it may not be serving yet or at all."
 		} else {
-			f.Title = fmt.Sprintf("%s keeps restarting", c.DisplayName())
+			f.Title = c.DisplayName() + " keeps restarting"
 			f.Explanation = fmt.Sprintf("%s has restarted %d times and started only moments before this check: it is probably crash-looping and has no address between restarts.", name, c.RestartCount)
 		}
 		f.Fix = fmt.Sprintf("Check its logs (docker logs %s) and healthcheck, and fix what makes it fail.", c.Name)
 	default: // exited, created, dead, removing
 		f.Confidence = High
-		f.Title = fmt.Sprintf("%s is not running", c.DisplayName())
+		f.Title = c.DisplayName() + " is not running"
 		state := "is " + c.State
 		if c.State == evidence.StateExited {
 			state = fmt.Sprintf("has exited with code %d", c.ExitCode)

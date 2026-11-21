@@ -124,7 +124,7 @@ func sharedNetworks(a, b evidence.Container) []string {
 
 // socketList renders sockets as "127.0.0.1:8080, [::1]:8080".
 func socketList(socks []evidence.Socket) string {
-	var parts []string
+	parts := make([]string, 0, len(socks))
 	for _, s := range socks {
 		parts = append(parts, s.Local.String())
 	}

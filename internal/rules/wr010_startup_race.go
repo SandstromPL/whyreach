@@ -68,7 +68,7 @@ func (r wr010) Evaluate(v evidence.View) []Finding {
 			continue
 		}
 		g.RuleID, g.Layer, g.DocURL = r.ID(), r.Layer(), DocURL(r.ID())
-		g.Title = fmt.Sprintf("%s is still starting", replicaName(matches, m))
+		g.Title = replicaName(matches, m) + " is still starting"
 		g.Fix = wr010Fix(v, c)
 		f, starting = &g, m
 		break

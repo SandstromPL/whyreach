@@ -111,7 +111,7 @@ func (r wr006) throughHost(v evidence.View, src evidence.ContainerEv, d evidence
 }
 
 func publishedList(b []evidence.PortMap) string {
-	var out []string
+	out := make([]string, 0, len(b))
 	for _, pm := range b {
 		out = append(out, pm.HostAddr())
 	}
