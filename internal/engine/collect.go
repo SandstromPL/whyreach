@@ -41,7 +41,6 @@ func (r *run) collect(ctx context.Context) error {
 		r.gaps = append(r.gaps, g)
 		// A record too, as for skipped containers: rules must not claim that
 		// no container has a name or an address when none could be listed.
-		r.metadataIncomplete = true
 		r.store.Add(unlisted(g))
 		return nil
 	}
@@ -106,7 +105,6 @@ func (r *run) collect(ctx context.Context) error {
 	// Skipped containers are a gap, and a record too: rules must not claim
 	// that no container has a name when some were never inspected.
 	if droppedMatches > 0 {
-		r.metadataIncomplete = true
 		g := Gap{
 			What:   fmt.Sprintf("%d more containers named %q", droppedMatches, to.Host),
 			Why:    "skipped",
@@ -116,7 +114,6 @@ func (r *run) collect(ctx context.Context) error {
 		r.store.Add(skippedContainers(g))
 	}
 	if droppedPeers > 0 {
-		r.metadataIncomplete = true
 		g := Gap{
 			What:   fmt.Sprintf("aliases of %d more containers on %s's networks", droppedPeers, r.q.From.Ref),
 			Why:    "skipped",
@@ -126,10 +123,7 @@ func (r *run) collect(ctx context.Context) error {
 		r.store.Add(skippedContainers(g))
 	}
 	inspected, failed := r.inspectAll(ctx, append(matches, peers...))
-	if len(failed) > 0 {
-		r.metadataIncomplete = true
-		r.store.Add(failed...)
-	}
+	r.store.Add(failed...)
 
 	// Decide what to record: for a loopback target every peer (WR007 looks
 	// for the service among them); for a name that matches nothing, every
@@ -252,7 +246,6 @@ func (r *run) collectHost(ctx context.Context, ht evidence.HostTarget, list []do
 	if len(cands) > maxMatches {
 		dropped := cands[maxMatches:]
 		cands = cands[:maxMatches]
-		r.metadataIncomplete = true
 		g := Gap{
 			What:   fmt.Sprintf("%d more %s with port %d published or exposed", len(dropped), plural(len(dropped), "container", "containers"), port),
 			Why:    "skipped",
@@ -298,10 +291,7 @@ func (r *run) collectHost(ctx context.Context, ht evidence.HostTarget, list []do
 		others = others[:maxScan]
 	}
 	scanned, failed := r.inspectAll(ctx, others)
-	if len(failed) > 0 {
-		r.metadataIncomplete = true
-		r.store.Add(failed...)
-	}
+	r.store.Add(failed...)
 	// The probe-container reads are taken in order before any read starts,
 	// and the reads run in parallel; each container's record stays at its
 	// index, so what follows sees them in order.

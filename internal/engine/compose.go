@@ -55,7 +55,7 @@ func (r *run) compose(v evidence.View, ranked rules.Ranked, sideEffects []string
 	default:
 		d.Verdict = VerdictInconclusive
 	}
-	d.Facts = facts(v, !r.metadataIncomplete)
+	d.Facts = facts(v)
 	d.Gaps = append(slices.Clone(r.gaps), r.gapsFrom(v)...)
 	if d.Gaps == nil {
 		d.Gaps = []Gap{}
@@ -162,11 +162,9 @@ func plural(n int, one, many string) string {
 	return many
 }
 
-// Facts are a few short lines, each naming the context of every address it
-// mentions.
-// facts summarises the evidence. complete says whether every container
-// that could match the target was inspected.
-func facts(v evidence.View, complete bool) []Fact {
+// facts summarises the evidence in a few short lines, each naming the
+// context of every address it mentions.
+func facts(v evidence.View) []Fact {
 	var out []Fact
 	add := func(text string, ids ...string) {
 		if len(out) < maxFacts {
@@ -209,7 +207,8 @@ func facts(v evidence.View, complete bool) []Fact {
 		case len(dests.Elsewhere) > 0:
 			m := dests.Elsewhere[0]
 			add(fmt.Sprintf("%s is on %s; %s is on %s", owner.C.DisplayName(), orNone(owner.C.NetworkNames()), m.C.DisplayName(), describeNetworks(m.C)), owner.ID, m.ID)
-		case q.To.Class == evidence.TargetName && dests.HostsEntry == "" && complete:
+		case q.To.Class == evidence.TargetName && dests.HostsEntry == "" && !v.Incomplete():
+			// Only when every container that could match was inspected.
 			add(fmt.Sprintf("no container answers to %q in Docker's metadata", q.To.Host), owner.ID)
 		}
 	}

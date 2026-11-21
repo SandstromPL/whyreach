@@ -170,9 +170,6 @@ type run struct {
 	probeListeners int
 	gaps           []Gap
 	timing         map[string]time.Duration
-	// metadataIncomplete is set when some containers' metadata could not be
-	// read or was skipped: "no container has that name" can't be claimed then.
-	metadataIncomplete bool
 	// networks is Docker's network list by name, read once before any
 	// container is inspected: it gives each attachment its internal flag
 	// and subnets. Nil when the list wasn't read.

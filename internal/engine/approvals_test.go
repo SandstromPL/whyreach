@@ -48,7 +48,7 @@ func TestHostResolverFact(t *testing.T) {
 		"":                   "via 10.0.0.2:53, in host",
 	} {
 		var text []string
-		for _, f := range facts(evidence.NewView(q, []evidence.Evidence{lookup(host)}), true) {
+		for _, f := range facts(evidence.NewView(q, []evidence.Evidence{lookup(host)})) {
 			text = append(text, f.Text)
 		}
 		if got := strings.Join(text, "\n"); !strings.Contains(got, want) {
@@ -61,7 +61,7 @@ func TestHostResolverFact(t *testing.T) {
 	p.Answers, p.Rcode = nil, "NXDOMAIN"
 	nx.Data = p
 	var text []string
-	for _, f := range facts(evidence.NewView(q, []evidence.Evidence{nx}), true) {
+	for _, f := range facts(evidence.NewView(q, []evidence.Evidence{nx})) {
 		text = append(text, f.Text)
 	}
 	if got := strings.Join(text, "\n"); !strings.Contains(got, "(NXDOMAIN from 169.254.169.254:53, the host's own resolver") {
