@@ -37,8 +37,10 @@ type fakeAPI struct {
 	removed   []string
 	created   []docker.ProbeSpec
 	createErr error
-	reclaimed []string
-	sweepErr  error
+	// createErrs are the answers of the next creates, before createErr.
+	createErrs []error
+	reclaimed  []string
+	sweepErr   error
 }
 
 func (f *fakeAPI) call(s string) {
@@ -70,6 +72,14 @@ func (f *fakeAPI) ImageImport(_ context.Context, tag string, r io.Reader, change
 func (f *fakeAPI) Create(_ context.Context, spec docker.ProbeSpec) (string, error) {
 	f.call("create " + spec.Image + " netns=" + spec.NetnsOf)
 	f.created = append(f.created, spec)
+	if len(f.createErrs) > 0 {
+		err := f.createErrs[0]
+		f.createErrs = f.createErrs[1:]
+		if err != nil {
+			return "", err
+		}
+		return "probe-id", nil
+	}
 	if f.createErr != nil {
 		return "", f.createErr
 	}
@@ -427,6 +437,72 @@ func TestProbeContainerReclaimsAnInterruptedCreate(t *testing.T) {
 	}
 	if got := strings.Join(effects.List(), "\n"); !strings.Contains(got, "creation interrupted; removed") {
 		t.Errorf("side effects = %q", got)
+	}
+}
+
+// TestProbeContainerReimportsARemovedImage: the image is remembered once it
+// exists, but docker image prune -a can remove it while an MCP session
+// lasts. A create that answers 404 makes the run check for the image again,
+// import it, and create once more; a target that is gone still fails.
+func TestProbeContainerReimportsARemovedImage(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the probe container needs a Linux whyreach")
+	}
+	noImage := &docker.APIError{Status: 404, Message: "No such image: whyreach-probe:dev"}
+	api := &fakeAPI{
+		version: docker.Version{Os: "linux", Arch: runtime.GOARCH},
+		stdout:  probeOutput(t, evidence.Evidence{Kind: evidence.KindListeners, Subject: "listeners", Status: evidence.StatusOK}),
+	}
+	pc := NewProbeContainer(api, fakeELF(t, false), "dev", nil)
+	specs := []probe.Spec{{Kind: probe.SpecListeners}}
+	if _, err := pc.Run(context.Background(), worker, specs); err != nil {
+		t.Fatal(err)
+	}
+	count := func(prefix string) int {
+		n := 0
+		for _, c := range api.calls {
+			if strings.HasPrefix(c, prefix) {
+				n++
+			}
+		}
+		return n
+	}
+
+	// The image was pruned: the first create answers 404.
+	api.calls = nil
+	api.createErrs = []error{noImage}
+	ctx, effects := WithSideEffects(context.Background())
+	evs, err := pc.Run(ctx, worker, specs)
+	if err != nil || len(evs) != 1 || !evs[0].OK() {
+		t.Fatalf("run after the image was removed: %v, %+v", err, evs)
+	}
+	if count("inspect ") != 1 || count("import ") != 1 || count("create ") != 2 {
+		t.Errorf("calls %q, want the image inspected and imported again, then a second create", api.calls)
+	}
+	if got := strings.Join(effects.List(), "\n"); !strings.Contains(got, "imported image whyreach-probe:dev-") {
+		t.Errorf("side effects %q lack the import", got)
+	}
+
+	// The image is remembered again.
+	api.calls = nil
+	if _, err := pc.Run(context.Background(), worker, specs); err != nil {
+		t.Fatal(err)
+	}
+	if count("inspect ") != 0 || count("create ") != 1 {
+		t.Errorf("calls %q, want the remembered image used", api.calls)
+	}
+
+	// A target that is gone answers 404 every time: one retry, then the
+	// failure.
+	api.calls = nil
+	gone := &docker.APIError{Status: 404, Message: "No such container: a3d380d0831a"}
+	api.createErrs = []error{gone, gone}
+	evs, err = pc.Run(context.Background(), worker, specs)
+	if !errors.Is(err, docker.ErrNotFound) || len(evs) != 1 || evs[0].Status != evidence.StatusFailed {
+		t.Errorf("run against a missing target: %v, %+v", err, evs)
+	}
+	if count("create ") != 2 {
+		t.Errorf("calls %q, want exactly one retry", api.calls)
 	}
 }
 

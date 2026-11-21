@@ -64,7 +64,7 @@ type ProbeContainer struct {
 
 	prepMu   sync.Mutex // serializes the sweep and the image check
 	swept    bool
-	imageRef string // set once the image is known to exist
+	imageRef string // set once the image is known to exist; forgotten when a create can't find it
 }
 
 // NewProbeContainer returns a probe-container executor that imports binary.
@@ -91,13 +91,16 @@ func (p *ProbeContainer) Run(ctx context.Context, where evidence.ContextRef, spe
 	if where.Kind != evidence.ContextContainer || where.Container == "" {
 		return fail(evidence.StatusError, evidence.CodeInternal, errors.New("a probe container can only join a container"))
 	}
-	ref, err := p.prepare(ctx)
-	if err != nil {
+	failPrepare := func(err error) ([]evidence.Evidence, error) {
 		status, code := evidence.StatusFailed, evidence.CodeDockerUnavailable
 		if errors.Is(err, probe.ErrUnsupported) {
 			status, code = evidence.StatusUnsupported, evidence.CodeUnsupported
 		}
 		return fail(status, code, err)
+	}
+	ref, err := p.prepare(ctx)
+	if err != nil {
+		return failPrepare(err)
 	}
 	specJSON, err := probe.EncodeSpecs(specs)
 	if err != nil {
@@ -118,7 +121,19 @@ func (p *ProbeContainer) Run(ctx context.Context, where evidence.ContextRef, spe
 	for _, f := range lim.AddrsFlags() {
 		cmd = append(cmd, f[0], f[1])
 	}
-	id, err := p.API.Create(ctx, docker.ProbeSpec{Name: name, Image: ref, NetnsOf: where.Container, Cmd: cmd})
+	spec := docker.ProbeSpec{Name: name, Image: ref, NetnsOf: where.Container, Cmd: cmd}
+	id, err := p.API.Create(ctx, spec)
+	if errors.Is(err, docker.ErrNotFound) {
+		// The image may be gone since prepare found it (docker image prune
+		// -a during an MCP session): check for it again, importing it if
+		// need be, and create once more within this run's deadline. A
+		// target container that is gone fails the second create as well.
+		p.forget(ref)
+		if spec.Image, err = p.prepare(ctx); err != nil {
+			return failPrepare(err)
+		}
+		id, err = p.API.Create(ctx, spec)
+	}
 	if err != nil {
 		// The daemon may have created the container although its answer was
 		// lost, for instance when the diagnosis was cancelled mid-request.
@@ -270,6 +285,16 @@ func (p *ProbeContainer) prepare(ctx context.Context) (string, error) {
 	}
 	p.imageRef = ref
 	return ref, nil
+}
+
+// forget drops the remembered image, so the next prepare checks for it
+// again.
+func (p *ProbeContainer) forget(ref string) {
+	p.prepMu.Lock()
+	defer p.prepMu.Unlock()
+	if p.imageRef == ref {
+		p.imageRef = ""
+	}
 }
 
 // sweep removes labeled probes that a crashed or killed whyreach left
