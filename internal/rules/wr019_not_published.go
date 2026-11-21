@@ -93,6 +93,8 @@ func (r wr019) Evaluate(v evidence.View) []Finding {
 		switch {
 		case covers && !d.Host.Addr.IsLoopback():
 			host = d.Host.Addr.String()
+		case anyIPv6(pm.HostIP):
+			host = "::1" // docker-proxy binds [::] IPv6-only: from the host, [::1] reaches it
 		case !covers && !unspecified(pm.HostIP):
 			host = pm.HostIP
 		}
@@ -184,6 +186,14 @@ func unspecified(ip string) bool {
 	return ip == "" || (err == nil && a.IsUnspecified())
 }
 
+// anyIPv6 reports a binding's host address "::": Docker's proxy then
+// listens on [::] IPv6-only, so from the host [::1] reaches it, and
+// localhost only where it resolves to ::1.
+func anyIPv6(ip string) bool {
+	a, err := netip.ParseAddr(ip)
+	return err == nil && a.IsUnspecified() && a.Is6()
+}
+
 // byName is the case of a container name used from the host's network
 // namespace (the host, or a network_mode: host container), where Docker's
 // DNS doesn't answer.
@@ -213,7 +223,10 @@ func (r wr019) byName(v evidence.View, d evidence.Destinations) []Finding {
 	f.Supporting = ids(f.Supporting...)
 	if b := m.C.PublishesPort(q.To.Port); len(b) > 0 {
 		host := b[0].HostIP
-		if host == "" || host == "0.0.0.0" || host == "::" {
+		switch {
+		case anyIPv6(host):
+			host = "::1"
+		case host == "" || host == "0.0.0.0":
 			host = "localhost"
 		}
 		f.Fix = fmt.Sprintf("Connect to %s: %s publishes its port %d there.", hostPort(host, b[0].HostPort), name, q.To.Port)
