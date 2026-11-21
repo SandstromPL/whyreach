@@ -1,6 +1,9 @@
-# Must stay inconclusive (INITIAL.md §6.3): worker connects to an address on its
-# own network that no container holds, like a stale or hard-coded container
-# IP. That is WR024 (v0.2); no v0.1 rule may claim it.
+# WR024: worker connects to an address on its own network that no container
+# holds, like a container IP hard-coded in its configuration before the
+# container was recreated with another one. Nothing answers there: the
+# connect fails with "no route to host" once ARP gives up, after about 3 s,
+# so whyreach's 2 s connect times out first. Until v0.2 this scenario was
+# inconclusive-stale-ip, which no v0.1 rule could claim.
 x-server: &server
   image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
   pull_policy: never

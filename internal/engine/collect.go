@@ -140,11 +140,17 @@ func (r *run) collect(ctx context.Context) error {
 
 	// Decide what to record: for a loopback target every peer (WR007 looks
 	// for the service among them); for a name that matches nothing, every
-	// peer too (WR005 suggests the closest name); otherwise the destinations
-	// and the containers whose network namespace they use.
+	// peer too (WR005 suggests the closest name); for an address on the
+	// source's networks that no container holds, every peer as well (WR024
+	// names the containers there now); otherwise the destinations and the
+	// containers whose network namespace they use.
 	view = evidence.NewView(r.q, append(slices.Clone(known), inspected...))
 	dests := view.Destinations().All()
-	allPeers := loopback || (to.Class == evidence.TargetName && len(dests) == 0 && byName)
+	unheld := false
+	if byAddr.IsValid() && !loopback && len(dests) == 0 && haveOwner {
+		_, unheld = owner.C.SubnetHolding(byAddr)
+	}
+	allPeers := loopback || (to.Class == evidence.TargetName && len(dests) == 0 && byName) || unheld
 	record := map[string]bool{}
 	for _, m := range dests {
 		record[m.C.ID] = true

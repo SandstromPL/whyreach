@@ -278,6 +278,13 @@ func (c Container) SubnetHolding(addr netip.Addr) (string, bool) {
 	return "", false
 }
 
+// IsGateway reports whether addr is the network's gateway: the bridge's
+// own side, which no container holds.
+func (a NetAttachment) IsGateway(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	return a.Gateway == addr || slices.Contains(a.Gateways, addr)
+}
+
 // Docker's predefined networks. The default bridge has no embedded DNS, and
 // "host" and "none" are network modes rather than networks to share.
 const (

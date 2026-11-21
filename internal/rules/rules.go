@@ -109,7 +109,7 @@ type Rule interface {
 func All() []Rule {
 	return []Rule{
 		wr008{}, wr010{}, // 1. destination
-		wr007{}, wr011{}, wr006{}, wr019{}, // 2. addressing
+		wr007{}, wr011{}, wr006{}, wr019{}, wr024{}, // 2. addressing
 		wr004{}, wr009{}, wr005{}, wr020{}, // 3. naming
 		wr015{},                            // 4. path
 		wr002{}, wr012{}, wr003{}, wr001{}, // 5. listener

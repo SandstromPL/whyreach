@@ -1,0 +1,17 @@
+description: worker connects to an address on its network that no container holds
+from: service:worker@${PROJECT}
+to: ${UNUSED_IP}:8080
+expect:
+  verdict: cause_identified
+  top_rule: WR024
+  confidence: high
+  fix_contains: api:8080
+  must_not_fire: [WR001, WR002, WR003, WR004, WR005, WR006, WR007, WR008, WR009, WR010, WR011, WR012, WR015, WR019, WR020]
+  tcp_outcomes: ["literal:timeout"]
+# Metadata infers it; the connect that got no answer confirms it (Probe? partly).
+expect_without_probe:
+  verdict: likely_cause
+  top_rule: WR024
+  confidence: medium
+  fix_contains: api:8080
+  must_not_fire: [WR001, WR002, WR003, WR004, WR005, WR006, WR007, WR008, WR009, WR010, WR011, WR012, WR015, WR019, WR020]

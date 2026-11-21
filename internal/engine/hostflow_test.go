@@ -239,7 +239,7 @@ func TestSkippedPeersLowerWR005(t *testing.T) {
 // isolation (WR015), not a failing upstream (WR020; M2 review). The source's
 // attachment carries the network list's internal flag and subnets, which
 // WR015 decides from, and its gateways, known on internal networks too,
-// where Docker gives the container none.
+// where Docker gives the container none (WR024).
 func TestInternalNetworkIsNotUpstreamDNS(t *testing.T) {
 	for _, internal := range []bool{false, true} {
 		w := shopWorld()
@@ -286,6 +286,7 @@ func TestInternalNetworkIsNotUpstreamDNS(t *testing.T) {
 func TestUnreadableContainerList(t *testing.T) {
 	for _, c := range []struct{ to, rule string }{
 		{"dbx:5432", "WR005"},
+		{"172.22.0.200:8080", "WR024"},
 	} {
 		w := shopWorld()
 		w.failList = errors.New("the daemon timed out")
@@ -307,5 +308,34 @@ func TestUnreadableContainerList(t *testing.T) {
 		if want := []string{"the list of containers (failed)"}; !slices.Equal(gaps, want) {
 			t.Errorf("%s: gaps about containers %q, want %q", c.to, gaps, want)
 		}
+	}
+}
+
+// TestStaleAddressNamesThePeers: an address on the source's network that no
+// container holds is WR024's. The engine records the containers on that
+// network, which the finding names; the network's gateway is never stale.
+func TestStaleAddressNamesThePeers(t *testing.T) {
+	for _, probes := range []bool{false, true} {
+		d := diagnoseWith(t, shopWorld(), "container:shop-worker-1", "172.22.0.200:8080", probes)
+		want := rules.Medium
+		if probes {
+			want = rules.High // the scripted connect times out, as the real one does before ARP gives up
+		}
+		p := d.Primary()
+		if p == nil || p.RuleID != "WR024" || p.Confidence != want {
+			t.Fatalf("probes=%v: primary = %+v, want WR024 at %s", probes, p, want)
+		}
+		if !strings.Contains(p.Explanation, "api (172.22.0.3)") || !strings.Contains(p.Fix, "probably api:8080") {
+			t.Errorf("probes=%v: the finding doesn't name api, the container on the network now:\n%s\n%s", probes, p.Explanation, p.Fix)
+		}
+		if cs, _ := recorded(d); !slices.Contains(cs, "shop-api-1") {
+			t.Errorf("probes=%v: api's metadata isn't recorded: %v", probes, cs)
+		}
+	}
+	// The network's gateway is the bridge's own side: the host isn't told by
+	// its interfaces here (only docker0 and eth0), but by the network list.
+	d := diagnoseWith(t, shopWorld(), "container:shop-worker-1", "172.22.0.1:8080", false)
+	if slices.ContainsFunc(d.Findings, func(f rules.Finding) bool { return f.RuleID == "WR024" }) {
+		t.Errorf("WR024 fired for the network's gateway: %+v", d.Findings)
 	}
 }

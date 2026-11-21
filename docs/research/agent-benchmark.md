@@ -158,7 +158,7 @@ Run on 2026-11-14 with `make lab-bench` on the dev box (Ubuntu 24.04.5, kernel 7
 - the first ran 40 runs in 10.3 minutes, for $0.080. Its new check stopped `wr004-separate-projects`' two runs before their agents started, a false alarm on the harness's own folder name;
 - with the owner's approval, those two ran in a second invocation that differed only in that folder's name: 25 s, $0.004.
 
-The raw data is in `agent-benchmark/` (below).
+The raw data is in `agent-benchmark/` (below). Scenario names are as they were then. In v0.2, when WR024 began to claim it, `inconclusive-stale-ip` was renamed `wr024-stale-ip`, whose expected answer is WR024; its records here keep the old name and the answer that was right then, `none`, and a later run lists it under the new name.
 
 ### The §6.4 decision: passed
 

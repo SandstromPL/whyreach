@@ -119,7 +119,7 @@ type outside struct {
 // container is not outside: on the owner's networks it is reachable, and
 // elsewhere WR004 explains it. Neither is anything on the owner's subnets:
 // the host through a network's own gateway address (measured: reachable),
-// or an address no container holds (a stale address: WR024's, v0.2). A
+// or an address no container holds (a stale address: WR024's). A
 // single-label name no container answers to is more likely mistyped
 // (WR005).
 func outsideOf(v evidence.View, owner evidence.ContainerEv, beyond string) (outside, bool) {

@@ -1,0 +1,213 @@
+{
+  "description": "app's extra_hosts map db to 172.29.0.9, an old address; db itself is at 172.29.0.3, and /etc/hosts answers first",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-app-1",
+      "container_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "to": {
+      "host": "db",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app"
+      },
+      "subject": "container:shop-app-1",
+      "status": "ok",
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "shop-app-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "compose": {
+          "project": "shop",
+          "service": "app"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "ipv4": "172.29.0.2",
+            "gateway": "172.29.0.1",
+            "names": [
+              "app",
+              "shop-app-1"
+            ],
+            "subnets": [
+              "172.29.0.0/16"
+            ],
+            "gateways": [
+              "172.29.0.1"
+            ]
+          }
+        ],
+        "pid": 13,
+        "extra_hosts": [
+          "db:172.29.0.9"
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "db"
+      },
+      "subject": "container:shop-db-1",
+      "status": "ok",
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "shop-db-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "compose": {
+          "project": "shop",
+          "service": "db"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "shop_default-id",
+            "ipv4": "172.29.0.3",
+            "gateway": "172.29.0.1",
+            "names": [
+              "db",
+              "shop-db-1"
+            ],
+            "subnets": [
+              "172.29.0.0/16"
+            ],
+            "gateways": [
+              "172.29.0.1"
+            ]
+          }
+        ],
+        "pid": 12
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "br-shopbackend",
+            "up": true,
+            "addrs": [
+              "172.28.0.1/16"
+            ]
+          },
+          {
+            "name": "br-shopdefault",
+            "up": true,
+            "addrs": [
+              "172.29.0.1/16"
+            ]
+          },
+          {
+            "name": "docker0",
+            "up": true,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "addrs": [
+              "192.0.2.10/24"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app",
+        "executor": "probe-container"
+      },
+      "subject": "db:5432",
+      "status": "ok",
+      "data": {
+        "target": "db:5432",
+        "addr": "172.29.0.9:5432",
+        "via": "hosts",
+        "outcome": "timeout",
+        "rtt_ns": 2000000000,
+        "error": "dial tcp 172.29.0.9:5432: i/o timeout"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR024",
+      "confidence": "high",
+      "supporting": [
+        "ev-02",
+        "ev-03",
+        "ev-05"
+      ],
+      "fix_contains": "Remove the extra_hosts entry that maps db to 172.29.0.9 from app, so Docker's DNS answers db with its current address (db answers to it on shop_default)"
+    }
+  ]
+}
