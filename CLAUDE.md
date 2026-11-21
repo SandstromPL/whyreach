@@ -20,6 +20,7 @@ whyreach is a single Go binary that runs **read-only** network diagnosis for Lin
 - M6 (v0.2) is in progress, in the owner's order: WSL2, then the six v0.2 rules (WR015, WR024, WR014, WR013, WR016, WR021), then CI mode.
   - WSL2 is built (`docs/adr/0004-wsl2.md`): `platform.Classify` names `linux-engine`, `wsl2-engine` and `wsl2-desktop`, recorded as `platform` evidence; where Docker's PIDs aren't this machine's (Docker Desktop), no `/proc/<pid>` read and no `setns`, and listeners come from probe containers; under WSL2 the host's side is labelled the WSL2 VM; `doctor` names the platform; `--log-level` for `wsl.exe` launches.
   - It waits for the owner's manual lab runs on Windows (`docs/wsl2-lab.md`). Until they pass, the README and the help text don't claim WSL2 support; `docs/wsl2.md` is marked unvalidated.
+  - The first runs (2026-11-21, ADR 0004's amendment): run A (Docker Engine) passed. Run B (Docker Desktop) failed one scenario, since fixed: Docker Desktop's DNS doesn't answer single-label names, so WR020 now judges only names with a dot. The launch check failed in both, from the script's quoting, since fixed. Still to run: the launch check in both setups and run B's lab.
 
 **Source of truth:** `INITIAL.md` holds the current design: decisions, HLD, LLD, the rule catalog and the milestones. The original project proposal (not published) is background only.
 - If the two disagree, `INITIAL.md` wins.
