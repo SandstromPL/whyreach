@@ -22,10 +22,9 @@ package e2e
 // downloads that release instead: the ci-example workflow does that on
 // GitHub, when started by hand after a release.
 //
-// The diagnose step runs redacted and unredacted with probe containers, the
-// example's default. Its sudo variant runs only where WHYREACH_CI_SUDO=1
-// says that passwordless sudo is there to use (GitHub's runners, through
-// the ci-example workflow): the test never runs sudo otherwise.
+// The diagnose step runs redacted and unredacted, with probe containers,
+// the example's only way to look inside containers: it asks for nothing
+// more than access to Docker.
 
 import (
 	"bytes"
@@ -74,12 +73,11 @@ type ciExample struct {
 type ciVariant struct {
 	name   string
 	redact bool
-	sudo   bool
 }
 
 func TestCIExample(t *testing.T) {
 	if os.Geteuid() == 0 {
-		t.Skip("as root, whyreach enters the containers' network namespaces itself, which isn't the example's default (probe containers); its sudo variant runs with WHYREACH_CI_SUDO=1")
+		t.Skip("as root, whyreach enters the containers' network namespaces itself, and the example uses probe containers")
 	}
 	if *labDesktop || !platform.EngineHere(l.platform) {
 		t.Skipf("the example is for CI runners with Docker Engine (linux-engine), and this is %s", l.expectOn)
@@ -220,11 +218,7 @@ func TestCIExample(t *testing.T) {
 		"service:worker@" + r.project,
 	}, "\n") + "\n"
 	stack := stackValues(t, r.project)
-	variants := []ciVariant{{name: "redacted", redact: true}, {name: "unredacted"}}
-	if os.Getenv("WHYREACH_CI_SUDO") == "1" {
-		variants = append(variants, ciVariant{name: "sudo-redacted", redact: true, sudo: true}, ciVariant{name: "sudo-unredacted", sudo: true})
-	}
-	for _, v := range variants {
+	for _, v := range []ciVariant{{name: "redacted", redact: true}, {name: "unredacted"}} {
 		t.Run("diagnose-"+v.name, func(t *testing.T) { runCIDiagnose(t, ex.diagnose, binDir, pairs, v, stack) })
 	}
 }
@@ -310,15 +304,15 @@ func checkCIExample(t *testing.T, ex ciExample) {
 		if strings.Contains(s.Run, "${{") {
 			t.Errorf("step %s's script expands an expression: pass it through env, since a value from the event could inject commands", s.ID)
 		}
+		if regexp.MustCompile(`\bsudo\b`).MatchString(s.Run) {
+			t.Errorf("step %s's script uses sudo: the example asks for nothing more than access to Docker", s.ID)
+		}
 	}
 	if v := fmt.Sprint(ex.install.Env["WHYREACH_VERSION"]); !regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`).MatchString(v) {
 		t.Errorf("the install step pins %q, want a release such as 0.2.0", v)
 	}
 	if got, want := fmt.Sprint(ex.diagnose.Env["WHYREACH_REDACT"]), "${{ github.event.repository.visibility != 'private' }}"; got != want {
 		t.Errorf("WHYREACH_REDACT is %q, want %q: redacted unless the repository is private", got, want)
-	}
-	if got := fmt.Sprint(ex.diagnose.Env["WHYREACH_SUDO"]); got != "false" {
-		t.Errorf("WHYREACH_SUDO is %q: the default is probe containers (false)", got)
 	}
 	if strings.TrimSpace(fmt.Sprint(ex.diagnose.Env["WHYREACH_PAIRS"])) == "" {
 		t.Error("the example lists no connection in WHYREACH_PAIRS")
@@ -341,7 +335,7 @@ func checkCIExample(t *testing.T, ex ciExample) {
 func runCIDiagnose(t *testing.T, step ciStep, binDir, pairs string, v ciVariant, stack []string) {
 	rt, summary := t.TempDir(), filepath.Join(t.TempDir(), "summary.md")
 	env := prependPath(ciEnv(rt, t.TempDir(), "GITHUB_STEP_SUMMARY="+summary, "WHYREACH_PAIRS="+pairs,
-		"WHYREACH_REDACT="+strconv.FormatBool(v.redact), "WHYREACH_SUDO="+strconv.FormatBool(v.sudo)), binDir)
+		"WHYREACH_REDACT="+strconv.FormatBool(v.redact)), binDir)
 	start := time.Now()
 	log, err := runStep(t, step.Run, env, rt)
 	t.Logf("the diagnose step took %s; its log:\n%s", time.Since(start).Round(time.Millisecond), log)
@@ -409,19 +403,13 @@ func runCIDiagnose(t *testing.T, step ciStep, binDir, pairs string, v ciVariant,
 		}
 	}
 
-	// How whyreach looked from inside worker: probe containers, or as root
-	// through the netns executor, with no Docker write.
-	executorWant := "probe-container"
-	if v.sudo {
-		executorWant = "netns"
-		if len(d1.SideEffects) != 0 {
-			t.Errorf("as root, whyreach must not write to Docker: %q", d1.SideEffects)
-		}
-	} else if !slices.ContainsFunc(d1.SideEffects, func(s string) bool { return strings.Contains(s, "probe container") }) {
+	// whyreach looked from inside worker through a probe container: the
+	// step's config file took effect.
+	if !slices.ContainsFunc(d1.SideEffects, func(s string) bool { return strings.Contains(s, "probe container") }) {
 		t.Errorf("connection 1 ran no probe container (%q): the config file didn't take effect", d1.SideEffects)
 	}
-	if got := tcpExecutors(t, filepath.Join(art, "1", "evidence.jsonl"), "worker"); !slices.Equal(got, []string{executorWant}) {
-		t.Errorf("worker's TCP checks ran through %q, want %s", got, executorWant)
+	if got := tcpExecutors(t, filepath.Join(art, "1", "evidence.jsonl"), "worker"); !slices.Equal(got, []string{"probe-container"}) {
+		t.Errorf("worker's TCP checks ran through %q, want a probe container", got)
 	}
 
 	// Redaction: nothing of the stack's addresses and container IDs in what

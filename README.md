@@ -216,7 +216,7 @@ whyreach mcp serve
 
 ## In CI
 
-When integration tests against a Compose stack fail in CI, whyreach can say why. [docs/ci.md](docs/ci.md) has three GitHub Actions steps to copy after your tests. They run only after a failure, install a pinned release (the example pins v0.2.0, the release CI mode ships in) and check its checksum, and diagnose the connections you list. Each diagnosis goes to the job log, the job summary and an artifact, redacted unless the repository is private. The steps never change the job's result.
+When integration tests against a Compose stack fail in CI, whyreach can say why. [docs/ci.md](docs/ci.md) has three GitHub Actions steps to copy after your tests. They run only after a failure, install a pinned release (the example pins v0.2.0, the release CI mode ships in) and check its checksum, and diagnose the connections you list, looking inside the containers through probe containers, so the job needs only the Docker access it has for Compose. Each diagnosis goes to the job log, the job summary and an artifact, redacted unless the repository is private. The steps never change the job's result.
 
 ## As a container
 

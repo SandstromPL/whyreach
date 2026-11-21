@@ -1,8 +1,7 @@
 # CI mode's example (docs/ci.md), on GitHub's own runner. TestCIExample
 # reads the example's steps from docs/ci.md and runs their scripts against
-# a deliberately broken Compose stack (test/lab/wr002-loopback-bind): with
-# probe containers, the example's default, and, since this runner has
-# passwordless sudo, with sudo as well. The install step's download is
+# a deliberately broken Compose stack (test/lab/wr002-loopback-bind), with
+# probe containers, as the example does. The install step's download is
 # answered from a release the test builds from this commit, so nothing is
 # downloaded; started by hand with a version, the test downloads that
 # release from GitHub Releases instead.
@@ -36,5 +35,4 @@ jobs:
           go-version-file: go.mod
       - run: go test -tags lab -count=1 -run '^TestCIExample$' -v ./test/e2e
         env:
-          WHYREACH_CI_SUDO: "1"
           WHYREACH_CI_RELEASE: ${{ inputs.release }}
