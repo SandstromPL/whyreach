@@ -40,7 +40,7 @@ WR007  localhost inside worker is worker itself, not api
   …
 ```
 
-> **Status: v0.1.** Linux with Docker Engine. **Windows through WSL2** (Docker Engine in the distro, or Docker Desktop's WSL integration) passed its lab runs on Windows and ships with v0.2; v0.1.0 doesn't have it, so until v0.2 is out, build it from source: [docs/wsl2.md](docs/wsl2.md). Docker Desktop on macOS and native Windows builds come later ([INITIAL.md §3.7](INITIAL.md)).
+> **Status: v0.2.** Linux with Docker Engine, and **Windows through WSL2** (Docker Engine in the distro, or Docker Desktop's WSL integration): [docs/wsl2.md](docs/wsl2.md). v0.2 also adds six causes (`localhost` that means IPv6 too, an internal network, a Docker subnet that takes a VPN's or a LAN's range, a silent drop, the host's firewall, a stale container address) and [CI mode](docs/ci.md). Docker Desktop on macOS and native Windows builds come later ([INITIAL.md §3.7](INITIAL.md)).
 
 ## Install
 
@@ -49,7 +49,7 @@ You need Linux on amd64 or arm64, Docker Engine, and access to the Docker socket
 Download the archive for your machine and `checksums.txt` from the [releases page](https://github.com/SandstromPL/whyreach/releases), check the checksum, and put the binary on your `PATH`:
 
 ```bash
-VERSION=0.1.0 ARCH=amd64   # or ARCH=arm64; uname -m says x86_64 for amd64, aarch64 for arm64
+VERSION=0.2.0 ARCH=amd64   # or ARCH=arm64; uname -m says x86_64 for amd64, aarch64 for arm64
 curl -fsSLO "https://github.com/SandstromPL/whyreach/releases/download/v${VERSION}/whyreach_${VERSION}_linux_${ARCH}.tar.gz"
 curl -fsSLO "https://github.com/SandstromPL/whyreach/releases/download/v${VERSION}/checksums.txt"
 sha256sum --ignore-missing -c checksums.txt
@@ -223,10 +223,10 @@ When integration tests against a Compose stack fail in CI, whyreach can say why.
 There's an image too, for when you'd rather not install the binary:
 
 ```bash
-docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/sandstrompl/whyreach:0.1.0 mcp serve
+docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/sandstrompl/whyreach:0.2.0 mcp serve
 ```
 
-For Claude Code: `claude mcp add whyreach -- docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/sandstrompl/whyreach:0.1.0 mcp serve`. Pass a command instead of `mcp serve` to use the CLI the same way.
+For Claude Code: `claude mcp add whyreach -- docker run --rm -i --network host --pid host -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/sandstrompl/whyreach:0.2.0 mcp serve`. Pass a command instead of `mcp serve` to use the CLI the same way.
 
 - **`--network host`** puts whyreach in the host's network namespace, where it sees the host's interfaces, listening sockets and connections. Without it, the host's side can't be seen from the container, and whyreach reports those checks as unsupported rather than mistake the container for the host.
 - **`--pid host`** lets whyreach read the containers' listening sockets. Without it, whyreach reports those reads as unsupported, and causes that depend on listeners drop to lower confidence.

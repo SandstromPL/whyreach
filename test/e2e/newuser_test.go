@@ -48,7 +48,7 @@ import (
 )
 
 const (
-	newUserVersion = "0.1.0"
+	newUserVersion = "0.2.0"
 	// demoScenario is the lab's name for the README's demo
 	// (test/lab/demo-localhost): what the diagnosing agent must not be told.
 	demoScenario = "demo-localhost"

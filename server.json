@@ -3,7 +3,7 @@
   "name": "io.github.SandstromPL/whyreach",
   "title": "whyreach",
   "description": "Read-only Docker network diagnosis: why one container can't reach another, with evidence.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "websiteUrl": "https://github.com/SandstromPL/whyreach",
   "repository": {
     "url": "https://github.com/SandstromPL/whyreach",
@@ -12,7 +12,7 @@
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/sandstrompl/whyreach:0.1.0",
+      "identifier": "ghcr.io/sandstrompl/whyreach:0.2.0",
       "transport": {
         "type": "stdio"
       },

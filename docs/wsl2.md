@@ -1,6 +1,6 @@
 # whyreach on Windows, through WSL2
 
-> **Status: supported from v0.2.** Both setups below passed the lab on Windows on 2026-11-21 (WSL 3.0.5), and so did starting whyreach from Windows through `wsl.exe` the way an MCP client does ([the lab runs](wsl2-lab.md), [ADR 0004](adr/0004-wsl2.md)). The v0.1.0 release doesn't have it: until v0.2 is released, build whyreach from source (below).
+> **Status: supported from v0.2.** Both setups below passed the lab on Windows on 2026-11-21 (WSL 3.0.5), and so did starting whyreach from Windows through `wsl.exe` the way an MCP client does ([the lab runs](wsl2-lab.md), [ADR 0004](adr/0004-wsl2.md)). The v0.1.0 release doesn't have it.
 
 whyreach is a Linux program. On Windows it runs inside a WSL2 distro, next to Docker, and an MCP client on Windows starts it there through `wsl.exe`. Two setups work, and whyreach tells them apart by itself (`whyreach doctor` prints which one it found):
 
@@ -13,9 +13,9 @@ Windows containers aren't supported, and neither is a native Windows build (v0.3
 
 ## Install
 
-From v0.2, follow the README's install steps for Linux inside the distro (`linux_amd64` or `linux_arm64` archive, checksum, `~/.local/bin`).
+Follow the README's install steps for Linux inside the distro (`linux_amd64` or `linux_arm64` archive, checksum, `~/.local/bin`).
 
-Until v0.2 is released, build it from `main` inside the distro. That needs `git`, `make` and Go 1.27 or later ([the lab runs' step 2](wsl2-lab.md) installs them):
+To build it from source instead, inside the distro, you need `git`, `make` and Go 1.27 or later ([the lab runs' step 2](wsl2-lab.md) installs them):
 
 ```bash
 git clone https://github.com/SandstromPL/whyreach ~/whyreach && cd ~/whyreach && make build

@@ -4,7 +4,7 @@ When integration tests against a Compose stack fail in CI, the log usually says 
 
 The steps never change the job's result: the tests' failure stays the job's failure, whatever whyreach finds.
 
-> **Version:** the example pins whyreach **v0.2.0**, the release CI mode ships in. Until v0.2.0 is out, the install step can't find it.
+> **Version:** the example pins whyreach **v0.2.0**, the release CI mode ships in.
 
 ## The example (GitHub Actions)
 
