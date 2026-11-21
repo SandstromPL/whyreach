@@ -399,8 +399,7 @@ func (s *Server) probe(ctx context.Context, req *mcp.CallToolRequest, in ProbeIn
 // adviceFor returns advice for this call's client: whether whyreach can
 // still ask about a name depends on the client and on the session.
 func (s *Server) adviceFor(req *mcp.CallToolRequest) func(evidence.Evidence) string {
-	caps := req.ClientCapabilities()
-	canAsk := caps != nil && caps.Elicitation != nil
+	canAsk := canElicit(req)
 	return func(e evidence.Evidence) string { return s.advice(e, canAsk) }
 }
 
@@ -538,40 +537,68 @@ func (s *Server) lookup(id string) *engine.Diagnosis {
 // containers, when the records have checks they would run. Clients on
 // protocol 2026-07-28 or later get an input request in the result and call
 // again with the answer (SEP-2322): res is that result. Older clients are
-// asked directly, and approved says what the user chose. The question goes
-// to the user through the client's own dialog: the model can't answer it,
-// and no tool argument can.
+// asked directly, and approved says what the user chose (put). The question
+// goes to the user through the client's own dialog: the model can't answer
+// it, and no tool argument can.
 func (s *Server) askForProbeContainers(ctx context.Context, req *mcp.CallToolRequest, evs []evidence.Evidence, source string) (res *mcp.CallToolResult, approved bool) {
-	if !policy.NeedsProbeContainers(evs) {
-		return nil, false
-	}
-	caps := req.ClientCapabilities()
-	if caps == nil || caps.Elicitation == nil || !s.p.CanUseProbeContainers() || s.p.ProbeContainers() {
+	if !policy.NeedsProbeContainers(evs) || !canElicit(req) || !s.p.CanUseProbeContainers() || s.p.ProbeContainers() {
 		return nil, false
 	}
 	s.mu.Lock()
-	if s.asked {
-		s.mu.Unlock()
+	asked := s.asked
+	s.asked = true
+	s.mu.Unlock()
+	if asked {
 		return nil, false
 	}
-	s.asked = true
-	params := consentParams(source)
-	if req.ProtocolVersion() >= "2026-07-28" {
-		state := randomState()
-		s.pending[state] = question{key: consentKey}
-		s.mu.Unlock()
-		return &mcp.CallToolResult{InputRequests: mcp.InputRequestMap{consentKey: params}, RequestState: state}, false
-	}
-	s.mu.Unlock()
-	ectx, cancel := context.WithTimeout(ctx, s.o.ConsentTimeout)
-	defer cancel()
-	answer, err := req.Session.Elicit(ectx, params)
-	if err != nil {
+	res, answer, err := s.put(ctx, req, question{key: consentKey}, consentParams(source))
+	switch {
+	case res != nil:
+		return res, false
+	case err != nil:
 		s.o.Logger.Warn("could not ask for probe containers", "err", err)
 		s.p.RecordConsent(false, "no answer: "+err.Error())
 		return nil, false
 	}
 	return nil, s.consent(answer)
+}
+
+// canElicit reports whether the client can put a question to the user.
+func canElicit(req *mcp.CallToolRequest) bool {
+	caps := req.ClientCapabilities()
+	return caps != nil && caps.Elicitation != nil
+}
+
+// inputRequestsSince is the protocol version from which a server may no
+// longer send elicitation requests of its own, and asks through input
+// requests in its results instead (SEP-2322).
+const inputRequestsSince = "2026-07-28"
+
+// put puts q to the user through the client's own dialog. From protocol
+// inputRequestsSince on, it is an input request in the result (res), which
+// the client answers by calling again (answered); before, an elicitation
+// request awaited for up to ConsentTimeout (answer, or err if none came).
+func (s *Server) put(ctx context.Context, req *mcp.CallToolRequest, q question, params *mcp.ElicitParams) (res *mcp.CallToolResult, answer *mcp.ElicitResult, err error) {
+	if req.ProtocolVersion() >= inputRequestsSince {
+		state := randomState()
+		s.mu.Lock()
+		s.pending[state] = q
+		s.mu.Unlock()
+		return &mcp.CallToolResult{InputRequests: mcp.InputRequestMap{q.key: params}, RequestState: state}, nil, nil
+	}
+	ectx, cancel := context.WithTimeout(ctx, s.o.ConsentTimeout)
+	defer cancel()
+	answer, err = req.Session.Elicit(ectx, params)
+	return nil, answer, err
+}
+
+// verdict reads the user's answer: approved only by an accepted form that
+// says allow, and how they answered (cancel when there is no answer).
+func verdict(answer *mcp.ElicitResult) (approved bool, how string) {
+	if answer == nil {
+		return false, "cancel"
+	}
+	return answer.Action == "accept" && answer.Content["allow"] == true, answer.Action
 }
 
 // answered applies the answer to a question that this server sent as an
@@ -603,11 +630,7 @@ func (s *Server) answered(req *mcp.CallToolRequest) {
 // consent records the user's answer and, on approval, re-registers the
 // probing tools so their annotations stop claiming read-only.
 func (s *Server) consent(answer *mcp.ElicitResult) bool {
-	approved := answer != nil && answer.Action == "accept" && answer.Content["allow"] == true
-	how := "cancel"
-	if answer != nil {
-		how = answer.Action
-	}
+	approved, how := verdict(answer)
 	s.p.RecordConsent(approved, how)
 	if approved {
 		s.register()
@@ -647,13 +670,11 @@ func (s *Server) askForAddr(ctx context.Context, req *mcp.CallToolRequest, evs [
 	return nil, false
 }
 
-// ask puts one question about a name or an address to the user through the
-// same two paths as askForProbeContainers, unless mayAsk says no; asked
-// says whether it was put. On the 2026-07-28 path the answer comes with the
-// client's next call (answered).
+// ask puts one question about a name or an address to the user (put),
+// unless mayAsk says no; asked says whether it was put. On the input-request
+// path the answer comes with the client's next call (answered).
 func (s *Server) ask(ctx context.Context, req *mcp.CallToolRequest, q question, params *mcp.ElicitParams) (res *mcp.CallToolResult, approved, asked bool) {
-	caps := req.ClientCapabilities()
-	if caps == nil || caps.Elicitation == nil {
+	if !canElicit(req) {
 		return nil, false, false
 	}
 	k := q.answerKey()
@@ -664,17 +685,12 @@ func (s *Server) ask(ctx context.Context, req *mcp.CallToolRequest, q question, 
 	}
 	s.answers[k] = answerPending
 	s.questions++
-	if req.ProtocolVersion() >= "2026-07-28" {
-		state := randomState()
-		s.pending[state] = q
-		s.mu.Unlock()
-		return &mcp.CallToolResult{InputRequests: mcp.InputRequestMap{q.key: params}, RequestState: state}, false, true
-	}
 	s.mu.Unlock()
-	ectx, cancel := context.WithTimeout(ctx, s.o.ConsentTimeout)
-	defer cancel()
-	answer, err := req.Session.Elicit(ectx, params)
-	if err != nil {
+	res, answer, err := s.put(ctx, req, q, params)
+	switch {
+	case res != nil:
+		return res, false, true
+	case err != nil:
 		s.o.Logger.Warn("could not ask the user", "question", q.key, "err", err)
 		s.record(q, nil, "no answer: "+err.Error())
 		return nil, false, true
@@ -685,12 +701,9 @@ func (s *Server) ask(ctx context.Context, req *mcp.CallToolRequest, q question, 
 // record stores the user's answer to a question about a name or an
 // address; how, when set, says why there was none.
 func (s *Server) record(q question, answer *mcp.ElicitResult, how string) bool {
-	approved := answer != nil && answer.Action == "accept" && answer.Content["allow"] == true
+	approved, answered := verdict(answer)
 	if how == "" {
-		how = "cancel"
-		if answer != nil {
-			how = answer.Action
-		}
+		how = answered
 	}
 	switch q.key {
 	case nameKey:
