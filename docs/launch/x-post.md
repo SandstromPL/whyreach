@@ -1,4 +1,4 @@
-<!-- Draft X (Twitter) thread for whyreach v0.2.0. Not posted: posting it is the owner's step. Numbers from docs/research/agent-benchmark/results.json (2026-11-21, the v0.2 run). Lengths counted as X counts them (a link is 23 characters): 279 and 227 of 280. -->
+<!-- Draft X (Twitter) thread for whyreach v0.2.0. Not posted: posting it is the owner's step. Numbers from docs/research/agent-benchmark/results.json (2026-11-21, the v0.2 run). Lengths counted as X counts them (a link is 23 characters): 255 and 273 of 280. Plain words, as the owner asked. -->
 
 # X thread: two posts
 
@@ -7,11 +7,11 @@ X takes either one GIF or up to four images in a post, not both, so the demo and
 ## Post 1, with the demo GIF
 
 ```
-Your container gets "Connection refused" and you don't know why.
+Ever had a Docker container that just can't reach another one, and no idea why?
 
-whyreach tells you: the cause, the evidence and the fix. It only reads, never changes anything. A CLI and MCP server for your AI agent.
+I built whyreach for that. It tells you what's wrong and how to fix it, and it never changes anything.
 
-v0.2: Linux and Windows (WSL2), 20 causes, CI mode.
+Use it yourself, or let your AI agent use it.
 
 github.com/SandstromPL/whyreach
 ```
@@ -23,14 +23,11 @@ github.com/SandstromPL/whyreach
 ## Post 2, a reply, with the benchmark chart
 
 ```
-27 broken Docker setups, Claude Haiku with a shell vs with whyreach:
+I tested it on 27 broken Docker setups: the same AI agent, once with just a shell, once with whyreach.
 
-• right cause: 21 vs 22
-• tool calls: 6 vs 3
-• tokens: 49.7k vs 20.2k
-• tried docker exec or sudo: 21 runs vs 0
+Both found the cause about as often. With whyreach: half the steps, under half the tokens, and 0 tries at docker exec or sudo (shell agent: 21).
 
-Method and raw data: github.com/SandstromPL/whyreach/blob/main/docs/research/agent-benchmark.md
+github.com/SandstromPL/whyreach/blob/main/docs/research/agent-benchmark.md
 ```
 
 **Media:** the chart as a PNG, rendered at 2× (1440×816) from `docs/assets/benchmark-dark.svg` (or `-light`) with headless Chrome. X doesn't take SVG.
@@ -39,5 +36,7 @@ Method and raw data: github.com/SandstromPL/whyreach/blob/main/docs/research/age
 
 ## Checked
 
-- "tried docker exec or sudo: 21 runs vs 0": the shell agent's 21 refused attempts, one per run, were 19 `docker exec` (one behind `sudo`) and 2 `sudo`.
-- The other numbers are the summary of the v0.2 run (`docs/research/agent-benchmark.md`, "The v0.2 run").
+- "Both found the cause about as often": 21 of 27 for the shell agent, 22 for whyreach's.
+- "half the steps, under half the tokens": medians of 3 tool calls against 6, and 20.2k tokens against 49.7k (41%).
+- "0 tries at docker exec or sudo (shell agent: 21)": the shell agent's 21 refused attempts, one per run, were 19 `docker exec` (one behind `sudo`) and 2 `sudo`.
+- All from the summary of the v0.2 run (`docs/research/agent-benchmark.md`, "The v0.2 run").
