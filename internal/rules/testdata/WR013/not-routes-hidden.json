@@ -1,0 +1,78 @@
+{
+  "description": "whyreach runs in a container without --network host, so the host's routes are out of sight: a gap",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "10.8.1.5",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "ip",
+      "addr": "10.8.1.5"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "host.route",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "10.8.1.5",
+      "status": "unsupported",
+      "source": "the kernel's routing tables (netlink RTM_GETROUTE), in whyreach's own network namespace",
+      "error": {
+        "code": "unsupported",
+        "message": "whyreach runs in a container without --network host, so this is the container's own network namespace, not the host's"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "10.8.1.5:5432",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "10.8.1.5:5432",
+        "addr": "10.8.1.5:5432",
+        "via": "literal",
+        "outcome": "timeout",
+        "rtt_ns": 2000000000,
+        "error": "dial tcp 10.8.1.5:5432: i/o timeout"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    }
+  ],
+  "want": []
+}

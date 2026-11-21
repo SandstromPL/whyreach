@@ -1,0 +1,180 @@
+{
+  "description": "worker runs with network_mode: host, so the host's routing table decides for it as for the host",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-worker-1",
+      "container_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    "to": {
+      "host": "10.8.1.5",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "ip",
+      "addr": "10.8.1.5"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "docker0",
+            "up": true,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "br-7e7e7e7e7e7e",
+            "up": true,
+            "addrs": [
+              "10.8.1.1/24"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "addrs": [
+              "192.0.2.10/24"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "dddddddddddd",
+        "name": "worker"
+      },
+      "subject": "container:shop-worker-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "name": "shop-worker-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "host",
+        "compose": {
+          "project": "shop",
+          "service": "worker"
+        },
+        "pid": 106
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "host.route",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "10.8.1.5",
+      "status": "ok",
+      "source": "the kernel's routing tables (netlink RTM_GETROUTE), in whyreach's own network namespace",
+      "data": {
+        "dst": "10.8.1.5",
+        "chosen": {
+          "prefix": "10.8.1.0/24",
+          "dev": "br-7e7e7e7e7e7e",
+          "docker": true
+        },
+        "covering": [
+          {
+            "prefix": "10.8.1.0/24",
+            "dev": "br-7e7e7e7e7e7e",
+            "docker": true
+          },
+          {
+            "prefix": "10.8.0.0/16",
+            "dev": "tun0"
+          }
+        ],
+        "networks": [
+          {
+            "network": "shop_back",
+            "subnet": "10.8.1.0/24",
+            "bridge": "br-7e7e7e7e7e7e",
+            "compose_project": "shop"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "container",
+        "container": "dddddddddddd",
+        "name": "worker",
+        "executor": "probe-container"
+      },
+      "subject": "10.8.1.5:5432",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "10.8.1.5:5432",
+        "addr": "10.8.1.5:5432",
+        "via": "literal",
+        "outcome": "timeout",
+        "rtt_ns": 2000000000,
+        "error": "dial tcp 10.8.1.5:5432: i/o timeout"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR013",
+      "confidence": "high",
+      "supporting": [
+        "ev-03",
+        "ev-04",
+        "ev-05"
+      ]
+    }
+  ]
+}

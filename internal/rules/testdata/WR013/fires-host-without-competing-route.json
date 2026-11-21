@@ -1,0 +1,193 @@
+{
+  "description": "the host connects to 172.29.0.200, in shop_default's subnet, where no container holds it, and no other route covers it: maybe a LAN or VPN host whose route isn't there now, maybe a container that is gone (medium)",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "172.29.0.200",
+      "port": 8080,
+      "proto": "tcp",
+      "class": "ip",
+      "addr": "172.29.0.200"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "docker0",
+            "up": true,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "br-7e7e7e7e7e7e",
+            "up": true,
+            "addrs": [
+              "10.8.1.1/24"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "addrs": [
+              "192.0.2.10/24"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "api"
+      },
+      "subject": "container:shop-api-1",
+      "status": "ok",
+      "source": "docker GET /containers/{id}/json",
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "shop-api-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_default",
+        "compose": {
+          "project": "shop",
+          "service": "api"
+        },
+        "networks": [
+          {
+            "network": "shop_default",
+            "network_id": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+            "ipv4": "172.29.0.2",
+            "gateway": "172.29.0.1",
+            "names": [
+              "api",
+              "shop-api-1"
+            ],
+            "subnets": [
+              "172.29.0.0/16"
+            ],
+            "gateways": [
+              "172.29.0.1"
+            ]
+          }
+        ],
+        "pid": 103
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "host.route",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "172.29.0.200",
+      "status": "ok",
+      "source": "the kernel's routing tables (netlink RTM_GETROUTE), in whyreach's own network namespace",
+      "data": {
+        "dst": "172.29.0.200",
+        "chosen": {
+          "prefix": "172.29.0.0/16",
+          "dev": "br-5c5c5c5c5c5c",
+          "docker": true
+        },
+        "covering": [
+          {
+            "prefix": "172.29.0.0/16",
+            "dev": "br-5c5c5c5c5c5c",
+            "docker": true
+          }
+        ],
+        "networks": [
+          {
+            "network": "shop_default",
+            "subnet": "172.29.0.0/16",
+            "bridge": "br-5c5c5c5c5c5c",
+            "compose_project": "shop"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "host",
+        "executor": "host"
+      },
+      "subject": "172.29.0.200:8080",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "172.29.0.200:8080",
+        "addr": "172.29.0.200:8080",
+        "via": "literal",
+        "outcome": "unreachable",
+        "rtt_ns": 100000,
+        "errno": "EHOSTUNREACH",
+        "error": "dial tcp 172.29.0.200:8080: connect: no route to host"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR013",
+      "confidence": "medium",
+      "supporting": [
+        "ev-04",
+        "ev-05"
+      ],
+      "fix_contains": "If 172.29.0.200 is a machine on your LAN or VPN"
+    }
+  ]
+}

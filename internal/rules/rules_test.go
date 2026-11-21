@@ -99,6 +99,8 @@ func TestExplanationsKeepNames(t *testing.T) {
 	}{
 		{wr014{}, "testdata/WR014/fires-sidecar-ipv4-listener.json", "app's /etc/hosts"},
 		{wr014{}, "testdata/WR014/fires-host-service.json", "The host's /etc/hosts"},
+		{wr013{}, "testdata/WR013/fires-container-on-another-network.json", "app's traffic"},
+		{wr013{}, "testdata/WR013/fires-host-vpn-route.json", "The host's routing table"},
 	} {
 		f := loadFixture(t, tt.fixture)
 		got := tt.rule.Evaluate(evidence.NewView(f.Question, f.Evidence))

@@ -1,0 +1,21 @@
+description: the host connects to an address in the project network's subnet that no container holds
+from: host
+to: ${UNUSED_IP}:8080
+# WR013 needs no probe (the host's route lookup decides), and from the host
+# the connect runs in-process either way: the same with the default config.
+# No route but Docker's covers the address, so it is medium.
+expect:
+  verdict: likely_cause
+  top_rule: WR013
+  confidence: medium
+  fix_contains: is a machine on your LAN or VPN
+  must_not_fire: [WR001, WR004, WR015, WR019, WR024]
+expect_without_probe:
+  verdict: likely_cause
+  top_rule: WR013
+  confidence: medium
+expect_on:
+  wsl2-desktop:
+    why: Docker Desktop's VM routes the containers' traffic, so the route record is a gap
+    verdict_in: [inconclusive]
+    must_not_fire: [WR013]
