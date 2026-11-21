@@ -35,7 +35,7 @@ func (r *run) routes(ctx context.Context) error {
 	if ctx.Err() != nil || r.docker == nil || r.e.d.Routes == nil {
 		return nil
 	}
-	view := evidence.NewView(r.q, r.store.Snapshot())
+	view := r.view()
 	if _, ok := view.HostTarget(); ok {
 		return nil // an address of the host's own: not routed into a Docker network
 	}
@@ -147,7 +147,7 @@ func (r *run) outsideTargets(addrs []netip.Addr) []netip.Addr {
 	var out []netip.Addr
 	for _, a := range addrs {
 		switch {
-		case !a.IsValid(), a.IsLoopback(), a.IsUnspecified(), a.IsLinkLocalUnicast(), a.IsMulticast(), slices.Contains(out, a):
+		case !routable(a), slices.Contains(out, a):
 			continue
 		case r.inDockerSubnet(a):
 			continue // a container's, or WR013's and WR024's
@@ -155,6 +155,12 @@ func (r *run) outsideTargets(addrs []netip.Addr) []netip.Addr {
 		out = append(out, a)
 	}
 	return out
+}
+
+// routable reports an address whose host route can say where traffic to it
+// goes: not loopback, unspecified, link-local or multicast.
+func routable(a netip.Addr) bool {
+	return a.IsValid() && !a.IsLoopback() && !a.IsUnspecified() && !a.IsLinkLocalUnicast() && !a.IsMulticast()
 }
 
 // inDockerSubnet reports an address in any Docker network's subnet, of any
@@ -179,7 +185,7 @@ func (r *run) routeTargets(v evidence.View, cands []netip.Addr) []netip.Addr {
 	for _, a := range cands {
 		a = a.Unmap()
 		switch {
-		case !a.IsValid(), a.IsLoopback(), a.IsUnspecified(), a.IsLinkLocalUnicast(), a.IsMulticast(), slices.Contains(out, a):
+		case !routable(a), slices.Contains(out, a):
 			continue
 		case len(r.dockerSubnets(a)) == 0, r.dockerGateway(a), r.heldByContainer(v, a):
 			continue

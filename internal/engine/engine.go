@@ -235,6 +235,11 @@ func (e *Engine) Diagnose(ctx context.Context, from target.From, to evidence.Tar
 	return d, nil
 }
 
+// view is the evidence recorded so far, as the rules would see it.
+func (r *run) view() evidence.View {
+	return evidence.NewView(r.q, r.store.Snapshot())
+}
+
 // containerExecutor runs checks inside containers: the netns executor where
 // it can work (root, and Docker Engine on whyreach's own machine),
 // otherwise probe containers. It is nil when neither is available.

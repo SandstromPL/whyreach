@@ -220,7 +220,7 @@ func (r *run) collectHost(ctx context.Context, ht evidence.HostTarget, list []do
 	if l, ok := hostL.Data.(evidence.Listeners); ok && hostL.OK() {
 		hostAccepts = len(l.OnPort(port)) > 0
 	}
-	known := evidence.NewView(r.q, r.store.Snapshot())
+	known := r.view()
 	var cands, others []docker.Summary
 	var listenFor []evidence.Container
 	for _, s := range list {
@@ -271,7 +271,7 @@ func (r *run) collectHost(ctx context.Context, ht evidence.HostTarget, list []do
 	}
 	r.readListeners(ctx, listenFor)
 
-	view := evidence.NewView(r.q, r.store.Snapshot())
+	view := r.view()
 	if !view.HostSource() || hostAccepts || len(view.Destinations().Published) > 0 {
 		return
 	}
@@ -485,7 +485,7 @@ func (r *run) hostSide(ctx context.Context) {
 	if r.hostDone {
 		return
 	}
-	ht, ok := evidence.NewView(r.q, r.store.Snapshot()).HostTarget()
+	ht, ok := r.view().HostTarget()
 	if !ok {
 		return
 	}
@@ -508,9 +508,6 @@ func containerIDs(items []evidence.Evidence) map[string]bool {
 	return have
 }
 
-// skippedContainers records containers whyreach did not inspect because of
-// a bound. Its status keeps it out of the gaps derived from records (the gap
-// is added with it), while View.Incomplete sees it.
 // unlisted is the record of the containers whose metadata went unread
 // because Docker's list of containers couldn't be read: skipped, so the
 // gap the failed list already makes isn't made twice.
@@ -526,6 +523,9 @@ func unlisted(g Gap) evidence.Evidence {
 	}
 }
 
+// skippedContainers records containers whyreach did not inspect because of
+// a bound. Its status keeps it out of the gaps derived from records (the gap
+// is added with it), while View.Incomplete sees it.
 func skippedContainers(g Gap) evidence.Evidence {
 	return evidence.Evidence{
 		Kind:       evidence.KindContainer,

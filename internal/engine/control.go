@@ -34,7 +34,7 @@ func (r *run) hostControl(ctx context.Context) error {
 	if ctx.Err() != nil || r.q.From.Kind != evidence.SourceContainer || !r.engineHere || r.e.d.Host == nil {
 		return nil
 	}
-	view := evidence.NewView(r.q, r.store.Snapshot())
+	view := r.view()
 	if view.HostSource() {
 		return nil // a host-network container's connect was the host's own
 	}

@@ -16,7 +16,7 @@ import (
 // the gate: no probe runs from a stopped source or towards a destination
 // that isn't running (WR008 is checked first).
 func (r *run) probe(ctx context.Context) error {
-	view := evidence.NewView(r.q, r.store.Snapshot())
+	view := r.view()
 	specs := r.specs(view)
 	if len(specs) == 0 {
 		return nil
