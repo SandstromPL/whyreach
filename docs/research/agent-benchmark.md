@@ -62,6 +62,8 @@ The catalog is the 14 v0.1 pitfalls of `INITIAL.md` §4.6, one line each, in pla
 - WR020: the container's upstream DNS server doesn't answer: Docker's internal names resolve, outside names don't
 ```
 
+The v0.2 run adds the six v0.2 pitfalls ("The v0.2 run", below).
+
 Giving the shell agent the catalog favours it: it chooses among 15 answers instead of naming a cause from scratch. It also makes judging mechanical and the same for both arms.
 
 ## Judging the root cause
@@ -270,3 +272,26 @@ Tokens are what the model read and wrote, cache reads included; time is the agen
 - `transcripts/<scenario>.<arm>.jsonl.gz`: Claude Code's full stream-json output for each run.
 
 Everything is masked as described under "Privacy". Placeholders such as `<user-1>`, `<dns-1>`, `<ip-1>` and `<mac-1>` stand for the same value throughout. The account's rate-limit records and the credential expiry time are left out.
+
+## The v0.2 run (2026-11-21)
+
+v0.2 adds six rules and eight lab scenarios. Before it is tagged, the benchmark runs again over every scenario. The method is the M5 one, with these changes, decided before the run:
+- **The catalog** gains the six v0.2 pitfalls, in plain words like the others, so 20 pitfalls and 21 answers with `none`:
+
+  ```
+  - WR013: a Docker network's subnet overlaps the address range of a VPN or the local network, so traffic meant for a machine there goes into Docker instead
+  - WR014: localhost means both 127.0.0.1 and ::1, and the destination listens on only one of them (IPv4 or IPv6) while the client uses the other
+  - WR015: the source container is only on internal networks (internal: true), and the target is outside them
+  - WR016: something silently drops the connection: connects time out with no answer (for example, a firewall rule, or a network that disables inter-container traffic)
+  - WR021: the host's firewall drops or rejects connections from containers to the host
+  - WR024: the address is stale or hard-coded: no container holds that IP on the network
+  ```
+
+  Without them, neither arm could give the expected answer on six of the new scenarios.
+- **The scenarios:** all 27 that run without a host firewall set up for them; `wr021-host-firewall` is skipped, as in `make lab`. Judged as before ("Judging the root cause"), 22 have a cause and 5 expect `none`: the two healthy controls, the two that must stay inconclusive, and `wr016-host-stalled`, whose with-probe verdict is inconclusive (WR016 at low confidence, a host listener whose accept queue is full).
+- **The bar:** half the scenarios, so at least 14 of 27.
+
+Arm (b) still runs with whyreach's default configuration, and a headless client still cancels its consent requests, so it gets no probe container. That costs it more than at M5: besides WR020, the scenarios whose expected cause needs a connect from inside the container (`wr014-localhost-ipv6`, `wr016-silent-drop`) come back inconclusive in that configuration. `make lab-agent`, with probe containers approved in its config, remains the reference for what whyreach does with them.
+
+The M5 results above, `agent-benchmark/` and the README's chart stay the M5 run's.
+

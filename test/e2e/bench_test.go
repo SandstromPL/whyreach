@@ -65,7 +65,9 @@ const (
 )
 
 // benchCatalog is the list both agents choose from: the 14 v0.1 pitfalls
-// in plain words (docs/research/agent-benchmark.md, "The problem report").
+// and, since the v0.2 run, the six v0.2 ones, in plain words
+// (docs/research/agent-benchmark.md, "The problem report" and "The v0.2
+// run").
 const benchCatalog = `- WR001: nothing listens on the port inside the destination container
 - WR002: the destination listens on the port only on its own loopback address (127.0.0.1 or ::1)
 - WR003: the destination listens, but on a different port
@@ -78,8 +80,14 @@ const benchCatalog = `- WR001: nothing listens on the port inside the destinatio
 - WR010: the destination container is still starting and doesn't listen yet
 - WR011: host.docker.internal doesn't resolve in the container (on Docker Engine it needs an extra_hosts mapping to host-gateway)
 - WR012: a service on the host listens only on 127.0.0.1, so containers can't reach it
+- WR013: a Docker network's subnet overlaps the address range of a VPN or the local network, so traffic meant for a machine there goes into Docker instead
+- WR014: localhost means both 127.0.0.1 and ::1, and the destination listens on only one of them (IPv4 or IPv6) while the client uses the other
+- WR015: the source container is only on internal networks (internal: true), and the target is outside them
+- WR016: something silently drops the connection: connects time out with no answer (for example, a firewall rule, or a network that disables inter-container traffic)
 - WR019: from the host: the container's port isn't published, is published on another host port or address, or a container name is used from the host
-- WR020: the container's upstream DNS server doesn't answer: Docker's internal names resolve, outside names don't`
+- WR020: the container's upstream DNS server doesn't answer: Docker's internal names resolve, outside names don't
+- WR021: the host's firewall drops or rejects connections from containers to the host
+- WR024: the address is stale or hard-coded: no container holds that IP on the network`
 
 func benchPrompt(r running) string {
 	who := "On this machine, a program running on the host itself (not in a container)"
