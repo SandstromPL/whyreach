@@ -63,7 +63,7 @@ func (l Limits) CheckConnect(addr netip.AddrPort) (reason string, ok bool) {
 	if reason, ok := l.Check(a); !ok {
 		return reason, false
 	}
-	if !l.AddrsRestricted || !inPrefixes(l.Private, a) || inPrefixes(l.Free, a) || slices.Contains(l.Approved, netip.AddrPortFrom(a, addr.Port())) {
+	if !l.needsApproval(a) || slices.Contains(l.Approved, netip.AddrPortFrom(a, addr.Port())) {
 		return "", true
 	}
 	return AddrNotApproved, false
