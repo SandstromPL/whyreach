@@ -141,7 +141,7 @@ func (wr013) describe(f *Finding, v evidence.View, h evidence.HostRoute, n evide
 	default:
 		switch {
 		case v.HostSource() && src != v.HostLabel():
-			fmt.Fprintf(&e, "%s uses the host's network namespace (network_mode: host), and %s's routing table sends %s into %s", src, v.HostLabel(), addr, netText)
+			fmt.Fprintf(&e, "%s uses %s's network namespace (network_mode: host), and %s's routing table sends %s into %s", src, v.HostLabel(), v.HostLabel(), addr, netText)
 		case v.HostSource():
 			fmt.Fprintf(&e, "%s's routing table sends %s into %s", src, addr, netText)
 		default:

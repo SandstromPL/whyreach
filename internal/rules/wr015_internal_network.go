@@ -189,13 +189,20 @@ func hostWhat(v evidence.View, owner evidence.Container, h evidence.HostTarget) 
 	if len(at) > 0 {
 		detail = " (" + strings.Join(at, " ") + ")"
 	}
+	// host-gateway and host.docker.internal stand for Docker's host: on
+	// Docker Engine whyreach's own side (the WSL2 VM under WSL2), on Docker
+	// Desktop its host (Windows under WSL2), which whyreach doesn't see.
+	host := v.HostLabel()
+	if p, _, ok := platformOf(v); ok && p.Desktop {
+		host = "the host"
+	}
 	switch h.Via {
 	case evidence.HostViaGateway:
-		return fmt.Sprintf("%s is the host: %s's extra_hosts map it to host-gateway%s", t, owner.DisplayName(), detail)
+		return fmt.Sprintf("%s is %s: %s's extra_hosts map it to host-gateway%s", t, host, owner.DisplayName(), detail)
 	case evidence.HostViaAddress:
 		return fmt.Sprintf("%s is one of %s's own addresses%s", t, v.HostLabel(), detail)
 	default:
-		return t + " is the host"
+		return t + " is " + host
 	}
 }
 

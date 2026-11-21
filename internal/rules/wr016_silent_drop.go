@@ -325,10 +325,7 @@ func (s silence) host(d evidence.Destinations) {
 	}
 	src := sourceName(s.v)
 	fromHost := v.HostSource()
-	what := "the host's firewall"
-	if v.HostLabel() != "the host" {
-		what = host + "'s firewall"
-	}
+	what := host + "'s firewall"
 	if fromHost {
 		f.Title = fmt.Sprintf("something on %s drops its own connect to %s silently", host, quoteListAddrs(s.addrs, port))
 	} else {
@@ -352,9 +349,9 @@ func (s silence) host(d evidence.Destinations) {
 		fmt.Fprintf(&e, " Nothing on %s listens on port %d for that address, so its kernel would have refused the connect.", host, port)
 	}
 	if fromHost {
-		e.WriteString(" Something drops it on the way: a firewall rule on the host itself.")
+		fmt.Fprintf(&e, " Something drops it on the way: a firewall rule on %s itself.", host)
 		f.Explanation = e.String()
-		f.Fix = fmt.Sprintf("Check the host's own firewall rules for port %d (sudo nft list ruleset, or sudo iptables -S).", port)
+		f.Fix = fmt.Sprintf("Check %s's own firewall rules for port %d (sudo nft list ruleset, or sudo iptables -S).", host, port)
 		return
 	}
 	if hostToo {
@@ -394,7 +391,7 @@ func (s silence) fromHost(dst netnsHolder) {
 	}
 	f.Explanation = fmt.Sprintf("%s %s %s holds that address.%s From %s, nothing of Docker's stands between it and a container on a bridge network, so the drop is most likely in %s's own network namespace: a firewall there. On a macvlan or ipvlan network, %s can't reach its own containers at all, by the driver's design.",
 		s.connects(), s.timedOut()+".", name, via, s.v.HostLabel(), name, s.v.HostLabel())
-	f.Fix = fmt.Sprintf("Check the firewall rules in %s's network namespace (a VPN or security container sharing it, for example). If its network is a macvlan or ipvlan one, reach it from a container on that network instead, or give the host a macvlan interface of its own there.", name)
+	f.Fix = fmt.Sprintf("Check the firewall rules in %s's network namespace (a VPN or security container sharing it, for example). If its network is a macvlan or ipvlan one, reach it from a container on that network instead, or give %s a macvlan interface of its own there.", name, s.v.HostLabel())
 }
 
 // outside: no container holds the address, and it isn't the host's. The

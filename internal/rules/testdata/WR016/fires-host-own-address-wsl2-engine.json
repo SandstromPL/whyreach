@@ -1,0 +1,140 @@
+{
+  "description": "under WSL2 (Docker Engine in the distro), the WSL2 VM connects to its own address and times out although it listens there: a firewall rule on the WSL2 VM itself; the prose names the WSL2 VM, not the host",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "192.0.2.10",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "ip",
+      "addr": "192.0.2.10"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "WSL2 VM"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "platform",
+      "context": {
+        "kind": "host",
+        "name": "WSL2 VM"
+      },
+      "subject": "platform",
+      "status": "ok",
+      "data": {
+        "name": "wsl2-engine",
+        "wsl": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "WSL2 VM"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "docker0",
+            "up": true,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "addrs": [
+              "192.0.2.10/24"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "WSL2 VM"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "source": "/proc/thread-self/net/tcp{,6} in whyreach's own network namespace",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:5432"
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "host",
+        "name": "WSL2 VM",
+        "executor": "host"
+      },
+      "subject": "192.0.2.10:5432",
+      "status": "ok",
+      "source": "TCP connect",
+      "data": {
+        "target": "192.0.2.10:5432",
+        "addr": "192.0.2.10:5432",
+        "via": "literal",
+        "outcome": "timeout",
+        "rtt_ns": 2000000000,
+        "error": "dial tcp 192.0.2.10:5432: i/o timeout"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR016",
+      "confidence": "medium",
+      "supporting": [
+        "ev-03",
+        "ev-04",
+        "ev-05"
+      ],
+      "fix_contains": "the WSL2 VM's own firewall rules",
+      "fix_lacks": "the host"
+    }
+  ]
+}

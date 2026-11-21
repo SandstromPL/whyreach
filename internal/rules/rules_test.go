@@ -110,17 +110,28 @@ func TestExplanationsKeepNames(t *testing.T) {
 	}
 }
 
-// TestWSL2NamesTheVM: under WSL2, whyreach's host-side network namespace
-// is the WSL2 VM's (INITIAL.md §3.7), so prose about a source there names
-// the WSL2 VM, never the host.
+// TestWSL2NamesTheVM: under WSL2 with Docker Engine in the distro,
+// whyreach's host-side network namespace, which is also the host Docker's
+// containers mean, is the WSL2 VM's (INITIAL.md §3.7), so the prose names
+// the WSL2 VM, never the host. Under Docker Desktop's WSL integration the
+// host the containers mean is Windows: host.docker.internal stays the host.
 func TestWSL2NamesTheVM(t *testing.T) {
 	for _, tt := range []struct {
 		rule    Rule
 		fixture string
-		want    []string
+		want    []string // in the title, explanation or fix
+		desktop bool     // the host meant is Docker Desktop's, not the WSL2 VM
 	}{
-		{wr002{}, "testdata/WR002/fires-from-wsl2-connect-timed-out.json", []string{"so the WSL2 VM can't reach it", "But the WSL2 VM's connect timed out"}},
-		{wr019{}, "testdata/WR019/fires-container-name-from-wsl2.json", []string{"the WSL2 VM can't resolve api", "From the WSL2 VM's network namespace"}},
+		{rule: wr002{}, fixture: "testdata/WR002/fires-from-wsl2-connect-timed-out.json", want: []string{"so the WSL2 VM can't reach it", "But the WSL2 VM's connect timed out"}},
+		{rule: wr002{}, fixture: "testdata/WR002/fires-through-published-port-wsl2-engine.json", want: []string{"so the socket never sees them: the WSL2 VM's connection is refused"}},
+		{rule: wr013{}, fixture: "testdata/WR013/fires-host-network-container-wsl2-engine.json", want: []string{"worker uses the WSL2 VM's network namespace (network_mode: host), and the WSL2 VM's routing table sends"}},
+		{rule: wr015{}, fixture: "testdata/WR015/fires-host-gateway-wsl2-engine.json", want: []string{"host.docker.internal is the WSL2 VM: app's extra_hosts map it to host-gateway"}},
+		{rule: wr015{}, fixture: "testdata/WR015/fires-host-docker-internal-wsl2-engine.json", want: []string{"host.docker.internal is the WSL2 VM, outside shop_backend"}},
+		{rule: wr015{}, fixture: "testdata/WR015/fires-docker-desktop.json", want: []string{"host.docker.internal is the host, outside shop_backend"}, desktop: true},
+		{rule: wr016{}, fixture: "testdata/WR016/fires-host-own-address-wsl2-engine.json", want: []string{"something on the WSL2 VM drops its own connect", "a firewall rule on the WSL2 VM itself", "Check the WSL2 VM's own firewall rules"}},
+		{rule: wr016{}, fixture: "testdata/WR016/fires-host-to-container-wsl2-engine.json", want: []string{"From the WSL2 VM, nothing of Docker's", "give the WSL2 VM a macvlan interface"}},
+		{rule: wr016{}, fixture: "testdata/WR016/fires-wsl2-engine-host-target.json", want: []string{"most likely the WSL2 VM's firewall", "Check the WSL2 VM's firewall"}},
+		{rule: wr019{}, fixture: "testdata/WR019/fires-container-name-from-wsl2.json", want: []string{"the WSL2 VM can't resolve api", "From the WSL2 VM's network namespace"}},
 	} {
 		f := loadFixture(t, tt.fixture)
 		got := tt.rule.Evaluate(evidence.NewView(f.Question, f.Evidence))
@@ -129,12 +140,16 @@ func TestWSL2NamesTheVM(t *testing.T) {
 			continue
 		}
 		text := got[0].Title + "\n" + got[0].Explanation
+		all := text + "\n" + got[0].Fix
 		for _, w := range tt.want {
-			if !strings.Contains(text, w) {
-				t.Errorf("%s: want %q in:\n%s", tt.fixture, w, text)
+			if !strings.Contains(all, w) {
+				t.Errorf("%s: want %q in:\n%s", tt.fixture, w, all)
 			}
 		}
-		if strings.Contains(text, "the host") {
+		switch {
+		case tt.desktop && strings.Contains(all, "WSL2 VM"):
+			t.Errorf("%s: names the WSL2 VM for Docker Desktop's host:\n%s", tt.fixture, all)
+		case !tt.desktop && strings.Contains(text, "the host"):
 			t.Errorf("%s: names the host under WSL2:\n%s", tt.fixture, text)
 		}
 	}

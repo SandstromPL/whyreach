@@ -73,8 +73,8 @@ func (r wr002) Evaluate(v evidence.View) []Finding {
 		f.Explanation = fmt.Sprintf("%s's only %s for port %d %s %s (in %s). A socket bound to loopback accepts connections only from inside %s's own network namespace, so %s can't reach it.",
 			name, plural(len(socks), "listener", "listeners"), port, plural(len(socks), "is", "are"), socketList(socks), name, name, sourceName(v))
 		if m.Published != nil {
-			f.Explanation = fmt.Sprintf("%s publishes %s → its port %d, but its only %s for port %d %s %s (in %s). The published port forwards connections into the container from outside its loopback, so the socket never sees them: the host's connection is refused, or accepted and closed at once by docker-proxy.",
-				name, m.Published.HostAddr(), port, plural(len(socks), "listener", "listeners"), port, plural(len(socks), "is", "are"), socketList(socks), name)
+			f.Explanation = fmt.Sprintf("%s publishes %s → its port %d, but its only %s for port %d %s %s (in %s). The published port forwards connections into the container from outside its loopback, so the socket never sees them: %s's connection is refused, or accepted and closed at once by docker-proxy.",
+				name, m.Published.HostAddr(), port, plural(len(socks), "listener", "listeners"), port, plural(len(socks), "is", "are"), socketList(socks), name, v.HostLabel())
 		}
 		partOfReplicas(&f, servingReplicas(v, matches, m), m.C.Name)
 		contradictedByPath(v, &f)
