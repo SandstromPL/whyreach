@@ -51,13 +51,24 @@ func TestLabNetns(t *testing.T) {
 		t.Run(filepath.Base(dir), func(t *testing.T) {
 			r := bringUp(t, dir)
 			source := ""
-			for _, cfg := range []struct{ name, home string }{
+			for i, cfg := range []struct{ name, home string }{
 				{"default-config", l.noProbe},
 				{"probe-containers-on", l.withProbe},
 			} {
 				t.Run(cfg.name, func(t *testing.T) {
 					d := diagnose(t, cfg.home, r.from, r.to)
-					check(t, d, *r.s.Expect)
+					want := *r.s.Expect
+					if i > 0 {
+						// As root both runs connect, so the second finds the
+						// network as the first left it: an address nothing
+						// holds, which ARP gave up on, now fails at once with
+						// "no route to host" instead of timing out (WR024,
+						// WR013). The diagnosis must stay the same; the
+						// outcome of the connect and the timeout's
+						// suppressed rule are the first run's to check.
+						want.TCPOutcomes, want.Suppressed = nil, nil
+					}
+					check(t, d, want)
 					if len(d.SideEffects) != 0 {
 						t.Errorf("as root whyreach must not write to Docker: %v", d.SideEffects)
 					}
@@ -73,9 +84,14 @@ func TestLabNetns(t *testing.T) {
 				if len(res.SideEffects) != 0 {
 					t.Errorf("as root whyreach must not write to Docker: %v", res.SideEffects)
 				}
-				if n := checkNetns(t, res.Evidence, source); n == 0 {
+				switch n := checkNetns(t, res.Evidence, source); {
+				case n == 0 && allBlocked(res.Evidence):
+					// The probe policy refused the target before any
+					// executor ran (inconclusive-outside-allowlist): nothing
+					// to send, as the scenario expects.
+				case n == 0:
 					t.Errorf("run_probe sent nothing through the netns executor: %+v", res.Evidence)
-				} else {
+				default:
 					inNetns += n
 				}
 			})
@@ -91,6 +107,23 @@ func TestLabNetns(t *testing.T) {
 	if imageExists(l.probeImage) {
 		t.Errorf("whyreach imported its probe image %s", l.probeImage)
 	}
+}
+
+// allBlocked reports TCP records that the probe policy all refused to send,
+// at least one of them.
+func allBlocked(evs []evidence.Evidence) bool {
+	n := 0
+	for _, ev := range evs {
+		if ev.Kind != evidence.KindTCP {
+			continue
+		}
+		p, ok := ev.Data.(evidence.TCPProbe)
+		if !ok || ev.Status != evidence.StatusSkipped || p.Outcome != evidence.OutcomeBlocked {
+			return false
+		}
+		n++
+	}
+	return n > 0
 }
 
 // checkNetns checks the DNS and TCP records of checks that ran inside a
