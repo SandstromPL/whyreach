@@ -68,12 +68,8 @@ func (r *run) compose(v evidence.View, ranked rules.Ranked, sideEffects []string
 // connectedFromSource reports whether the source connected to the target
 // through the name (or literal address) the app uses.
 func connectedFromSource(v evidence.View) (bool, string) {
-	q := v.Question()
-	for _, t := range v.TCP() {
-		if !inSource(q, t.Context) || !t.P.ByName() {
-			continue
-		}
-		if t.P.Outcome == evidence.OutcomeConnected {
+	for _, t := range v.SourceTCP() {
+		if t.P.ByName() && t.P.Outcome == evidence.OutcomeConnected {
 			return true, t.P.Addr.String()
 		}
 	}
@@ -83,20 +79,12 @@ func connectedFromSource(v evidence.View) (bool, string) {
 // refusedFromSource names the first address the source's connect through
 // the target's name (or literal address) was refused at.
 func refusedFromSource(v evidence.View) string {
-	q := v.Question()
-	for _, t := range v.TCP() {
-		if inSource(q, t.Context) && t.P.ByName() && t.P.Outcome == evidence.OutcomeRefused {
+	for _, t := range v.SourceTCP() {
+		if t.P.ByName() && t.P.Outcome == evidence.OutcomeRefused {
 			return t.P.Addr.String()
 		}
 	}
 	return "another of its addresses"
-}
-
-func inSource(q evidence.Question, c evidence.ContextRef) bool {
-	if q.From.Kind == evidence.SourceHost {
-		return c.Kind == evidence.ContextHost
-	}
-	return c.Kind == evidence.ContextContainer && c.Container == evidence.ShortID(q.From.ContainerID)
 }
 
 func sourceName(v evidence.View) string {
@@ -142,8 +130,8 @@ func summary(d *Diagnosis, v evidence.View, connAddr string) string {
 	case len(d.Gaps) > 0:
 		return fmt.Sprintf("No cause found for %s → %s, but %d %s could not be checked (see gaps).", src, to, len(d.Gaps), plural(len(d.Gaps), "thing", "things"))
 	}
-	for _, t := range v.TCP() {
-		if inSource(v.Question(), t.Context) && t.P.ByName() {
+	for _, t := range v.SourceTCP() {
+		if t.P.ByName() {
 			return fmt.Sprintf("No cause found for %s → %s: the connect %s, and no rule explains it yet.", src, to, outcomeText(t.P))
 		}
 	}
@@ -239,7 +227,7 @@ func facts(v evidence.View, complete bool) []Fact {
 		}
 	}
 	for _, d := range v.DNS() {
-		if !inSource(q, d.Context) {
+		if !v.InSource(d.Context) {
 			continue
 		}
 		ctx := d.Context.String()
@@ -255,7 +243,7 @@ func facts(v evidence.View, complete bool) []Fact {
 	}
 	for _, t := range v.TCP() {
 		control := t.P.Via == evidence.ViaControl && t.Context.Kind == evidence.ContextHost
-		if !inSource(q, t.Context) && !control {
+		if !v.InSource(t.Context) && !control {
 			continue
 		}
 		via := ""
@@ -285,7 +273,7 @@ func facts(v evidence.View, complete bool) []Fact {
 		socks := l.OnPort(port)
 		where := e.Context.Where()
 		if len(socks) == 0 {
-			if relevantListenerContext(v, e.Context) {
+			if relevantListenerContext(e.Context, owner, haveOwner, dests) {
 				add(fmt.Sprintf("nothing listens on port %d in %s", port, where), e.ID)
 			}
 			continue
@@ -330,22 +318,17 @@ func hostFact(h *evidence.HostTarget, q evidence.Question, owner evidence.Contai
 	}
 }
 
-// relevantListenerContext limits "nothing listens" facts to the source (for
-// a loopback target), the destinations, and the host when it is the target.
-func relevantListenerContext(v evidence.View, c evidence.ContextRef) bool {
+// relevantListenerContext limits "nothing listens" facts to the source's
+// network namespace (for a loopback target), the destinations, and the host
+// when it is the target: owner, haveOwner and dests are the view's.
+func relevantListenerContext(c evidence.ContextRef, owner evidence.ContainerEv, haveOwner bool, dests evidence.Destinations) bool {
 	if c.Kind == evidence.ContextHost {
-		_, ok := v.HostTarget()
-		return ok
+		return dests.Host != nil
 	}
-	if owner, ok := v.NetnsOwner(); ok && evidence.ShortID(owner.C.ID) == c.Container {
+	if haveOwner && evidence.ShortID(owner.C.ID) == c.Container {
 		return true
 	}
-	for _, m := range v.Destinations().All() {
-		if evidence.ShortID(m.C.ID) == c.Container {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(dests.All(), func(m evidence.Match) bool { return evidence.ShortID(m.C.ID) == c.Container })
 }
 
 // stateText completes "api …" for a container that isn't running.
