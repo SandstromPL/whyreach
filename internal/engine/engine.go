@@ -152,12 +152,11 @@ func IsUsage(err error) bool {
 
 // run is the state of one diagnosis.
 type run struct {
-	e       *Engine
-	docker  Docker // nil once Docker turns out to be unreachable
-	store   evidence.Store
-	q       evidence.Question
-	from    target.From
-	version docker.Version
+	e      *Engine
+	docker Docker // nil once Docker turns out to be unreachable
+	store  evidence.Store
+	q      evidence.Question
+	from   target.From
 	// platform is where whyreach and the containers run; engineHere is set
 	// when Docker Engine runs on whyreach's own machine (linux-engine,
 	// wsl2-engine), so its PIDs are this machine's: /proc/<pid> and setns
@@ -169,7 +168,7 @@ type run struct {
 	// containers (where engineHere is false); maxProbeListeners bounds it.
 	probeListeners int
 	gaps           []Gap
-	timing         map[string]time.Duration
+	timing         map[string]time.Duration // each stage's duration; only Diagnose keeps it
 	// networks is Docker's network list by name, read once before any
 	// container is inspected: it gives each attachment its internal flag
 	// and subnets. Nil when the list wasn't read.
@@ -249,7 +248,6 @@ func (r *run) containerExecutor() executor.Executor {
 // setDaemon records what the daemon said about itself and classifies the
 // platform from it.
 func (r *run) setDaemon(v docker.Version) {
-	r.version = v
 	r.platform = r.e.platformFor(platform.Daemon{OS: v.Os, Platform: v.Platform.Name, Kernel: v.KernelVersion})
 	r.engineHere = platform.EngineHere(r.platform.Name)
 }

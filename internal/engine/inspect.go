@@ -162,7 +162,7 @@ func (e *Engine) Inspect(ctx context.Context, scope target.Scope) (*Inspection, 
 func (e *Engine) inspectHost(ctx context.Context, in *Inspection) {
 	h := &HostFacts{Interfaces: []IfaceFacts{}, Listening: []string{}, Containers: []ContainerBrief{}}
 	in.Host = h
-	r := &run{e: e, docker: e.d.Docker, timing: map[string]time.Duration{}}
+	r := &run{e: e, docker: e.d.Docker}
 	bridges := map[string]string{} // interface → network
 	if r.docker == nil {
 		r.dockerGap(e.d.DockerErr)
@@ -288,7 +288,7 @@ func (e *Engine) inspectContainer(ctx context.Context, scope target.Scope, in *I
 	if e.d.Docker == nil {
 		return &Error{Code: evidence.CodeDockerUnavailable, Message: "inspecting a container needs the Docker API: " + errText(e.d.DockerErr)}
 	}
-	r := &run{e: e, docker: e.d.Docker, from: target.From(scope), timing: map[string]time.Duration{}}
+	r := &run{e: e, docker: e.d.Docker, from: target.From(scope)}
 	v, err := negotiate(ctx, r.docker)
 	if err != nil {
 		return &Error{Code: evidence.CodeDockerUnavailable, Message: err.Error()}

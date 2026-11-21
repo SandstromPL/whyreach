@@ -79,7 +79,7 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 	if e.d.Docker == nil {
 		return nil, &Error{Code: evidence.CodeDockerUnavailable, Message: "checks from a container need the Docker API: " + errText(e.d.DockerErr)}
 	}
-	r := &run{e: e, docker: e.d.Docker, from: from, timing: map[string]time.Duration{}}
+	r := &run{e: e, docker: e.d.Docker, from: from}
 	v, err := negotiate(ctx, r.docker)
 	if err != nil {
 		return nil, &Error{Code: evidence.CodeDockerUnavailable, Message: err.Error()}

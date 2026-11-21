@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"time"
 
 	"github.com/SandstromPL/whyreach/internal/collect/docker"
 	"github.com/SandstromPL/whyreach/internal/evidence"
@@ -32,7 +31,7 @@ const (
 // API, the host's interfaces and listeners, and a container's listeners
 // through /proc. It writes nothing.
 func (e *Engine) SelfCheck(ctx context.Context) []Check {
-	r := &run{e: e, docker: e.d.Docker, timing: map[string]time.Duration{}}
+	r := &run{e: e, docker: e.d.Docker}
 	var out []Check
 	switch {
 	case e.d.Docker == nil && e.d.DockerErr == nil:
