@@ -235,7 +235,8 @@ func TestSkippedPeersLowerWR005(t *testing.T) {
 
 // TestInternalNetworkIsNotUpstreamDNS: on internal: true networks Docker's
 // DNS answers SERVFAIL for external names at once; that is the network's
-// isolation, not a failing upstream (WR020; M2 review).
+// isolation, not a failing upstream (WR020; M2 review). The source's
+// attachment carries the network list's internal flag and subnets.
 func TestInternalNetworkIsNotUpstreamDNS(t *testing.T) {
 	for _, internal := range []bool{false, true} {
 		w := shopWorld()
@@ -257,8 +258,12 @@ func TestInternalNetworkIsNotUpstreamDNS(t *testing.T) {
 		}
 		for _, e := range d.Evidence {
 			if c, ok := e.Data.(evidence.Container); ok && c.Name == "shop-worker-1" {
-				if a, _ := c.Attachment("shop_default"); a.Internal != internal {
+				a, _ := c.Attachment("shop_default")
+				if a.Internal != internal {
 					t.Errorf("internal=%v: the source's attachment says internal=%v", internal, a.Internal)
+				}
+				if want := []netip.Prefix{netip.MustParsePrefix("172.22.0.0/16")}; !slices.Equal(a.Subnets, want) {
+					t.Errorf("internal=%v: the source's attachment has subnets %v, want %v", internal, a.Subnets, want)
 				}
 			}
 		}

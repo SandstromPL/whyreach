@@ -169,9 +169,10 @@ type run struct {
 	// metadataIncomplete is set when some containers' metadata could not be
 	// read or was skipped: "no container has that name" can't be claimed then.
 	metadataIncomplete bool
-	// internal names the internal: true networks, read once before any
-	// container is inspected; nil when the list wasn't read.
-	internal map[string]bool
+	// networks is Docker's network list by name, read once before any
+	// container is inspected: it gives each attachment its internal flag
+	// and subnets. Nil when the list wasn't read.
+	networks map[string]docker.Network
 	// list is the container list collect read; hostDone is set once the
 	// host's side of a host target is collected.
 	list     []docker.Summary

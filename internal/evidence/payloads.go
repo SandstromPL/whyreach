@@ -117,6 +117,10 @@ type NetAttachment struct {
 	// Internal is the network's internal: true (no way out of the host),
 	// from Docker's network list; false when that list couldn't be read.
 	Internal bool `json:"internal,omitempty"`
+	// Subnets are the network's subnets, from the same list (WR015: what is
+	// on the network and what lies outside it); empty when it couldn't be
+	// read.
+	Subnets []netip.Prefix `json:"subnets,omitempty"`
 }
 
 // PortMap is one published port: container port → host address. A running
@@ -251,6 +255,22 @@ func (c Container) Addrs() []netip.Addr {
 	}
 	slices.SortFunc(out, netip.Addr.Compare)
 	return slices.Compact(out)
+}
+
+// SubnetHolding returns the network, among the container's attachments,
+// whose subnet holds addr: an address the container reaches on that
+// network directly, without a gateway. False when none does, or when the
+// subnets are unknown.
+func (c Container) SubnetHolding(addr netip.Addr) (string, bool) {
+	addr = addr.Unmap()
+	for _, a := range c.Networks {
+		for _, p := range a.Subnets {
+			if p.Contains(addr) {
+				return a.Network, true
+			}
+		}
+	}
+	return "", false
 }
 
 // Docker's predefined networks. The default bridge has no embedded DNS, and

@@ -46,7 +46,7 @@ func (r *run) resolve(ctx context.Context) error {
 	if r.from.Kind == target.FromHost {
 		return nil
 	}
-	r.internal = r.internalNetworks(ctx)
+	r.networks = r.networkList(ctx)
 	src, err := r.findSource(ctx)
 	if err != nil {
 		var ee *Error
@@ -155,7 +155,10 @@ func (r *run) inspectEv(ctx context.Context, idOrName string) (evidence.Containe
 		return c, evidence.Evidence{}, err
 	}
 	for i := range c.Networks {
-		c.Networks[i].Internal = r.internal[c.Networks[i].Network]
+		if n, ok := r.networks[c.Networks[i].Network]; ok {
+			c.Networks[i].Internal = n.Internal
+			c.Networks[i].Subnets = n.Subnets
+		}
 	}
 	return c, evidence.Evidence{
 		Kind: evidence.KindContainer, Context: evidence.InContainer(c), Subject: "container:" + c.Name,
@@ -164,21 +167,21 @@ func (r *run) inspectEv(ctx context.Context, idOrName string) (evidence.Containe
 	}, nil
 }
 
-// internalNetworks lists the networks with internal: true. Containers on
-// them have no way out of the host, which changes what a failed external
-// lookup means (WR020). It returns nil when the list can't be read.
-func (r *run) internalNetworks(ctx context.Context) map[string]bool {
+// networkList reads Docker's networks by name: whether each is internal:
+// true, whose containers have no way out of the host (WR015, and what a
+// failed external lookup means for WR020), and its subnets, which tell what
+// a container reaches on a network directly. It returns nil when the list
+// can't be read.
+func (r *run) networkList(ctx context.Context) map[string]docker.Network {
 	lctx, cancel := context.WithTimeout(ctx, dockerTimeout)
 	defer cancel()
 	nets, err := r.docker.ListNetworks(lctx)
 	if err != nil {
 		return nil
 	}
-	out := map[string]bool{}
+	out := map[string]docker.Network{}
 	for _, n := range nets {
-		if n.Internal {
-			out[n.Name] = true
-		}
+		out[n.Name] = n
 	}
 	return out
 }
