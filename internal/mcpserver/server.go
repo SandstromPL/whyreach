@@ -145,12 +145,13 @@ func (s *Server) auditRejected(next mcp.MethodHandler) mcp.MethodHandler {
 		}
 		tool, args := "unknown_tool", map[string]string{}
 		if r, ok := req.(*mcp.CallToolRequest); ok && r.Params != nil {
+			rejectedArgs(r.Params.Arguments, args)
+			// After the arguments: one named "name" must not hide the tool.
 			if slices.Contains(tools, r.Params.Name) {
 				tool = r.Params.Name
 			} else {
 				args["name"] = cutRunes(target.MaskCredentials(r.Params.Name), 64)
 			}
-			rejectedArgs(r.Params.Arguments, args)
 		}
 		msg := "refused before the tool ran"
 		if err != nil {
@@ -181,11 +182,7 @@ func rejectedArgs(raw json.RawMessage, args map[string]string) {
 		return
 	}
 	keys := slices.Sorted(maps.Keys(m))
-	if len(keys) > 8 {
-		args["arguments"] = fmt.Sprintf("<%d names>", len(keys))
-		keys = keys[:8]
-	}
-	for _, k := range keys {
+	for _, k := range keys[:min(len(keys), 8)] {
 		var kind string
 		switch v := m[k].(type) {
 		case string:
@@ -202,6 +199,9 @@ func rejectedArgs(raw json.RawMessage, args map[string]string) {
 			kind = "<object>"
 		}
 		args[cutRunes(k, 64)] = kind
+	}
+	if len(keys) > 8 { // after the names: one named "arguments" must not hide the count
+		args["arguments"] = fmt.Sprintf("<%d names>", len(keys))
 	}
 }
 

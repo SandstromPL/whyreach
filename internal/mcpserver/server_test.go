@@ -481,6 +481,35 @@ func TestRefusedCallsAreAudited(t *testing.T) {
 	}
 }
 
+// A refused call's own arguments can't hide what the audit says about it:
+// an argument called name, the unknown tool's name; one called arguments,
+// how many there were.
+func TestRefusedCallKeepsItsToolName(t *testing.T) {
+	h := newHarness(t, false)
+	cs := h.connect(t, nil, "")
+	args := map[string]any{"name": "diagnose_connection"}
+	if _, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "delete_everything", Arguments: args}); err == nil {
+		t.Error("an unknown tool was accepted")
+	}
+	for i := range 8 {
+		args[fmt.Sprintf("b%d", i)] = i // after "arguments"
+	}
+	args["arguments"] = "x"
+	if _, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "delete_everything", Arguments: args}); err == nil {
+		t.Error("an unknown tool was accepted")
+	}
+	e := auditEntries(t, h.audit, "unknown_tool")
+	if len(e) != 2 {
+		t.Fatalf("audit: %+v", e)
+	}
+	if e[0].Args["name"] != "delete_everything" || e[1].Args["name"] != "delete_everything" {
+		t.Errorf("the tool's name: %q, %q", e[0].Args["name"], e[1].Args["name"])
+	}
+	if e[1].Args["arguments"] != "<10 names>" {
+		t.Errorf("the argument count: %q", e[1].Args["arguments"])
+	}
+}
+
 // resolving runs the real probe code with a fake DNS server that answers
 // every A query with 127.0.0.1, and records what was sent: it shows whether
 // a lookup left the probe (INITIAL.md §10 Q11).
