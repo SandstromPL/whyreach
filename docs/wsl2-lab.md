@@ -222,7 +222,7 @@ To try a client on Windows, follow `docs/wsl2.md` (install whyreach in the distr
 
 ## 8. Optional: WR021 against a real host firewall in run A
 
-WR021 (the host's firewall turns away traffic from containers to the host) hasn't met a real firewall yet: the dev box has none, and the lab never changes one. Run A's distro is the lab's own, so its firewall can be on for a few minutes. Only the scenario `wr021-host-firewall` runs here; it is skipped unless `WHYREACH_LAB_HOST_FIREWALL` is set. With run A's setup running (step 0), in **Ubuntu** (if `ufw` is missing: `sudo apt install ufw`), first ufw's default "deny incoming", which drops what comes in from Docker's bridges:
+WR021 (the host's firewall turns away traffic from containers to the host) has met a real firewall only here: the dev box has none, and the lab never changes one (it passed both cases on 2026-11-21). Run A's distro is the lab's own, so its firewall can be on for a few minutes. Only the scenario `wr021-host-firewall` runs here; it is skipped unless `WHYREACH_LAB_HOST_FIREWALL` is set. With run A's setup running (step 0), in **Ubuntu** (if `ufw` is missing: `sudo apt install ufw`), first ufw's default "deny incoming", which drops what comes in from Docker's bridges:
 
 ```bash
 cd ~/whyreach && sudo ufw --force enable && WHYREACH_LAB_HOST_FIREWALL=1 go test -tags lab -count=1 ./test/e2e -run 'TestLab/wr021' -v 2>&1 | tee /mnt/c/whyreach-lab/results/wr021-drop.txt; sudo ufw disable
