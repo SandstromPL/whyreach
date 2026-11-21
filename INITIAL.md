@@ -533,6 +533,7 @@ Sources for the columns:
 | WR023 | Docker Desktop: `network_mode: host` means the VM | 2 | platform + NetworkMode | no | 14 | v0.3 · M7 |
 | WR024 | Stale or hard-coded container IP: an address on one of the source's networks (given literally or through `extra_hosts`) that no container holds, other than the network's gateway. Not built yet, the second half: the source's sockets still pointing at an old IP (an app that looked a name up once), which needs the source's connection table | 2 | the source's subnets and gateways + the containers' addresses (+ no answer from the source: EHOSTUNREACH, or whyreach's 2 s timeout before ARP gives up at about 3 s); for the second half, the source's socket table | partly | 13 | v0.2 · **M6** (first half) |
 | WR025 | Advertised-address redirect (Kafka and similar) | — | — | — | 19 | deferred (ID reserved) |
+| WR026 | A network disables inter-container communication: `enable_icc=false`, or the daemon's `"icc": false` for the default bridge | 4 | Docker's network options, from metadata alone | no | not measured | planned, after v0.2's six rules (not in v0.2); until then WR016's high case (ADR 0002's M6 amendments) |
 
 ### 4.7 Executors
 
