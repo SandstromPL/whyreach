@@ -1,0 +1,127 @@
+{
+  "description": "db is on the same internal network: containers there reach each other",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-app-1",
+      "container_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "to": {
+      "host": "db",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app"
+      },
+      "subject": "container:shop-app-1",
+      "status": "ok",
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "shop-app-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_backend",
+        "pid": 13,
+        "compose": {
+          "project": "shop",
+          "service": "app"
+        },
+        "networks": [
+          {
+            "network": "shop_backend",
+            "network_id": "shop_backend-id",
+            "ipv4": "172.28.0.2",
+            "names": [
+              "app",
+              "shop-app-1"
+            ],
+            "internal": true,
+            "subnets": [
+              "172.28.0.0/16"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "db"
+      },
+      "subject": "container:shop-db-1",
+      "status": "ok",
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "shop-db-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_backend",
+        "pid": 12,
+        "compose": {
+          "project": "shop",
+          "service": "db"
+        },
+        "networks": [
+          {
+            "network": "shop_backend",
+            "network_id": "shop_backend-id",
+            "ipv4": "172.28.0.3",
+            "names": [
+              "db",
+              "shop-db-1"
+            ],
+            "internal": true,
+            "subnets": [
+              "172.28.0.0/16"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    }
+  ],
+  "want": []
+}

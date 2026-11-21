@@ -104,3 +104,14 @@ Decisions made while building them:
 - **WR019** covers four host-side cases in priority order: published on another host address, published under another host port, listening but not published (medium when several containers do), and a container name used from the host.
 - **WR012 and WR011** fire only on Linux Docker Engine, read from the `docker.version` evidence (Docker Desktop resolves `host.docker.internal` and reaches host services its own way).
 - **Two scenarios must stay inconclusive** (`INITIAL.md` §6.3): a stale address (WR024, v0.2) and a server that closes every connection. No v0.1 rule fires on either.
+
+## Amendment (2026-11-21, M6): WR015, the first v0.2 rule
+
+Decision 2's v0.2 list starts with WR015: an `internal: true` network, with the target outside it. Decisions made while building it:
+
+- **Metadata settles it** (Probe? no, as E8 found). The source's network namespace is only on internal networks: none without `internal: true`, and not on the default bridge either. The target lies outside them. So WR015 reaches high in the default configuration.
+- **Containers' network attachments carry their networks' subnets**, from the same network list that gives the internal flag. "Outside" means the host, an address on none of the source's subnets, an address the source's `extra_hosts` map a name to (if it is off those subnets too), or a name with a dot that no container answers to.
+- **A target on the source's own subnets is never outside.** Docker still gives an internal network's bridge its gateway address, and a container reaches the host there: measured on Engine 29.9.3, the connect was refused with nothing listening and accepted with a listener. An address on the subnet that no container holds is a stale address (WR024). Neither does WR015 fire for a container on another network (WR004) or a single-label name, which is more likely mistyped (WR005).
+- **A connect from the source** that is refused or accepted shows a route exists, so WR015 doesn't fire. A timeout or "no route to host" instead of "network is unreachable" (ENETUNREACH) means the kernel had a route, so WR015 drops a level.
+- **It supersedes WR016**, as `INITIAL.md` §4.5's table says (WR016 comes later in v0.2). Listener findings about the host (WR001, WR012) stay independent: once the network is fixed, they still apply.
+- **The lab scenario** (`wr015-internal-network`) reaches a host service through `host.docker.internal`. `host-gateway` maps that name to the docker0 address, so the probe allowlist lets the connect run, and the harness listens there: the internal flag is the only thing wrong. The scenario passes with probe containers on and with the default config, and under `make lab-desktop` with nothing platform-specific.

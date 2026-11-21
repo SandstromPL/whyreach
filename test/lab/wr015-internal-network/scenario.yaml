@@ -1,0 +1,18 @@
+description: client is only on an internal network, so it can't reach a service on the host through host.docker.internal
+host_listen: [docker0]
+from: service:client@${PROJECT}
+to: host.docker.internal:${HOST_PORT}
+expect:
+  verdict: cause_identified
+  top_rule: WR015
+  confidence: high
+  fix_contains: "internal: true"
+  must_not_fire: [WR001, WR011, WR012, WR020]
+  tcp_outcomes: ["hosts:unreachable"]
+# Docker metadata settles it (Probe? no): the networks' internal flag and
+# subnets, and that host-gateway is the host. Same answer without probes.
+expect_without_probe:
+  verdict: cause_identified
+  top_rule: WR015
+  confidence: high
+  must_not_fire: [WR001, WR011, WR012, WR020]

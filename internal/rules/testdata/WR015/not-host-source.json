@@ -1,0 +1,76 @@
+{
+  "description": "the source is the host, not a container on an internal network",
+  "question": {
+    "from": {
+      "kind": "host",
+      "ref": "host"
+    },
+    "to": {
+      "host": "203.0.113.10",
+      "port": 443,
+      "proto": "tcp",
+      "class": "ip",
+      "addr": "203.0.113.10"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "br-shopbackend",
+            "up": true,
+            "addrs": [
+              "172.28.0.1/16"
+            ]
+          },
+          {
+            "name": "docker0",
+            "up": true,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "addrs": [
+              "192.0.2.10/24"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    }
+  ],
+  "want": []
+}

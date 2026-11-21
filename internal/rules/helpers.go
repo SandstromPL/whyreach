@@ -90,6 +90,26 @@ func connectedByName(v evidence.View) bool {
 	return false
 }
 
+// onlyInternal reports a container whose user-defined networks are all
+// internal: true, and which isn't on the default bridge either: it has no
+// way out of its networks (WR015, WR020).
+func onlyInternal(c evidence.Container) bool {
+	n := 0
+	for _, a := range c.Networks {
+		if !evidence.UserDefined(a.Network) {
+			if a.Network == evidence.NetworkBridge {
+				return false // the default bridge has a way out
+			}
+			continue
+		}
+		if !a.Internal {
+			return false
+		}
+		n++
+	}
+	return n > 0
+}
+
 // sharedNetworks lists the networks two containers are both attached to.
 func sharedNetworks(a, b evidence.Container) []string {
 	var out []string

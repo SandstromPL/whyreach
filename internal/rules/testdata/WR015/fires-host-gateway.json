@@ -1,0 +1,182 @@
+{
+  "description": "app is only on the internal network shop_backend; host.docker.internal maps to host-gateway (docker0), outside it, and the connect fails at once with network is unreachable (measured on Engine 29.9.3)",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:shop-app-1",
+      "container_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "to": {
+      "host": "host.docker.internal",
+      "port": 5432,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.version",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "docker",
+      "status": "ok",
+      "data": {
+        "version": "29.9.3",
+        "api_version": "1.56",
+        "os": "linux",
+        "arch": "amd64",
+        "platform": "Docker Engine - Community",
+        "linux_engine": true
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-01"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app"
+      },
+      "subject": "container:shop-app-1",
+      "status": "ok",
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "shop-app-1",
+        "image": "img",
+        "state": "running",
+        "exit_code": 0,
+        "started_at": "2026-11-13T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "shop_backend",
+        "pid": 13,
+        "compose": {
+          "project": "shop",
+          "service": "app"
+        },
+        "networks": [
+          {
+            "network": "shop_backend",
+            "network_id": "shop_backend-id",
+            "ipv4": "172.28.0.2",
+            "names": [
+              "app",
+              "shop-app-1"
+            ],
+            "internal": true,
+            "subnets": [
+              "172.28.0.0/16"
+            ]
+          }
+        ],
+        "extra_hosts": [
+          "host.docker.internal:host-gateway"
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-02"
+    },
+    {
+      "kind": "host.addrs",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "interfaces",
+      "status": "ok",
+      "data": {
+        "interfaces": [
+          {
+            "name": "br-shopbackend",
+            "up": true,
+            "addrs": [
+              "172.28.0.1/16"
+            ]
+          },
+          {
+            "name": "docker0",
+            "up": true,
+            "addrs": [
+              "172.17.0.1/16"
+            ]
+          },
+          {
+            "name": "eth0",
+            "up": true,
+            "addrs": [
+              "192.0.2.10/24"
+            ]
+          }
+        ]
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-03"
+    },
+    {
+      "kind": "probe.dns",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app",
+        "executor": "probe-container"
+      },
+      "subject": "host.docker.internal",
+      "status": "ok",
+      "data": {
+        "name": "host.docker.internal",
+        "server": "",
+        "rcode": "NOERROR",
+        "answers": [
+          "172.17.0.1"
+        ],
+        "via": "hosts",
+        "answered": "host.docker.internal"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-04"
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "app",
+        "executor": "probe-container"
+      },
+      "subject": "host.docker.internal:5432",
+      "status": "ok",
+      "data": {
+        "target": "host.docker.internal:5432",
+        "addr": "172.17.0.1:5432",
+        "via": "hosts",
+        "outcome": "unreachable",
+        "rtt_ns": 90000,
+        "errno": "ENETUNREACH",
+        "error": "dial tcp 172.17.0.1:5432: connect: network is unreachable"
+      },
+      "observed_at": "2026-11-13T10:05:00Z",
+      "duration_ms": 0.5,
+      "id": "ev-05"
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR015",
+      "confidence": "high",
+      "supporting": [
+        "ev-02",
+        "ev-03",
+        "ev-04",
+        "ev-05"
+      ],
+      "fix_contains": "networks: [backend, default]"
+    }
+  ]
+}

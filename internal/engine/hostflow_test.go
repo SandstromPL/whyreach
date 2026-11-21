@@ -235,8 +235,9 @@ func TestSkippedPeersLowerWR005(t *testing.T) {
 
 // TestInternalNetworkIsNotUpstreamDNS: on internal: true networks Docker's
 // DNS answers SERVFAIL for external names at once; that is the network's
-// isolation, not a failing upstream (WR020; M2 review). The source's
-// attachment carries the network list's internal flag and subnets.
+// isolation (WR015), not a failing upstream (WR020; M2 review). The source's
+// attachment carries the network list's internal flag and subnets, which
+// WR015 decides from.
 func TestInternalNetworkIsNotUpstreamDNS(t *testing.T) {
 	for _, internal := range []bool{false, true} {
 		w := shopWorld()
@@ -251,7 +252,10 @@ func TestInternalNetworkIsNotUpstreamDNS(t *testing.T) {
 		}
 		want := "WR020"
 		if internal {
-			want = ""
+			want = "WR015"
+			if slices.ContainsFunc(d.Findings, func(f rules.Finding) bool { return f.RuleID == "WR020" }) {
+				t.Errorf("WR020 fired on an internal network: %+v", d.Findings)
+			}
 		}
 		if got != want {
 			t.Errorf("internal=%v: primary %q, want %q: %+v", internal, got, want, d.Findings)

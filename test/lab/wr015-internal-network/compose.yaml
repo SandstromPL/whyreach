@@ -1,0 +1,35 @@
+# WR015: client is only on backend, an internal: true network (the usual
+# reason: keep db cut off), and its target, a service on the host reached
+# through host.docker.internal (host-gateway), is outside it. Docker gives
+# containers on internal networks no route out, so the connect fails at once
+# with "network is unreachable" and nothing leaves the container. The
+# harness's host service listens on the default bridge's gateway, where
+# host-gateway points: from a network with a way out, the connect would work.
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  client:
+    <<: *server
+    command: ["serve", "0.0.0.0:7000"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    networks: [backend]
+  db:
+    <<: *server
+    command: ["serve", "0.0.0.0:5432"]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "/labserver", "check", "127.0.0.1:5432"]
+    networks: [backend]
+
+networks:
+  backend:
+    internal: true
+    labels: { io.whyreach.lab: "1" }
