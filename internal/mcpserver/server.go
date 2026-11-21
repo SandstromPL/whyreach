@@ -61,7 +61,6 @@ type Server struct {
 	questions int                 // questions about names and addresses asked this session
 	answers   map[string]string   // per name or address question: pending, approved or declined
 	pending   map[string]question // request states of questions sent as input requests
-	readOnly  bool                // the annotations currently registered
 }
 
 // question is what an input request asked the user: to allow probe
@@ -217,9 +216,6 @@ const instructions = `whyreach diagnoses network connections between Docker cont
 	`with to=<host:port the app uses> and from=<the client: host, container:<name> or service:<compose service>[@<project>]>. ` +
 	`Follow its next_checks; use inspect_environment to see containers and networks, and run_probe to test one thing.`
 
-// MCP returns the underlying SDK server, for transports and tests.
-func (s *Server) MCP() *mcp.Server { return s.srv }
-
 // Run serves until the client disconnects or ctx ends.
 func (s *Server) Run(ctx context.Context, t mcp.Transport) error {
 	return s.srv.Run(ctx, t)
@@ -256,13 +252,10 @@ func (s *Server) logClient(req *mcp.CallToolRequest) {
 // in effect: readOnlyHint is false whenever probe containers may run.
 func (s *Server) register() {
 	readOnly := !s.p.ProbeContainers()
-	s.mu.Lock()
-	s.readOnly = readOnly
-	s.mu.Unlock()
 	no, yes := false, true
 	probing := &mcp.ToolAnnotations{ReadOnlyHint: readOnly, DestructiveHint: &no, IdempotentHint: true, OpenWorldHint: &yes}
 	mcp.AddTool(s.srv, &mcp.Tool{
-		Name:  "diagnose_connection",
+		Name:  policy.ToolDiagnose,
 		Title: "Diagnose a failing network connection (Docker)",
 		Description: "Diagnose why a network connection fails between Docker containers, or between a container and the host: " +
 			"connection refused, timeouts, names that don't resolve. Use this first when one service can't connect to another. " +
@@ -273,7 +266,7 @@ func (s *Server) register() {
 		Annotations: probing,
 	}, s.diagnose)
 	mcp.AddTool(s.srv, &mcp.Tool{
-		Name:  "inspect_environment",
+		Name:  policy.ToolInspect,
 		Title: "Inspect Docker networking facts",
 		Description: "Inspect Docker networking: scope host (Docker version, interfaces, listening ports, containers and published ports), " +
 			"container:<name> or service:<name>[@<project>] (state, networks, IPs, DNS names, published ports, listening sockets), " +
@@ -281,7 +274,7 @@ func (s *Server) register() {
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, DestructiveHint: &no, IdempotentHint: true, OpenWorldHint: &no},
 	}, s.inspect)
 	mcp.AddTool(s.srv, &mcp.Tool{
-		Name:  "run_probe",
+		Name:  policy.ToolProbe,
 		Title: "Run one network check (DNS, TCP connect, listeners)",
 		Description: "Run one network check from the host or from inside a container's network namespace: kind dns (target: a name), " +
 			"kind tcp (target: host:port; connects and closes, sends nothing) or kind listeners (no target: the listening TCP sockets). " +
@@ -290,7 +283,7 @@ func (s *Server) register() {
 		Annotations: probing,
 	}, s.probe)
 	mcp.AddTool(s.srv, &mcp.Tool{
-		Name:  "save_report",
+		Name:  policy.ToolSave,
 		Title: "Save a diagnosis as a report bundle",
 		Description: "Save a diagnosis (its id from diagnose_connection) with all its evidence as a report bundle on disk, to attach to an issue. " +
 			"The bundle is redacted: public IP addresses, host names and container IDs are replaced by pseudonyms.",
