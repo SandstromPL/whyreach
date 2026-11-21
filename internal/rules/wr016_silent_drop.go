@@ -36,7 +36,7 @@ func (wr016) Supersedes() []string      { return nil }
 
 func (r wr016) Evaluate(v evidence.View) []Finding {
 	var timedOut []evidence.TCPEv
-	for _, t := range fromSource(v) {
+	for _, t := range v.SourceTCP() {
 		if !t.P.ByName() {
 			continue // an address from Docker's metadata isn't how the app connects
 		}

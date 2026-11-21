@@ -121,7 +121,7 @@ func publishedList(b []evidence.PortMap) string {
 // refusedFrom adds the source's refused or closed connects to ids.
 func refusedFrom(v evidence.View, in []string) []string {
 	out := in
-	for _, t := range fromSource(v) {
+	for _, t := range v.SourceTCP() {
 		if t.P.Outcome == evidence.OutcomeRefused || t.P.Outcome == evidence.OutcomeClosed {
 			out = append(out, t.ID)
 		}

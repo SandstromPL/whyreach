@@ -59,7 +59,7 @@ func (r wr012) Evaluate(v evidence.View) []Finding {
 		Supporting: append([]string{src.ID, hl.ID}, d.Host.Evidence...),
 	}
 	refused := false
-	for _, t := range fromSource(v) {
+	for _, t := range v.SourceTCP() {
 		if t.P.Outcome == evidence.OutcomeRefused {
 			f.Supporting = append(f.Supporting, t.ID)
 			refused = true

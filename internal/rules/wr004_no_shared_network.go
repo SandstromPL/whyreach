@@ -69,7 +69,7 @@ func (r wr004) Evaluate(v evidence.View) []Finding {
 	// destination's own address is unreachable from it.
 	dstAddrs := dst.C.Addrs()
 	if q.To.Class == evidence.TargetName {
-		if dns, ok := dnsFromSource(v, q.To.Host); ok {
+		if dns, ok := v.SourceDNS(q.To.Host); ok {
 			foreign := false
 			for _, a := range dns.P.Answers {
 				if !slices.Contains(dstAddrs, a) {
@@ -87,7 +87,7 @@ func (r wr004) Evaluate(v evidence.View) []Finding {
 			}
 		}
 	}
-	for _, t := range fromSource(v) {
+	for _, t := range v.SourceTCP() {
 		if slices.Contains(dstAddrs, t.P.Addr.Addr()) && t.P.Outcome != evidence.OutcomeConnected {
 			f.Supporting = append(f.Supporting, t.ID)
 		}

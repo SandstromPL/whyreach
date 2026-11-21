@@ -58,56 +58,20 @@ func sentence(s string) string {
 	return s
 }
 
-// fromSource returns the TCP probes that ran in the source's netns.
-func fromSource(v evidence.View) []evidence.TCPEv {
-	q := v.Question()
-	var out []evidence.TCPEv
-	for _, t := range v.TCP() {
-		switch q.From.Kind {
-		case evidence.SourceHost:
-			if t.Context.Kind == evidence.ContextHost {
-				out = append(out, t)
-			}
-		case evidence.SourceContainer:
-			if t.Context.Kind == evidence.ContextContainer && t.Context.Container == evidence.ShortID(q.From.ContainerID) {
-				out = append(out, t)
-			}
-		}
-	}
-	return out
-}
-
-// dnsFromSource returns the source's lookup of name, if one ran.
-func dnsFromSource(v evidence.View, name string) (evidence.DNSEv, bool) {
-	q := v.Question()
-	for _, d := range v.DNS() {
-		if !strings.EqualFold(d.P.Name, name) {
-			continue
-		}
-		if q.From.Kind == evidence.SourceHost && d.Context.Kind == evidence.ContextHost {
-			return d, true
-		}
-		if q.From.Kind == evidence.SourceContainer && d.Context.Container == evidence.ShortID(q.From.ContainerID) {
-			return d, true
-		}
-	}
-	return evidence.DNSEv{}, false
-}
-
 // resolvedFromSource reports that the target name resolved from the source.
 func resolvedFromSource(v evidence.View) bool {
 	q := v.Question()
 	if q.To.Class != evidence.TargetName {
 		return false
 	}
-	d, ok := dnsFromSource(v, q.To.Host)
+	d, ok := v.SourceDNS(q.To.Host)
 	return ok && len(d.P.Answers) > 0
 }
 
 // connectedByName reports a connect from the source that reached the target
 // through the name the app uses (not through a metadata address).
 func connectedByName(v evidence.View) bool {
-	for _, t := range fromSource(v) {
+	for _, t := range v.SourceTCP() {
 		if t.P.ByName() && t.P.Outcome == evidence.OutcomeConnected {
 			return true
 		}
@@ -266,7 +230,7 @@ func replicaName(matches []evidence.Match, m evidence.Match) string {
 func contradictedByPath(v evidence.View, f *Finding) {
 	var against []string
 	unreachable := true
-	for _, t := range fromSource(v) {
+	for _, t := range v.SourceTCP() {
 		if !t.P.ByName() {
 			continue
 		}

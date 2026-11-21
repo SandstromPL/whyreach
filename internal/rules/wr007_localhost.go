@@ -77,7 +77,7 @@ func (r wr007) Evaluate(v evidence.View) []Finding {
 		f.Confidence = High
 		f.Supporting = append(f.Supporting, local.ID)
 	}
-	for _, t := range fromSource(v) {
+	for _, t := range v.SourceTCP() {
 		if t.P.Outcome == evidence.OutcomeRefused {
 			f.Supporting = append(f.Supporting, t.ID)
 		}

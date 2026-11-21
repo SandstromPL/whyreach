@@ -240,13 +240,13 @@ func (r wr019) byName(v evidence.View, d evidence.Destinations) []Finding {
 // hostRefused reports a connect from the host that was refused: nothing on
 // the host took the port at that address.
 func hostRefused(v evidence.View) bool {
-	return slices.ContainsFunc(fromSource(v), func(t evidence.TCPEv) bool { return t.P.Outcome == evidence.OutcomeRefused })
+	return slices.ContainsFunc(v.SourceTCP(), func(t evidence.TCPEv) bool { return t.P.Outcome == evidence.OutcomeRefused })
 }
 
 // confirm adds the refused or closed connects from the host to supporting IDs.
 func (wr019) confirm(v evidence.View, base ...string) []string {
 	out := slices.Clone(base)
-	for _, t := range fromSource(v) {
+	for _, t := range v.SourceTCP() {
 		if t.P.Outcome == evidence.OutcomeRefused || t.P.Outcome == evidence.OutcomeClosed {
 			out = append(out, t.ID)
 		}

@@ -59,7 +59,7 @@ func (r wr021) Evaluate(v evidence.View) []Finding {
 		return nil // Docker Desktop: the host is Windows or macOS, behind Docker Desktop's network stack
 	}
 	var failed []evidence.TCPEv
-	for _, t := range fromSource(v) {
+	for _, t := range v.SourceTCP() {
 		if !t.P.ByName() {
 			continue
 		}

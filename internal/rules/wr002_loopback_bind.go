@@ -23,7 +23,7 @@ func (r wr002) Evaluate(v evidence.View) []Finding {
 	if q.To.Class == evidence.TargetLoopback && !v.HostSource() {
 		return nil // reaching loopback from inside the same netns works; WR007 covers the rest
 	}
-	probes := fromSource(v)
+	probes := v.SourceTCP()
 	// The connection goes to the destination's network address (or, through
 	// a published port, to the container port behind it). A loopback-bound
 	// socket refuses that even from inside its own network namespace, so the

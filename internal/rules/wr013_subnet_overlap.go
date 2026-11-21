@@ -71,7 +71,7 @@ func (r wr013) Evaluate(v evidence.View) []Finding {
 			f.Confidence = High
 		}
 		var noAnswer []string
-		for _, t := range fromSource(v) {
+		for _, t := range v.SourceTCP() {
 			if t.P.Addr.Addr().Unmap() != h.Dst {
 				continue
 			}

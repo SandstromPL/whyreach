@@ -69,7 +69,7 @@ func (r wr024) Evaluate(v evidence.View) []Finding {
 	// container. No answer confirms it: "no route to host" once ARP gives
 	// up, or whyreach's own timeout before that.
 	noAnswer, other := "", ""
-	for _, t := range fromSource(v) {
+	for _, t := range v.SourceTCP() {
 		if !t.P.ByName() || t.P.Addr.Addr().Unmap() != addr {
 			continue
 		}

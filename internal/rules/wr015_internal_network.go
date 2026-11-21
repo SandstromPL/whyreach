@@ -55,7 +55,7 @@ func (r wr015) Evaluate(v evidence.View) []Finding {
 	// internal network's signature; a timeout or "no route to host" means
 	// the kernel had a route, so something else stopped it.
 	unreachable, other := false, ""
-	for _, t := range fromSource(v) {
+	for _, t := range v.SourceTCP() {
 		if !t.P.ByName() {
 			continue
 		}

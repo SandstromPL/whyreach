@@ -94,7 +94,7 @@ func (r wr014) Evaluate(v evidence.View) []Finding {
 		f.Supporting = append(f.Supporting, dns.ID)
 	}
 	conns := map[netip.Addr]evidence.TCPEv{}
-	for _, t := range fromSource(v) {
+	for _, t := range v.SourceTCP() {
 		if t.P.ByName() && t.P.Addr.Port() == port {
 			conns[t.P.Addr.Addr().Unmap()] = t
 		}
