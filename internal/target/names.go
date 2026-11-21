@@ -2,6 +2,7 @@ package target
 
 import (
 	"net/netip"
+	"slices"
 	"strings"
 )
 
@@ -34,12 +35,7 @@ func OutsideName(name string) bool {
 	if h == "localhost" || strings.HasSuffix(h, ".localhost") {
 		return false
 	}
-	for _, f := range dockerFixedNames {
-		if h == f {
-			return false
-		}
-	}
-	return true
+	return !slices.Contains(dockerFixedNames, h)
 }
 
 // CoveredBy reports whether name is one of domains or a subdomain of one:

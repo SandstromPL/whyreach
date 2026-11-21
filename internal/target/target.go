@@ -317,8 +317,7 @@ func ParseScope(s string) (Scope, error) {
 	}
 	f, err := ParseFrom(in)
 	if err != nil {
-		var te *Error
-		if errors.As(err, &te) {
+		if te, ok := errors.AsType[*Error](err); ok {
 			te.Arg = "scope"
 			te.Reason = "want host, container:<name>, service:<name>[@<project>] or network:<name>"
 		}

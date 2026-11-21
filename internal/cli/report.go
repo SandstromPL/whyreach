@@ -201,8 +201,9 @@ type ruleInfo struct {
 }
 
 func catalog() []ruleInfo {
-	var out []ruleInfo
-	for _, r := range rules.All() {
+	all := rules.All()
+	out := make([]ruleInfo, 0, len(all))
+	for _, r := range all {
 		page, _ := ruledocs.Page(r.ID())
 		out = append(out, ruleInfo{
 			ID: r.ID(), Layer: int(r.Layer()), LayerName: r.Layer().String(), Title: ruledocs.Title(page), Doc: rules.DocURL(r.ID()),
@@ -252,8 +253,9 @@ func newRules() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := strings.ToUpper(strings.TrimSpace(args[0]))
 			if _, ok := rules.ByID(id); !ok {
-				var ids []string
-				for _, r := range catalog() {
+				c := catalog()
+				ids := make([]string, 0, len(c))
+				for _, r := range c {
 					ids = append(ids, r.ID)
 				}
 				return usageErr(fmt.Errorf("no rule %q; the rules are %s", report.Sanitize(args[0]), strings.Join(ids, ", ")))

@@ -96,8 +96,7 @@ func Execute(ctx context.Context, args []string, o Options) int {
 	root.SetOut(o.Stdout)
 	root.SetErr(o.Stderr)
 	if err := root.ExecuteContext(ctx); err != nil {
-		var ee *exitError
-		if errors.As(err, &ee) {
+		if ee, ok := errors.AsType[*exitError](err); ok {
 			code = ee.code
 		} else {
 			code = ExitUsage // cobra's own errors: unknown flags, wrong argument counts
