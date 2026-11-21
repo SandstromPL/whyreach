@@ -1,5 +1,5 @@
 {
-  "description": "worker reaches the host through host.docker.internal (host-gateway, 172.17.0.1), the host listens on 0.0.0.0:5432, and the connect times out: most often the host's firewall, which doesn't let Docker's networks in (WR021's case, once built)",
+  "description": "worker reaches the host through host.docker.internal (host-gateway, 172.17.0.1), the host listens on 0.0.0.0:5432, and the connect times out: most often the host's firewall, which doesn't let Docker's networks in (WR021 fires too, at medium without the host's own connect, and supersedes WR016)",
   "question": {
     "from": {
       "kind": "container",

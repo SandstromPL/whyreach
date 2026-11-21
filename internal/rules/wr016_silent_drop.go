@@ -21,12 +21,12 @@ import (
 //
 // It is the last resort for timeouts: every rule that explains one
 // supersedes it (WR004, WR005, WR008, WR009, WR011, WR013, WR015, WR024,
-// and WR021 for the host's firewall once it is built). Probe? yes: without
-// the source's connect it isn't evaluated. Frequency not measured.
+// and WR021 for the host's firewall). Probe? yes: without the source's
+// connect it isn't evaluated. Frequency not measured.
 //
 // Only timeouts: EHOSTUNREACH and ENETUNREACH are answers (WR024, WR013,
-// WR015, and WR021 to come), and EACCES, EPERM and EINVAL are the source's
-// own kernel refusing to send (a prohibit or blackhole route).
+// WR015, WR021), and EACCES, EPERM and EINVAL are the source's own kernel
+// refusing to send (a prohibit or blackhole route).
 type wr016 struct{}
 
 func (wr016) ID() string                { return "WR016" }
@@ -308,7 +308,9 @@ func (s silence) queue(name, app string, queued []evidence.Socket, port uint16) 
 // host: the target is the host's own address (or a port published there).
 // The host's listeners show that it would have answered (medium); what
 // drops the traffic is most often the host's firewall, which doesn't let
-// Docker's networks in (WR021's case, once it is built).
+// Docker's networks in: WR021's case, which supersedes this one when the
+// host answers its own connect to the same address and port. When that
+// connect timed out too, the drop covers the host's own traffic as well.
 func (s silence) host(d evidence.Destinations) {
 	v, f := s.v, s.f
 	host := v.HostLabel()
@@ -322,8 +324,18 @@ func (s silence) host(d evidence.Destinations) {
 	}
 	port := v.Question().To.Port
 	accept, queued := s.listening(l.L, port)
+	// whyreach's own connect from the host, made for comparison (WR021):
+	// timed out too, it says the drop isn't only for Docker's networks.
+	ctl, ran := v.HostControl(netip.AddrPortFrom(s.addrs[0], port))
+	hostToo := ran && ctl.P.Outcome == evidence.OutcomeTimeout
+	if hostToo {
+		f.Supporting = append(f.Supporting, ctl.ID)
+	}
 	if read && len(queued) > 0 {
 		s.queue(host, "the app listening on "+host, queued, port)
+		if hostToo {
+			f.Explanation += fmt.Sprintf(" whyreach's own connect from %s to the same address and port timed out as well.", host)
+		}
 		return
 	}
 	src := s.source()
@@ -358,6 +370,12 @@ func (s silence) host(d evidence.Destinations) {
 		e.WriteString(" Something drops it on the way: a firewall rule on the host itself.")
 		f.Explanation = e.String()
 		f.Fix = fmt.Sprintf("Check the host's own firewall rules for port %d (sudo nft list ruleset, or sudo iptables -S).", port)
+		return
+	}
+	if hostToo {
+		fmt.Fprintf(&e, " whyreach's own connect from %s to the same address and port timed out as well, so what drops the traffic drops %s's own too: a firewall rule for the port that covers every source, or an app that has stopped accepting connections since its sockets were read.", host, host)
+		f.Explanation = e.String()
+		f.Fix = fmt.Sprintf("Check %s for a rule about port %d that covers every source (sudo nft list ruleset, or sudo iptables -S INPUT), and whether the app on port %d still accepts connections (its logs; restarting it empties its queue).", what, port, port)
 		return
 	}
 	fmt.Fprintf(&e, " Something drops the traffic on the way, most often %s (ufw, firewalld or iptables INPUT rules), which by default doesn't let Docker's networks in.", what)

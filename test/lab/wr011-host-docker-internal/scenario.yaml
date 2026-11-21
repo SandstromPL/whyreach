@@ -7,7 +7,7 @@ expect:
   top_rule: WR011
   confidence: high
   fix_contains: host.docker.internal:host-gateway
-  must_not_fire: [WR005, WR012, WR020]
+  must_not_fire: [WR005, WR012, WR020, WR021]
 # The mapping is visible in metadata; the failed lookup confirms it (Probe? partly).
 expect_without_probe:
   verdict: likely_cause
@@ -22,4 +22,4 @@ expect_on:
   wsl2-desktop:
     why: Docker Desktop provides host.docker.internal, and the host it reaches is Windows
     verdict_in: [no_problem_reproduced, inconclusive]
-    must_not_fire: [WR011, WR012, WR005, WR020]
+    must_not_fire: [WR011, WR012, WR005, WR020, WR021]

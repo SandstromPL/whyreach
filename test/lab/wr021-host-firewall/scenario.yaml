@@ -1,0 +1,23 @@
+description: the host's firewall turns away client's connection through host.docker.internal, while the host serves the port to itself
+host_firewall: true
+host_listen: [docker0]
+from: service:client@${PROJECT}
+to: host.docker.internal:${HOST_PORT}
+# client's connect is dropped (a timeout) or rejected ("no route to host"),
+# and whyreach's own connect from the host is accepted.
+expect:
+  verdict: cause_identified
+  top_rule: WR021
+  confidence: high
+  must_not_fire: [WR011, WR012, WR001, WR006, WR015]
+  tcp_outcomes: ["control:connected"]
+# Without client's connect, WR021 isn't evaluated (Probe? yes).
+expect_without_probe:
+  verdict: inconclusive
+  must_not_fire: [WR021, WR016, WR011, WR012, WR001]
+  gap_contains: "probe_containers = true"
+expect_on:
+  wsl2-desktop:
+    why: the host Docker Desktop's containers reach is Windows, whose firewall whyreach can't see
+    verdict_in: [no_problem_reproduced, inconclusive]
+    must_not_fire: [WR021, WR016, WR012, WR011, WR001]

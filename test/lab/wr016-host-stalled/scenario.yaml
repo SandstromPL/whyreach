@@ -1,0 +1,26 @@
+description: a host service has stopped accepting connections, so client's connect to it through host.docker.internal times out
+host_listen: [docker0-stalled]
+from: service:client@${PROJECT}
+to: host.docker.internal:${HOST_PORT}
+# client's connect times out, and so does whyreach's own connect from the
+# host (via "control"), so WR021 stays out; the host's listener shows the
+# connection waiting in its accept queue, WR016's weak lead.
+expect:
+  verdict: inconclusive
+  top_rule: WR016
+  confidence: low
+  must_not_fire: [WR021, WR011, WR012, WR001, WR006]
+  tcp_outcomes: ["hosts:timeout", "control:timeout"]
+# Without client's connect, neither WR016 nor WR021 is evaluated.
+expect_without_probe:
+  verdict: inconclusive
+  must_not_fire: [WR016, WR021, WR011, WR012, WR001]
+  gap_contains: "probe_containers = true"
+# On Docker Desktop's WSL integration the host the client reaches is
+# Windows, not the WSL2 VM where the harness listens (on loopback there):
+# whyreach can't read Windows' listeners or connect from it.
+expect_on:
+  wsl2-desktop:
+    why: the host Docker Desktop's containers reach is Windows, whose listeners and firewall whyreach can't see
+    verdict_in: [no_problem_reproduced, inconclusive]
+    must_not_fire: [WR021, WR016, WR012, WR011, WR001]

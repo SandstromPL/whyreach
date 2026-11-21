@@ -6,7 +6,7 @@ expect:
   top_rule: WR006
   confidence: high
   fix_contains: weblo:8080
-  must_not_fire: [WR002, WR004, WR008]
+  must_not_fire: [WR002, WR004, WR008, WR021]
   tcp_outcomes: ["dns:refused"]
 expect_without_probe:
   verdict: cause_identified

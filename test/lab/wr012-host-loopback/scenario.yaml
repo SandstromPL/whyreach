@@ -6,7 +6,7 @@ expect:
   verdict: cause_identified
   top_rule: WR012
   confidence: high
-  must_not_fire: [WR011, WR006]
+  must_not_fire: [WR011, WR006, WR021]
   tcp_outcomes: ["hosts:refused"]
 # The host's listeners settle it without a probe.
 expect_without_probe:
@@ -20,4 +20,4 @@ expect_on:
   wsl2-desktop:
     why: the host Docker Desktop's containers reach is Windows, whose listeners whyreach can't read
     verdict_in: [no_problem_reproduced, inconclusive]
-    must_not_fire: [WR011, WR012, WR001]
+    must_not_fire: [WR011, WR012, WR001, WR021]

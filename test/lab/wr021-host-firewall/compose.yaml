@@ -1,0 +1,28 @@
+# WR021: the host's firewall turns away what comes in from Docker's networks.
+# The harness listens on the docker0 address, where client reaches the host
+# through host.docker.internal (host-gateway). The scenario runs only where
+# someone set up a host firewall for it (WHYREACH_LAB_HOST_FIREWALL=1): ufw's
+# default "deny incoming" drops client's connect, a reject rule for Docker's
+# bridges (iptables -I INPUT -i br-+ -j REJECT --reject-with
+# icmp-host-prohibited) rejects it, and either way whyreach's own connect from
+# the host gets through, as firewalls accept loopback traffic. The lab never
+# changes the host's firewall itself (INITIAL.md §10 Q9).
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  client:
+    <<: *server
+    command: ["serve", "0.0.0.0:7000"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

@@ -37,6 +37,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -70,7 +71,10 @@ type scenario struct {
 	} `yaml:"settle"`
 	// HostListen starts listeners on the host for the scenario's duration:
 	// "loopback" (127.0.0.1) or "docker0" (the default bridge's gateway), on
-	// one free port, which ${HOST_PORT} names.
+	// one free port, which ${HOST_PORT} names. "docker0-stalled" is a
+	// listener there whose app never accepts and whose accept queue is
+	// full, so new connections time out (WR016), the host's own included
+	// (WR021 must not take it for a firewall).
 	HostListen         []string `yaml:"host_listen"`
 	From               string   `yaml:"from"`
 	To                 string   `yaml:"to"`
@@ -82,6 +86,12 @@ type scenario struct {
 	// §3.7). SkipOn skips the scenario on a platform, with the reason.
 	ExpectOn map[string]*expectOn `yaml:"expect_on"`
 	SkipOn   map[string]string    `yaml:"skip_on"`
+	// HostFirewall marks a scenario that needs the host's firewall to drop
+	// or reject what comes in from Docker's networks (WR021). The lab never
+	// changes the host's firewall, so the scenario is skipped unless
+	// WHYREACH_LAB_HOST_FIREWALL says such a firewall was set up, on a
+	// machine meant for it (a throwaway WSL2 distro: INITIAL.md §10 Q9).
+	HostFirewall bool `yaml:"host_firewall"`
 	// ExpectDesktopWithoutProbe replaces the generic check of the default
 	// config where Docker's PIDs aren't this machine's (Docker Desktop),
 	// for a scenario whose honest answer there is another rule.
@@ -445,6 +455,9 @@ func bringUpAs(t *testing.T, dir, project, composeDir string) running {
 	if s.Expect == nil {
 		t.Fatal("scenario.yaml has no expect")
 	}
+	if s.HostFirewall && os.Getenv("WHYREACH_LAB_HOST_FIREWALL") == "" {
+		t.Skip("needs a host firewall that drops or rejects what comes in from Docker's networks, which the lab never sets up: set one up on a machine meant for it, then WHYREACH_LAB_HOST_FIREWALL=1 (INITIAL.md §10 Q9)")
+	}
 	if why, ok := s.SkipOn[l.expectOn]; ok {
 		t.Skipf("skipped on %s: %s", l.expectOn, why)
 	}
@@ -534,8 +547,12 @@ func hostListen(t *testing.T, where []string) string {
 		// The default bridge's gateway is an address of this machine only
 		// where Docker Engine runs here; Docker Desktop's bridges are in
 		// its own VM, so there the listener stays on loopback.
-		if w == "docker0" && platform.EngineHere(l.platform) {
+		if (w == "docker0" || w == "docker0-stalled") && platform.EngineHere(l.platform) {
 			addr = bridgeGateway(t)
+		}
+		if w == "docker0-stalled" {
+			port = stalledListen(t, addr, port)
+			continue
 		}
 		ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp4", net.JoinHostPort(addr, port))
 		if err != nil {
@@ -556,6 +573,45 @@ func hostListen(t *testing.T, where []string) string {
 			}
 		}()
 	}
+	return port
+}
+
+// stalledListen listens on addr:port (port "0" for a free one) like an app
+// that has stopped accepting connections: a backlog of 0, never an accept,
+// and the accept queue filled with one connection of its own, so the kernel
+// drops every new connection and its clients time out (measured in M6:
+// ADR 0002's WR016 and WR021 amendments). It returns the port.
+func stalledListen(t *testing.T, addr, port string) string {
+	t.Helper()
+	ip, err := netip.ParseAddr(addr)
+	if err != nil || !ip.Is4() {
+		t.Fatalf("stalled listener on %q: an IPv4 address is needed", addr)
+	}
+	p, _ := strconv.Atoi(port)
+	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = syscall.Close(fd) })
+	if err := syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Bind(fd, &syscall.SockaddrInet4{Port: p, Addr: ip.As4()}); err != nil {
+		t.Fatalf("stalled listener on %s: %v", net.JoinHostPort(addr, port), err)
+	}
+	if err := syscall.Listen(fd, 0); err != nil {
+		t.Fatal(err)
+	}
+	sa, err := syscall.Getsockname(fd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port = strconv.Itoa(sa.(*syscall.SockaddrInet4).Port)
+	c, err := (&net.Dialer{Timeout: 2 * time.Second}).DialContext(context.Background(), "tcp4", net.JoinHostPort(addr, port))
+	if err != nil {
+		t.Fatalf("filling the stalled listener's queue: %v", err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
 	return port
 }
 

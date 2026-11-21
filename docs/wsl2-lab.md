@@ -29,7 +29,7 @@ git bundle create bin/wsl2/whyreach-wsl2.bundle HEAD "$(git branch --show-curren
 cp docs/wsl2-lab.md bin/wsl2/
 ```
 
-Copy the folder `bin/wsl2` (the bundle, its checksum and this guide) to a USB stick. The same stick brings the results back (step 8).
+Copy the folder `bin/wsl2` (the bundle, its checksum and this guide) to a USB stick. The same stick brings the results back (step 9).
 
 ## The PC, once
 
@@ -220,9 +220,25 @@ It asks for your sudo password once and runs every scenario through the netns ex
 
 To try a client on Windows, follow `docs/wsl2.md` (install whyreach in the distro, add it to Claude Code, Claude Desktop, VS Code or Cursor with the `wsl.exe` command), start the demo in the distro (`docker compose -f demo/compose.yaml up -d --wait`), and ask the agent why `worker` can't reach `http://localhost:8080`. It should answer WR007, with `api:8080` as the fix (with probe containers off, on run B, it says it can't see inside the containers and asks for them).
 
-## 8. Bring the results back
+## 8. Optional: WR021 against a real host firewall in run A
 
-`C:\whyreach-lab\results` now holds a folder per distro (each run's `summary.txt` and logs), the two `launch-*.txt` files, and `lab-root.txt` if you ran step 6. Glance over the summaries and the launch outputs: they should hold versions, test names and whyreach's findings, nothing about your machine. Copy the `results` folder to the USB stick and, back on the dev box, to `bin/wsl2/results` in the repository (git ignores `bin/`). Add what the client did, if you ran step 7.
+WR021 (the host's firewall turns away traffic from containers to the host) hasn't met a real firewall yet: the dev box has none, and the lab never changes one. Run A's distro is the lab's own, so its firewall can be on for a few minutes. Only the scenario `wr021-host-firewall` runs here; it is skipped unless `WHYREACH_LAB_HOST_FIREWALL` is set. With run A's setup running (step 0), in **Ubuntu** (if `ufw` is missing: `sudo apt install ufw`), first ufw's default "deny incoming", which drops what comes in from Docker's bridges:
+
+```bash
+cd ~/whyreach && sudo ufw --force enable && WHYREACH_LAB_HOST_FIREWALL=1 go test -tags lab -count=1 ./test/e2e -run 'TestLab/wr021' -v 2>&1 | tee /mnt/c/whyreach-lab/results/wr021-drop.txt; sudo ufw disable
+```
+
+Then a reject like firewalld's, which a container sees as "no route to host":
+
+```bash
+cd ~/whyreach && sudo iptables -I INPUT -i br-+ -p tcp -j REJECT --reject-with icmp-host-prohibited && WHYREACH_LAB_HOST_FIREWALL=1 go test -tags lab -count=1 ./test/e2e -run 'TestLab/wr021' -v 2>&1 | tee /mnt/c/whyreach-lab/results/wr021-reject.txt; sudo iptables -D INPUT -i br-+ -p tcp -j REJECT --reject-with icmp-host-prohibited
+```
+
+Each must end in `PASS`: WR021 is the primary finding at high, and whyreach's own connect from the WSL2 VM (via `control`) was accepted. Afterwards `sudo ufw status` must say `inactive`, and `sudo iptables -S INPUT` must not list the REJECT rule. Don't run the whole lab with either firewall on: the other host scenarios expect no firewall.
+
+## 9. Bring the results back
+
+`C:\whyreach-lab\results` now holds a folder per distro (each run's `summary.txt` and logs), the two `launch-*.txt` files, `lab-root.txt` if you ran step 6, and the two `wr021-*.txt` files if you ran step 8. Glance over the summaries and the launch outputs: they should hold versions, test names and whyreach's findings, nothing about your machine. Copy the `results` folder to the USB stick and, back on the dev box, to `bin/wsl2/results` in the repository (git ignores `bin/`). Add what the client did, if you ran step 7.
 
 Keep both distros until the results are read: a fix means a re-run with a new bundle.
 

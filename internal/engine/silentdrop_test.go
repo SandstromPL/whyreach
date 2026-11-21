@@ -29,8 +29,10 @@ func fired(d *Diagnosis, id string) bool {
 // TestSilentDrop: WR016 end to end. A network that disables
 // inter-container communication names the dropper (high); a destination
 // that would have answered leaves an unnamed drop (medium), primary before
-// a listener finding the timeout contradicts; the host's firewall case is
-// medium; an address outside Docker is a weak lead with the host's route.
+// a listener finding the timeout contradicts; on the host's side it stays
+// WR016's when the host's own connect times out too, and is WR021's when
+// the host answers it; an address outside Docker is a weak lead with the
+// host's route.
 // Every rule that explains a timeout suppresses it, and without a connect
 // from the source (probe containers off) it isn't evaluated.
 func TestSilentDrop(t *testing.T) {
@@ -65,8 +67,14 @@ func TestSilentDrop(t *testing.T) {
 	hostSvc.dns["host.docker.internal"] = []string{"172.17.0.1"}
 	hostSvc.host = []string{"0.0.0.0:5432"}
 	d = diagnoseWith(t, hostSvc, "container:shop-worker-1", "host.docker.internal:5432", true)
-	if p := d.Primary(); p == nil || p.RuleID != "WR016" || p.Confidence != rules.Medium || !strings.Contains(p.Fix, "sudo ufw allow from 172.22.0.0/16") {
-		t.Errorf("the host's firewall: verdict %s, primary %+v", d.Verdict, p)
+	if p := d.Primary(); p == nil || p.RuleID != "WR016" || p.Confidence != rules.Medium || fired(d, "WR021") ||
+		!strings.Contains(p.Explanation, "timed out as well") || !strings.Contains(p.Fix, "sudo nft list ruleset") {
+		t.Errorf("the host's own connect times out too (WR021 stays out): verdict %s, primary %+v", d.Verdict, p)
+	}
+	hostSvc.hostTCP = map[string]string{"172.17.0.1:5432": evidence.OutcomeConnected}
+	d = diagnoseWith(t, hostSvc, "container:shop-worker-1", "host.docker.internal:5432", true)
+	if p := d.Primary(); p == nil || p.RuleID != "WR021" || !suppressedBy(d, "WR016", "WR021") || !strings.Contains(p.Fix, "sudo ufw allow from 172.22.0.0/16") {
+		t.Errorf("the host answers its own connect: the host's firewall is WR021's: primary %+v, suppressed %+v", p, d.Suppressed)
 	}
 
 	// §2.3: the timeout by address to a container of another project is

@@ -1,0 +1,26 @@
+# WR016 on the host's side, and WR021's boundary: a host service has stopped
+# accepting connections. The harness listens on the docker0 address with a
+# backlog of 0, never accepts, and fills the accept queue with a connection of
+# its own, so the kernel drops client's connect through host.docker.internal
+# (host-gateway) and it times out. whyreach's own connect from the host times
+# out as well: not a firewall that filters Docker's networks, which would let
+# the host's own connect through (WR021).
+x-server: &server
+  image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+  pull_policy: never
+  labels: { io.whyreach.lab: "1" }
+  healthcheck: &health
+    test: ["CMD", "/labserver", "check", "127.0.0.1:7000"]
+    interval: 30s
+    start_period: 10s
+    start_interval: 200ms
+
+services:
+  client:
+    <<: *server
+    command: ["serve", "0.0.0.0:7000"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

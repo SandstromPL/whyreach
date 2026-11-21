@@ -9,7 +9,7 @@ expect:
   top_rule: WR013
   confidence: medium
   fix_contains: is a machine on your LAN or VPN
-  must_not_fire: [WR001, WR004, WR015, WR019, WR024]
+  must_not_fire: [WR001, WR004, WR015, WR019, WR021, WR024]
   # The connect times out (whyreach gives up before ARP does): the route
   # explains it, so WR016 is only suppressed.
   suppressed: {WR016: WR013}

@@ -8,7 +8,7 @@ expect:
   confidence: high
   fix_contains: "internal: true"
   # "Network is unreachable" is an answer, not a silent drop: no WR016.
-  must_not_fire: [WR001, WR011, WR012, WR016, WR020]
+  must_not_fire: [WR001, WR011, WR012, WR016, WR020, WR021]
   tcp_outcomes: ["hosts:unreachable"]
 # Docker metadata settles it (Probe? no): the networks' internal flag and
 # subnets, and that host-gateway is the host. Same answer without probes.
@@ -16,4 +16,4 @@ expect_without_probe:
   verdict: cause_identified
   top_rule: WR015
   confidence: high
-  must_not_fire: [WR001, WR011, WR012, WR016, WR020]
+  must_not_fire: [WR001, WR011, WR012, WR016, WR020, WR021]
