@@ -285,16 +285,21 @@ options ndots:0
 		t.Fatal(err)
 	}
 	want := resolvConf{
-		servers:    []string{"127.0.0.11:53"},
+		servers:    []netip.AddrPort{netip.MustParseAddrPort("127.0.0.11:53")},
 		search:     []string{"corp.example.com", "lab.example"},
 		ndots:      0,
 		extServers: []string{"host(127.0.0.53)"},
 	}
-	if diff := cmp.Diff(want, c, cmp.AllowUnexported(resolvConf{})); diff != "" {
+	if diff := cmp.Diff(want, c, cmp.AllowUnexported(resolvConf{}), cmpopts.EquateComparable(netip.AddrPort{})); diff != "" {
 		t.Errorf("(-want +got):\n%s", diff)
 	}
-	c2, _ := parseResolvConf(strings.NewReader("nameserver ::1\nnameserver 10.0.0.2\n"))
-	if diff := cmp.Diff([]string{"[::1]:53", "10.0.0.2:53"}, c2.servers); diff != "" || c2.ndots != 1 {
+	// The record shows a server as text: an IPv6 one in brackets, a zone kept.
+	c2, _ := parseResolvConf(strings.NewReader("nameserver ::1\nnameserver 10.0.0.2\nnameserver fe80::1%eth0\n"))
+	var got []string
+	for _, s := range c2.servers {
+		got = append(got, s.String())
+	}
+	if diff := cmp.Diff([]string{"[::1]:53", "10.0.0.2:53", "[fe80::1%eth0]:53"}, got); diff != "" || c2.ndots != 1 {
 		t.Errorf("servers (-want +got):\n%s ndots=%d", diff, c2.ndots)
 	}
 }

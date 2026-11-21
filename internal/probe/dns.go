@@ -131,8 +131,7 @@ func (r *Resolver) lookup(ctx context.Context, enter Enter, name string, lim Lim
 	if reason, ok := lim.CheckName(name); !ok {
 		return p, notes, &Refused{Reason: reason}
 	}
-	conf.servers = servers
-	p.Server = conf.servers[0]
+	p.Server = servers[0].String()
 	ctx, cancel := context.WithTimeout(ctx, r.budget())
 	defer cancel()
 	// Without an answer, Rcode describes the name as given (when it was
@@ -140,9 +139,9 @@ func (r *Resolver) lookup(ctx context.Context, enter Enter, name string, lim Lim
 	// than "api.<search 1>".
 	asGiven := strings.TrimSuffix(strings.ToLower(name), ".")
 	givenRcode := ""
-	var rcodeFrom, givenFrom string // the nameserver whose reply set the rcode
+	var rcodeFrom, givenFrom netip.AddrPort // the nameserver whose reply set the rcode
 	for i, cand := range conf.candidates(name) {
-		res := r.resolveOne(ctx, enter, conf.servers, cand.fqdn)
+		res := r.resolveOne(ctx, enter, servers, cand.fqdn)
 		if res.err != nil {
 			// No query could be sent from the namespace: that is no answer
 			// from the resolver, so it must not read as an rcode.
@@ -182,14 +181,14 @@ func (r *Resolver) lookup(ctx context.Context, enter Enter, name string, lim Lim
 }
 
 // hostResolverOf returns server when it is on the block list and was asked
-// as one of the host's own resolvers, for the record (INITIAL.md §10 Q13).
-func hostResolverOf(server string, lim Limits) string {
-	ap, err := netip.ParseAddrPort(server)
-	if err != nil {
+// as one of the host's own resolvers, for the record (INITIAL.md §10 Q13);
+// "" otherwise, and when no nameserver replied (an invalid server).
+func hostResolverOf(server netip.AddrPort, lim Limits) string {
+	if !server.IsValid() {
 		return ""
 	}
-	if _, blocked := target.Blocked(ap.Addr()); blocked && lim.HostResolver(ap.Addr()) {
-		return server
+	if _, blocked := target.Blocked(server.Addr()); blocked && lim.HostResolver(server.Addr()) {
+		return server.String()
 	}
 	return ""
 }
@@ -204,7 +203,7 @@ func DockerResolvConf(hostPath, systemdPath string) string {
 		return hostPath
 	}
 	defer func() { _ = f.Close() }() // read-only
-	if conf, err := parseResolvConf(f); err == nil && len(conf.servers) == 1 && conf.servers[0] == "127.0.0.53:53" {
+	if conf, err := parseResolvConf(f); err == nil && len(conf.servers) == 1 && conf.servers[0] == netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 53}), 53) {
 		return systemdPath
 	}
 	return hostPath
@@ -223,19 +222,16 @@ func FirstNameserverBlocked(path string) (string, bool, error) {
 	if err != nil || len(conf.servers) == 0 {
 		return "", false, err
 	}
-	ap, err := netip.ParseAddrPort(conf.servers[0])
-	if err != nil {
-		return "", false, err
-	}
-	_, blocked := target.Blocked(ap.Addr())
-	return ap.Addr().String(), blocked, nil
+	first := conf.servers[0].Addr()
+	_, blocked := target.Blocked(first)
+	return first.String(), blocked, nil
 }
 
 // maxNameservers is how many nameservers the C libraries use: glibc's and
 // musl's MAXNS. The app never asks a fourth.
 const maxNameservers = 3
 
-// allowedServers returns the nameservers ("addr:53") a lookup may use, as
+// allowedServers returns the nameservers (addr:53) a lookup may use, as
 // the app's resolver would: of the first three, those before the first on
 // the block list that isn't one of the host's own resolvers (lim). The C
 // library asks them in order and moves on when one fails, so a blocked one
@@ -243,23 +239,19 @@ const maxNameservers = 3
 // lookup whose servers fail stops there (failover). When the first is
 // blocked, the app's own lookup would go there, so a lookup through the
 // others would describe one the app doesn't make: refusal says so, and
-// nothing is sent. viaHost says a blocked one is used as the host's own.
-func allowedServers(servers []string, path string, lim Limits) (ok []string, next string, notes []string, refusal string) {
+// nothing is sent.
+func allowedServers(servers []netip.AddrPort, path string, lim Limits) (ok []netip.AddrPort, next string, notes []string, refusal string) {
 	if len(servers) > maxNameservers {
 		servers = servers[:maxNameservers]
 	}
-	for i, s := range servers {
-		ap, err := netip.ParseAddrPort(s)
-		if err != nil {
-			continue
-		}
+	for i, ap := range servers {
 		if reason, isBlocked := target.Blocked(ap.Addr()); isBlocked {
 			if lim.HostResolver(ap.Addr()) {
 				// The host's own resolver, which Docker copies into
 				// default-bridge and host-network containers: DNS only, on
 				// port 53 (INITIAL.md §10 Q13).
 				notes = append(notes, fmt.Sprintf("nameserver %d of %s, %s, is on the probe block list (%s), but it is one of the host's own resolvers, so whyreach asks it for DNS only (INITIAL.md §10 Q13)", i+1, path, ap.Addr(), reason))
-				ok = append(ok, s)
+				ok = append(ok, ap)
 				continue
 			}
 			if i == 0 {
@@ -268,7 +260,7 @@ func allowedServers(servers []string, path string, lim Limits) (ok []string, nex
 			notes = append(notes, fmt.Sprintf("nameserver %d of %s, %s, is on the probe block list (%s) and isn't one of the host's own resolvers: glibc asks it when the ones before it fail, and whyreach then makes no lookup; musl asks every nameserver at once, so a musl app may take its answer from there", i+1, path, ap.Addr(), reason))
 			return ok, ap.Addr().String(), notes, ""
 		}
-		ok = append(ok, s)
+		ok = append(ok, ap)
 	}
 	return ok, "", notes, ""
 }
@@ -292,8 +284,8 @@ func Nameservers(paths ...string) []netip.Addr {
 			continue
 		}
 		for _, s := range conf.servers {
-			if ap, err := netip.ParseAddrPort(s); err == nil && !slices.Contains(out, ap.Addr()) {
-				out = append(out, ap.Addr())
+			if !slices.Contains(out, s.Addr()) {
+				out = append(out, s.Addr())
 			}
 		}
 	}
@@ -347,13 +339,13 @@ func (c resolvConf) candidates(name string) []candidate {
 type resolveResult struct {
 	answers  []netip.Addr
 	rcode    string
-	server   string // the nameserver whose reply was used; empty when none came
+	server   netip.AddrPort // the nameserver whose reply was used; invalid when none came
 	attempts []evidence.DNSAttempt
 	err      error // the queries could not be sent at all (Env.Enter failed)
 }
 
 // resolveOne asks for A and AAAA in parallel, as getaddrinfo does.
-func (r *Resolver) resolveOne(ctx context.Context, enter Enter, servers []string, fqdn string) resolveResult {
+func (r *Resolver) resolveOne(ctx context.Context, enter Enter, servers []netip.AddrPort, fqdn string) resolveResult {
 	types := []uint16{dns.TypeA, dns.TypeAAAA}
 	results := make([]queryResult, len(types))
 	var wg sync.WaitGroup
@@ -374,7 +366,7 @@ func (r *Resolver) resolveOne(ctx context.Context, enter Enter, servers []string
 	res.rcode = combineRcodes(results[0], results[1])
 	// The server of a reply with answers, else of any reply.
 	for _, q := range results {
-		if q.server != "" && (len(q.answers) > 0 || res.server == "") {
+		if q.server.IsValid() && (len(q.answers) > 0 || !res.server.IsValid()) {
 			res.server = q.server
 		}
 	}
@@ -384,15 +376,15 @@ func (r *Resolver) resolveOne(ctx context.Context, enter Enter, servers []string
 type queryResult struct {
 	answers []netip.Addr
 	rcode   string
-	server  string // the nameserver that replied; empty when none did
-	err     error  // Env.Enter failed: nothing was sent
+	server  netip.AddrPort // the nameserver that replied; invalid when none did
+	err     error          // Env.Enter failed: nothing was sent
 }
 
 // query sends one question, retrying once on a timeout or an error (such as
 // an ICMP refusal), on the next nameserver if there is one. A truncated UDP
 // answer is retried over TCP. Each attempt runs through enter, so its
 // sockets live in the namespace being probed.
-func (r *Resolver) query(ctx context.Context, enter Enter, servers []string, fqdn string, qtype uint16) queryResult {
+func (r *Resolver) query(ctx context.Context, enter Enter, servers []netip.AddrPort, fqdn string, qtype uint16) queryResult {
 	m := new(dns.Msg)
 	m.SetQuestion(fqdn, qtype)
 	m.RecursionDesired = true
@@ -410,9 +402,9 @@ func (r *Resolver) query(ctx context.Context, enter Enter, servers []string, fqd
 		var resp *dns.Msg
 		var err error
 		eerr := enter.run(func() {
-			resp, err = exchange(qctx, m, server, "udp")
+			resp, err = exchange(qctx, m, server.String(), "udp")
 			if err == nil && resp.Truncated {
-				resp, err = exchange(qctx, m, server, "tcp")
+				resp, err = exchange(qctx, m, server.String(), "tcp")
 			}
 		})
 		cancel()
@@ -501,7 +493,7 @@ func combineRcodes(a, b queryResult) string {
 // "# ExtServers: [...]" comment, which names the upstream servers behind the
 // embedded DNS at 127.0.0.11 (ADR 0001).
 type resolvConf struct {
-	servers    []string // "127.0.0.11:53"
+	servers    []netip.AddrPort // 127.0.0.11:53
 	search     []string
 	ndots      int
 	extServers []string
@@ -533,7 +525,7 @@ func parseResolvConf(r io.Reader) (resolvConf, error) {
 		case "nameserver":
 			if len(f) > 1 {
 				if a, ok := parseNameserver(f[1]); ok {
-					c.servers = append(c.servers, netip.AddrPortFrom(a.Unmap(), 53).String())
+					c.servers = append(c.servers, netip.AddrPortFrom(a.Unmap(), 53))
 				}
 			}
 		case "search", "domain":
