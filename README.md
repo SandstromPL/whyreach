@@ -214,6 +214,10 @@ whyreach mcp serve
 
 **Rules.** `whyreach rules list` shows the 20 rules, and `whyreach rules explain WR007` prints a rule's page: the pitfall, the evidence, the fix and the known false positives. The same pages are in [docs/rules](docs/rules).
 
+## In CI
+
+When integration tests against a Compose stack fail in CI, whyreach can say why. [docs/ci.md](docs/ci.md) has three GitHub Actions steps to copy after your tests. They run only after a failure, install a pinned release (the example pins v0.2.0, the release CI mode ships in) and check its checksum, and diagnose the connections you list. Each diagnosis goes to the job log, the job summary and an artifact, redacted unless the repository is private. The steps never change the job's result.
+
 ## As a container
 
 There's an image too, for when you'd rather not install the binary:
