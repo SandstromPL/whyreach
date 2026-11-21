@@ -6,11 +6,14 @@ import (
 	"net/netip"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 )
 
 // Network is the part of a Docker network's metadata whyreach uses. MAC
-// addresses and driver options are never kept.
+// addresses and driver options are never kept, except what two options
+// mean: the bridge's interface name and whether its containers may talk
+// to each other.
 type Network struct {
 	ID       string         `json:"id"`
 	Name     string         `json:"name"`
@@ -25,13 +28,21 @@ type Network struct {
 	// default one, br-<12 hex digits of its ID> for the others, unless the
 	// network names its own (com.docker.network.bridge.name). Empty for
 	// other drivers.
-	Bridge  string          `json:"bridge,omitempty"`
-	Members []NetworkMember `json:"members,omitempty"` // only from InspectNetwork, sorted by name
+	Bridge string `json:"bridge,omitempty"`
+	// ICCDisabled is a bridge network's
+	// com.docker.network.bridge.enable_icc=false: Docker drops the traffic
+	// between its containers (WR016).
+	ICCDisabled bool            `json:"icc_disabled,omitempty"`
+	Members     []NetworkMember `json:"members,omitempty"` // only from InspectNetwork, sorted by name
 }
 
-// optBridgeName is the network option that names a bridge network's
-// interface.
-const optBridgeName = "com.docker.network.bridge.name"
+// Bridge network options whyreach reads: the one that names a bridge
+// network's interface, and the one that disables inter-container
+// communication on it.
+const (
+	optBridgeName = "com.docker.network.bridge.name"
+	optEnableICC  = "com.docker.network.bridge.enable_icc"
+)
 
 // NetworkMember is a container attached to a network.
 type NetworkMember struct {
@@ -76,6 +87,11 @@ func (n networkJSON) toNetwork() Network {
 			out.Bridge = "docker0"
 		default:
 			out.Bridge = "br-" + n.ID[:min(12, len(n.ID))]
+		}
+		// Docker reads the option as a boolean: "false", "0" and "f" all
+		// disable it.
+		if v, err := strconv.ParseBool(n.Options[optEnableICC]); err == nil && !v {
+			out.ICCDisabled = true
 		}
 	}
 	for _, c := range n.IPAM.Config {

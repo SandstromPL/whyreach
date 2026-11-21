@@ -345,8 +345,9 @@ func TestNetworks(t *testing.T) {
 		switch r.URL.Path {
 		case "/v1.56/networks":
 			writeJSON(w, []any{network, map[string]any{"Name": "bridge", "Id": "b1", "Driver": "bridge",
-				"IPAM": map[string]any{"Config": []map[string]string{{"Subnet": "172.17.0.0/16", "Gateway": "172.17.0.1"}}}},
-				map[string]any{"Name": "lan", "Id": "c0ffee00c0ffee00", "Driver": "bridge", "Options": map[string]string{"com.docker.network.bridge.name": "br-lan", "com.docker.network.driver.mtu": "1500"}},
+				"IPAM":    map[string]any{"Config": []map[string]string{{"Subnet": "172.17.0.0/16", "Gateway": "172.17.0.1"}}},
+				"Options": map[string]string{"com.docker.network.bridge.enable_icc": "true", "com.docker.network.bridge.name": "docker0"}},
+				map[string]any{"Name": "lan", "Id": "c0ffee00c0ffee00", "Driver": "bridge", "Options": map[string]string{"com.docker.network.bridge.name": "br-lan", "com.docker.network.driver.mtu": "1500", "com.docker.network.bridge.enable_icc": "false"}},
 				map[string]any{"Name": "wire", "Id": "d00d00d00d00d00d", "Driver": "macvlan"}})
 		case "/v1.56/networks/shop_default":
 			writeJSON(w, network)
@@ -368,6 +369,14 @@ func TestNetworks(t *testing.T) {
 	for i, want := range []string{"docker0", "br-lan", "br-c8b1", ""} {
 		if list[i].Bridge != want {
 			t.Errorf("%s: bridge %q, want %q", list[i].Name, list[i].Bridge, want)
+		}
+	}
+	// Inter-container communication is disabled only where the option
+	// says false, as on Engine 29.9.3's inspect of such a network (the
+	// default bridge says true).
+	for i, want := range []bool{false, true, false, false} {
+		if list[i].ICCDisabled != want {
+			t.Errorf("%s: icc disabled %v, want %v", list[i].Name, list[i].ICCDisabled, want)
 		}
 	}
 	got, err := c.InspectNetwork(context.Background(), "shop_default")

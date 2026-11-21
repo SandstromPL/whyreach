@@ -30,6 +30,7 @@ const tcp4Table = `  sl  local_address rem_address   st tx_queue rx_queue tr tm-
    1: 00000000:2382 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 123457 1 0000000000000000 100 0 0 10 0
    2: 0400A8C0:C350 0500A8C0:1F90 01 00000000:00000000 00:00000000 00000000  1000        0 123458 1 0000000000000000 20 4 30 10 -1
    3: 0B00007F:96CD 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 3410468 2 0000000000000000 100 0 0 10 0
+   4: 00000000:1F91 00000000:0000 0A 00000000:00000006 00:00000000 00000000     0        0 3410469 2 0000000000000000 100 0 0 10 0
 `
 
 const tcp6Table = `  sl  local_address                         remote_address                        st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
@@ -50,6 +51,10 @@ func TestParseListeners(t *testing.T) {
 			{Proto: "tcp", Local: netip.MustParseAddrPort("127.0.0.1:8080")},
 			{Proto: "tcp", Local: netip.MustParseAddrPort("0.0.0.0:9090")},
 			{Proto: "tcp", Local: netip.MustParseAddrPort("127.0.0.11:38605")},
+			// an app that stopped accepting: 6 connections wait in its
+			// accept queue (rx_queue), as measured with a listen backlog
+			// that filled up
+			{Proto: "tcp", Local: netip.MustParseAddrPort("0.0.0.0:8081"), Queued: 6},
 		}},
 		{"tcp6", tcp6Table, "tcp6", []evidence.Socket{
 			{Proto: "tcp6", Local: netip.MustParseAddrPort("[::]:9091")},

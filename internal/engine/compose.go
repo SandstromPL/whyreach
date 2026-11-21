@@ -288,7 +288,13 @@ func facts(v evidence.View, complete bool) []Fact {
 		}
 		var parts []string
 		for _, s := range socks {
-			parts = append(parts, s.Local.String()+"/tcp")
+			p := s.Local.String() + "/tcp"
+			if s.Queued > 0 {
+				// an app that doesn't accept: once the queue is full, new
+				// connections time out (WR016)
+				p += fmt.Sprintf(" (%d %s waiting to be accepted)", s.Queued, plural(s.Queued, "connection", "connections"))
+			}
+			parts = append(parts, p)
 		}
 		add(fmt.Sprintf("listening on port %d in %s: %s", port, where, strings.Join(parts, ", ")), e.ID)
 	}

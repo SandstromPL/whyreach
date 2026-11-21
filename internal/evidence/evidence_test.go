@@ -196,6 +196,29 @@ func TestListenersHelpers(t *testing.T) {
 	}
 }
 
+func TestSocketAccepts(t *testing.T) {
+	v4, v6 := netip.MustParseAddr("172.22.0.3"), netip.MustParseAddr("fd00::3")
+	for _, tt := range []struct {
+		local  string
+		addr   netip.Addr
+		accept bool
+	}{
+		{"0.0.0.0:8080", v4, true},
+		{"0.0.0.0:8080", v6, false},
+		{"[::]:8080", v4, true}, // unless IPV6_V6ONLY, which /proc doesn't show
+		{"[::]:8080", v6, true},
+		{"172.22.0.3:8080", v4, true},
+		{"[::ffff:172.22.0.3]:8080", v4, true},
+		{"172.22.0.4:8080", v4, false},
+		{"127.0.0.1:8080", v4, false},
+	} {
+		s := Socket{Local: netip.MustParseAddrPort(tt.local)}
+		if got := s.Accepts(tt.addr); got != tt.accept {
+			t.Errorf("%s accepts %s: %v, want %v", tt.local, tt.addr, got, tt.accept)
+		}
+	}
+}
+
 func container(id, name, project, service string, nets ...NetAttachment) Container {
 	c := Container{ID: id, Name: name, State: StateRunning, Networks: nets, NetworkMode: "bridge"}
 	if project != "" {

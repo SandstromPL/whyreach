@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/netip"
+	"strconv"
 	"strings"
 
 	"github.com/SandstromPL/whyreach/internal/evidence"
@@ -39,7 +40,17 @@ func ParseListeners(r io.Reader, proto string) ([]evidence.Socket, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parse local address %q: %w", fields[1], err)
 		}
-		out = append(out, evidence.Socket{Proto: proto, Local: local})
+		s := evidence.Socket{Proto: proto, Local: local}
+		// For a listening socket, rx_queue is its accept queue's length
+		// (sk_ack_backlog); tx_queue is 0, so the queue's limit isn't shown.
+		if len(fields) > 4 {
+			if _, rx, ok := strings.Cut(fields[4], ":"); ok {
+				if n, err := strconv.ParseUint(rx, 16, 31); err == nil {
+					s.Queued = int(n)
+				}
+			}
+		}
+		out = append(out, s)
 	}
 	if err := sc.Err(); err != nil {
 		return nil, err

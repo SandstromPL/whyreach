@@ -133,6 +133,11 @@ type NetAttachment struct {
 	// Docker Desktop its VM's). Unlike Gateway, they are known on internal
 	// networks too, where Docker gives the container no gateway (WR024).
 	Gateways []netip.Addr `json:"gateways,omitempty"`
+	// ICCDisabled is the bridge network's
+	// com.docker.network.bridge.enable_icc=false, from the same list:
+	// Docker drops the traffic between the network's containers, silently
+	// (WR016). False when the list couldn't be read.
+	ICCDisabled bool `json:"icc_disabled,omitempty"`
 }
 
 // PortMap is one published port: container port → host address. A running
@@ -412,6 +417,28 @@ type Listeners struct {
 type Socket struct {
 	Proto string         `json:"proto"` // "tcp" or "tcp6": the /proc/net table it came from
 	Local netip.AddrPort `json:"local"`
+	// Queued is the number of connections waiting in its accept queue, the
+	// table's rx_queue. A server accepts at once, so it stays 0; an app
+	// that has stopped accepting leaves connections there, and once the
+	// queue is full the kernel drops new connections silently: a timeout,
+	// not a refusal (WR016).
+	Queued int `json:"queued,omitempty"`
+}
+
+// Accepts reports whether the socket takes connections to addr: it is
+// bound to addr itself, or to the unspecified address of a family that
+// covers addr ([::] takes IPv4 too, unless it is IPv6-only, which the
+// table doesn't show).
+func (s Socket) Accepts(addr netip.Addr) bool {
+	l, addr := s.Local.Addr().Unmap(), addr.Unmap()
+	switch {
+	case l == addr:
+		return true
+	case l.IsUnspecified():
+		return l.Is6() || addr.Is4()
+	default:
+		return false
+	}
 }
 
 // DockerDNSAddr is where Docker's embedded DNS listens inside every container
