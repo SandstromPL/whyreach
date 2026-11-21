@@ -183,7 +183,7 @@ func findBundle(ref string) (report.Bundle, error) {
 	}
 	b, err := report.FindBundle(dir, ref)
 	if err != nil {
-		if errors.Is(err, report.ErrNoBundle) || !strings.Contains(err.Error(), dir) {
+		if errors.Is(err, report.ErrNoBundle) || errors.Is(err, report.ErrBadID) {
 			return report.Bundle{}, usageErr(err)
 		}
 		return report.Bundle{}, internalErr(err)

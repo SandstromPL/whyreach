@@ -64,6 +64,37 @@ func TestReportCommands(t *testing.T) {
 	}
 }
 
+// A reference that isn't a diagnosis ID is a usage error even when it names
+// the reports directory itself, whose path the error repeats; a bundle that
+// is there but can't be read is an internal one.
+func TestReportRefusals(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "config"))
+	reports := filepath.Join(tmp, "data", "whyreach", "reports")
+	broken := filepath.Join(reports, "dg-20991231T000000Z-abcdef")
+	if err := os.MkdirAll(broken, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(broken, "manifest.json"), []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		args []string
+		code int
+	}{
+		{[]string{"report", "show", reports}, ExitUsage},
+		{[]string{"report", "export", reports}, ExitUsage},
+		{[]string{"report", "show", broken}, ExitUsage},
+		{[]string{"report", "show", "dg-20991231T000000Z-abcdef"}, ExitInternal},
+		{[]string{"report", "export", "dg-20991231T000000Z-abcdef"}, ExitInternal},
+	} {
+		if code, _, stderr := execute(t, tt.args...); code != tt.code {
+			t.Errorf("%q: exit %d, want %d (%s)", tt.args, code, tt.code, stderr)
+		}
+	}
+}
+
 func TestRulesCommands(t *testing.T) {
 	code, stdout, _ := execute(t, "rules", "list")
 	if code != ExitNoProblem {

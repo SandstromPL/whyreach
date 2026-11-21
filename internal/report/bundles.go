@@ -73,6 +73,10 @@ func boolInt(b bool) int {
 	return 0
 }
 
+// ErrBadID is a reference that is neither a diagnosis ID nor a bundle
+// directory's name: the caller's mistake, like ErrNoBundle.
+var ErrBadID = errors.New("not a diagnosis ID")
+
 // FindBundle returns the bundle that ref names: a diagnosis ID, or a bundle
 // directory's name. A diagnosis saved both ways gives the unredacted
 // bundle, which holds everything.
@@ -80,7 +84,7 @@ func FindBundle(dir, ref string) (Bundle, error) {
 	ref = strings.TrimSpace(ref)
 	m := bundleName.FindStringSubmatch(ref)
 	if m == nil {
-		return Bundle{}, fmt.Errorf("%q is not a diagnosis ID such as dg-20261113T101500Z-3f2a9c", ref)
+		return Bundle{}, fmt.Errorf("%q is %w such as dg-20261113T101500Z-3f2a9c", ref, ErrBadID)
 	}
 	names := []string{ref}
 	if m[2] == "" {
