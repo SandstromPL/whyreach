@@ -47,7 +47,7 @@ lab-agent:
 ## headless Claude Code with a shell only (sandboxed by bwrap, a read-only Docker
 ## proxy and a guard hook) and one with whyreach's four MCP tools only; masked
 ## results in bin/bench/ (needs Docker, bwrap, the claude CLI and model access;
-## about an hour and a few dollars on Claude Haiku; docs/research/agent-benchmark.md)
+## about 15 minutes and $0.13 on Claude Haiku; docs/research/agent-benchmark.md)
 lab-bench:
 	go test -tags lab,agent,bench -count=1 -run TestBench -timeout 240m -v ./test/e2e/...
 

@@ -141,25 +141,25 @@ whyreach settled this cause from Docker's metadata and the containers' listening
 
 ## How it compares to a shell
 
-An agent can already debug Docker networking with a shell: `docker inspect`, `ss`, `curl`. To see what whyreach adds, two headless Claude Code agents on Claude Haiku got the same problem report for each of the 21 lab scenarios (`test/lab`). One had only a shell, held to read-only access to the lab. The other had only whyreach's four MCP tools, in whyreach's default configuration.
+An agent can already debug Docker networking with a shell: `docker inspect`, `ss`, `curl`. To see what whyreach adds, two headless Claude Code agents on Claude Haiku got the same problem report for each of the 27 lab scenarios (`test/lab`; the 28th needs a host firewall set up for it). One had only a shell, held to read-only access to the lab. The other had only whyreach's four MCP tools, in whyreach's default configuration.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/benchmark-dark.svg">
-  <img src="docs/assets/benchmark-light.svg" width="720" alt="Bar chart of an AI agent with a shell against one with whyreach, on 21 Docker networking scenarios with Claude Haiku. Both named the right cause in 20 of 21. Tool calls, median: 6 against 2. Tokens, median: 38.9k against 12.5k. Time, median: 16.6 s against 6.5 s. Runs that tried docker exec: 18 of 21 against 0 of 21.">
+  <img src="docs/assets/benchmark-light.svg" width="720" alt="Bar chart of an AI agent with a shell against one with whyreach, on 27 Docker networking scenarios with Claude Haiku. Right causes: shell 21 of 27, whyreach 22 of 27. Tool calls, median: 6 against 3. Tokens, median: 49.7k against 20.2k. Time, median: 17.0 s against 6.6 s. Runs with an unsafe command: 21 of 27 against 0 of 27.">
 </picture>
 
 | | Shell agent | whyreach agent |
 |---|---|---|
-| Named the right cause | 20 of 21 | 20 of 21 |
-| Tool calls, median | 6 | 2 |
-| Tokens, median | 38.9k | 12.5k |
-| Time, median | 16.6 s | 6.5 s |
-| Cost, all 21 runs | $0.060 | $0.023 |
-| Commands that would change something, attempted | 18, in 18 runs | 0 |
+| Named the right cause | 21 of 27 | 22 of 27 |
+| Tool calls, median | 6 | 3 |
+| Tokens, median | 49.7k | 20.2k |
+| Time, median | 17.0 s | 6.6 s |
+| Cost, all 27 runs | $0.090 | $0.034 |
+| Commands that would change something, attempted | 21, in 21 runs | 0 |
 
-Each agent found 20 of the 21 causes, and each missed a different one. whyreach's agent got there with about a third of the tokens and less than half the time. It never reached for `docker exec`; the shell agent did in 18 of its 21 runs, to look inside containers, and the benchmark's guard refused each one.
+whyreach's agent named 22 of the 27 causes and the shell agent 21. whyreach's agent used about 40% of the tokens and of the time. Three of its misses need a check from inside the container, which takes a probe container, and the benchmark runs whyreach in its default configuration, without them. It never tried to change anything. The shell agent tried in 21 of its 27 runs, mostly `docker exec` to look inside containers, and the benchmark's guard refused each one.
 
-The method was fixed before the first run. That run's agents could see each scenario's name in their directory names, so it was run again with only that changed; these are the second run's numbers. The per-scenario results, the raw data and the caveats are in [docs/research/agent-benchmark.md](docs/research/agent-benchmark.md): one model, one run each, and stand-in servers that are easier to read than real applications. To run it yourself, use `make lab-bench`; it needs Docker, `bwrap` and the `claude` CLI.
+The method was fixed before the first run, in v0.1, over 21 scenarios. For v0.2 it ran again over 27, with the six new causes added to the list both agents choose from; these are that run's numbers. The per-scenario results, the raw data and the caveats are in [docs/research/agent-benchmark.md](docs/research/agent-benchmark.md): one model, one run each, and stand-in servers that are easier to read than real applications. To run it yourself, use `make lab-bench`; it needs Docker, `bwrap` and the `claude` CLI.
 
 ## What whyreach may do
 

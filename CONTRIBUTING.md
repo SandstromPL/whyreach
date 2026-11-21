@@ -37,7 +37,7 @@ make build test
 | `make lab-desktop` | The same lab with whyreach told it talks to Docker Desktop, so it reads every listener in a probe container | Docker. A rehearsal of the Docker Desktop path on Docker Engine |
 | `make lab-root` | The same lab as root, through the containers' network namespaces | sudo (it asks). Only the test binaries run as root |
 | `make lab-agent` | A headless agent diagnoses each scenario through whyreach's MCP tools | Docker and the `claude` CLI. A few cents a run on Claude Haiku |
-| `make lab-bench` | The [agent benchmark](docs/research/agent-benchmark.md) | Docker, `claude` and `bwrap`. About 11 minutes and $0.08 |
+| `make lab-bench` | The [agent benchmark](docs/research/agent-benchmark.md) | Docker, `claude` and `bwrap`. About 15 minutes and $0.13 |
 | `make golden` | Refreshes the golden files after an intended change in output | Go |
 | `make release-snapshot` | Builds the release archives in `dist/`, publishing nothing | Network (it downloads goreleaser) |
 
