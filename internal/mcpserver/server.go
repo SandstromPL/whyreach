@@ -307,33 +307,13 @@ func (s *Server) diagnose(ctx context.Context, req *mcp.CallToolRequest, in Diag
 	if err != nil {
 		return nil, report.Diagnosis{}, err
 	}
-	// A cause that metadata and listeners settle needs no more permission.
-	if !settled(d) && policy.NeedsProbeContainers(d.Evidence) {
-		res, approved := s.askForProbeContainers(ctx, req, d.Question.From.Ref)
+	for _, ask := range s.askers() {
+		if settled(d) {
+			break // a cause that metadata and listeners settle needs no more permission
+		}
+		res, approved := ask(ctx, req, d.Evidence, d.Question.From.Ref)
 		if res != nil {
 			return res, report.Diagnosis{}, nil // the client asks the user and calls again
-		}
-		if approved {
-			if again, err := s.p.Diagnose(ctx, args); err == nil {
-				d = again
-			}
-		}
-	}
-	if names := policy.NeedsNameApproval(d.Evidence); !settled(d) && len(names) > 0 {
-		res, approved := s.askForName(ctx, req, names, d.Question.From.Ref)
-		if res != nil {
-			return res, report.Diagnosis{}, nil
-		}
-		if approved {
-			if again, err := s.p.Diagnose(ctx, args); err == nil {
-				d = again
-			}
-		}
-	}
-	if addrs := policy.NeedsAddrApproval(d.Evidence); !settled(d) && len(addrs) > 0 {
-		res, approved := s.askForAddr(ctx, req, addrs, d.Question.From.Ref)
-		if res != nil {
-			return res, report.Diagnosis{}, nil
 		}
 		if approved {
 			if again, err := s.p.Diagnose(ctx, args); err == nil {
@@ -345,6 +325,19 @@ func (s *Server) diagnose(ctx context.Context, req *mcp.CallToolRequest, in Diag
 	var text bytes.Buffer
 	report.RenderText(&text, d)
 	return textResult(text.String()), report.Compact(d), nil
+}
+
+// asker puts the question a call's records lead to, if any and if it may:
+// res is an input request to return, which the client puts to the user and
+// answers by calling again; approved says the user, asked directly, said yes.
+type asker func(ctx context.Context, req *mcp.CallToolRequest, evs []evidence.Evidence, source string) (res *mcp.CallToolResult, approved bool)
+
+// askers are the questions a call may lead to, in the order they are put:
+// probe containers, then an outside name, then a private address (ADR 0003).
+// After an approval the call runs again, and the next asker reads the new
+// records.
+func (s *Server) askers() []asker {
+	return []asker{s.askForProbeContainers, s.askForName, s.askForAddr}
 }
 
 // settled reports a cause found at high confidence: no further check would
@@ -386,32 +379,10 @@ func (s *Server) probe(ctx context.Context, req *mcp.CallToolRequest, in ProbeIn
 	if err != nil {
 		return nil, report.ProbeResult{}, err
 	}
-	if policy.NeedsProbeContainers(res.Evidence) {
-		ask, approved := s.askForProbeContainers(ctx, req, res.From)
-		if ask != nil {
-			return ask, report.ProbeResult{}, nil
-		}
-		if approved {
-			if again, err := s.p.Probe(ctx, args); err == nil {
-				res = again
-			}
-		}
-	}
-	if names := policy.NeedsNameApproval(res.Evidence); len(names) > 0 {
-		ask, approved := s.askForName(ctx, req, names, res.From)
-		if ask != nil {
-			return ask, report.ProbeResult{}, nil
-		}
-		if approved {
-			if again, err := s.p.Probe(ctx, args); err == nil {
-				res = again
-			}
-		}
-	}
-	if addrs := policy.NeedsAddrApproval(res.Evidence); len(addrs) > 0 {
-		ask, approved := s.askForAddr(ctx, req, addrs, res.From)
-		if ask != nil {
-			return ask, report.ProbeResult{}, nil
+	for _, ask := range s.askers() {
+		q, approved := ask(ctx, req, res.Evidence, res.From)
+		if q != nil {
+			return q, report.ProbeResult{}, nil // the client asks the user and calls again
 		}
 		if approved {
 			if again, err := s.p.Probe(ctx, args); err == nil {
@@ -564,12 +535,16 @@ func (s *Server) lookup(id string) *engine.Diagnosis {
 }
 
 // askForProbeContainers asks the user, once per session, to allow probe
-// containers. Clients on protocol 2026-07-28 or later get an input request
-// in the result and call again with the answer (SEP-2322): res is that
-// result. Older clients are asked directly, and approved says what the user
-// chose. The question goes to the user through the client's own dialog: the
-// model can't answer it, and no tool argument can.
-func (s *Server) askForProbeContainers(ctx context.Context, req *mcp.CallToolRequest, source string) (res *mcp.CallToolResult, approved bool) {
+// containers, when the records have checks they would run. Clients on
+// protocol 2026-07-28 or later get an input request in the result and call
+// again with the answer (SEP-2322): res is that result. Older clients are
+// asked directly, and approved says what the user chose. The question goes
+// to the user through the client's own dialog: the model can't answer it,
+// and no tool argument can.
+func (s *Server) askForProbeContainers(ctx context.Context, req *mcp.CallToolRequest, evs []evidence.Evidence, source string) (res *mcp.CallToolResult, approved bool) {
+	if !policy.NeedsProbeContainers(evs) {
+		return nil, false
+	}
 	caps := req.ClientCapabilities()
 	if caps == nil || caps.Elicitation == nil || !s.p.CanUseProbeContainers() || s.p.ProbeContainers() {
 		return nil, false
@@ -640,13 +615,13 @@ func (s *Server) consent(answer *mcp.ElicitResult) bool {
 	return approved
 }
 
-// askForName asks the user about one outside name that a check needed
-// (INITIAL.md §10 Q11, Q14), the first that may be asked about. An approval
-// covers that exact name only, for ApprovalBudget lookups: one yes must not
-// let other names out. A declined name isn't asked about again; one whose
-// lookups ran out may be.
-func (s *Server) askForName(ctx context.Context, req *mcp.CallToolRequest, names []string, source string) (*mcp.CallToolResult, bool) {
-	for _, n := range names {
+// askForName asks the user about one outside name whose lookup the records
+// held back (INITIAL.md §10 Q11, Q14), the first that may be asked about. An
+// approval covers that exact name only, for ApprovalBudget lookups: one yes
+// must not let other names out. A declined name isn't asked about again; one
+// whose lookups ran out may be.
+func (s *Server) askForName(ctx context.Context, req *mcp.CallToolRequest, evs []evidence.Evidence, source string) (*mcp.CallToolResult, bool) {
+	for _, n := range policy.NeedsNameApproval(evs) {
 		if s.p.NameAllowed(n) {
 			continue
 		}
@@ -657,11 +632,11 @@ func (s *Server) askForName(ctx context.Context, req *mcp.CallToolRequest, names
 	return nil, false
 }
 
-// askForAddr asks the user about one private address and port that a check
-// needed (INITIAL.md §10 Q15), like askForName: an approval covers exactly
-// that address and port, for ApprovalBudget connects.
-func (s *Server) askForAddr(ctx context.Context, req *mcp.CallToolRequest, addrs []netip.AddrPort, source string) (*mcp.CallToolResult, bool) {
-	for _, a := range addrs {
+// askForAddr asks the user about one private address and port whose connect
+// the records held back (INITIAL.md §10 Q15), like askForName: an approval
+// covers exactly that address and port, for ApprovalBudget connects.
+func (s *Server) askForAddr(ctx context.Context, req *mcp.CallToolRequest, evs []evidence.Evidence, source string) (*mcp.CallToolResult, bool) {
+	for _, a := range policy.NeedsAddrApproval(evs) {
 		if s.p.AddrAllowed(a) {
 			continue
 		}
