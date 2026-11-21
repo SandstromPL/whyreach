@@ -465,13 +465,10 @@ func (r *run) howToEnable(e evidence.Evidence) string {
 	if cfg == "" {
 		cfg = "the config file"
 	}
+	if advice := executor.Advice(e.Err.Message); advice != "" {
+		return advice // what whyreach can't see from where it runs
+	}
 	switch {
-	case e.Err.Message == executor.HostHidden:
-		return executor.HostHiddenAdvice + "."
-	case e.Err.Message == executor.PIDsHidden:
-		return executor.PIDsHiddenAdvice + "."
-	case e.Err.Message == executor.HostNotHere:
-		return executor.HostNotHereAdvice + "."
 	case e.Err.Message == RoutesElsewhere:
 		return RoutesElsewhereAdvice
 	case e.Err.Message == executor.PIDsElsewhere:
