@@ -49,8 +49,7 @@ func (r *run) resolve(ctx context.Context) error {
 	r.networks = r.networkList(ctx)
 	src, err := r.findSource(ctx)
 	if err != nil {
-		var ee *Error
-		if errors.As(err, &ee) {
+		if _, ok := errors.AsType[*Error](err); ok {
 			return err
 		}
 		r.dockerGap(err)

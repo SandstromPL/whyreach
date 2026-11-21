@@ -139,15 +139,14 @@ func (e *Error) Error() string { return e.Message }
 
 // IsUsage reports an error the user can fix by changing the arguments.
 func IsUsage(err error) bool {
-	var e *Error
-	if errors.As(err, &e) {
+	if e, ok := errors.AsType[*Error](err); ok {
 		switch e.Code {
 		case evidence.CodeInvalidArgument, evidence.CodeNotFound, evidence.CodePolicyDenied:
 			return true
 		}
 	}
-	var te *target.Error
-	return errors.As(err, &te)
+	_, ok := errors.AsType[*target.Error](err)
+	return ok
 }
 
 // run is the state of one diagnosis.

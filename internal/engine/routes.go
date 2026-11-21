@@ -144,7 +144,7 @@ func timedOutAddrs(v evidence.View) []netip.Addr {
 // The host's own addresses never get here (routes returns first for a
 // target on the host).
 func (r *run) outsideTargets(addrs []netip.Addr) []netip.Addr {
-	var out []netip.Addr
+	out := make([]netip.Addr, 0, len(addrs))
 	for _, a := range addrs {
 		switch {
 		case !routable(a), slices.Contains(out, a):

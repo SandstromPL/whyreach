@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"maps"
 	"net/netip"
 	"regexp"
 	"slices"
@@ -335,9 +336,7 @@ func (r *Redactor) Apply(s string) string {
 // Counts reports how many replacements of each class Apply made.
 func (r *Redactor) Counts() map[string]int {
 	out := map[string]int{}
-	for k, v := range r.counts {
-		out[k] = v
-	}
+	maps.Copy(out, r.counts)
 	return out
 }
 

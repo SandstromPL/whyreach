@@ -29,7 +29,7 @@ func RenderInspection(w io.Writer, in *engine.Inspection) {
 				line("names", []string{"outside names (with a dot, unknown to Docker): " + p.OutsideNames})
 			}
 		}
-		var ifs []string
+		ifs := make([]string, 0, len(h.Interfaces))
 		for _, i := range h.Interfaces {
 			s := i.Name + " " + strings.Join(i.Addrs, " ")
 			if i.Network != "" {
@@ -69,7 +69,7 @@ func RenderInspection(w io.Writer, in *engine.Inspection) {
 			line("service", []string{c.Service})
 		}
 		line("mode", []string{c.NetworkMode})
-		var nets []string
+		nets := make([]string, 0, len(c.Networks))
 		for _, n := range c.Networks {
 			s := n.Network
 			if n.IPv4 != "" {

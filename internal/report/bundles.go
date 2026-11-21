@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -148,10 +149,10 @@ func readBundle(dir string) (Bundle, error) {
 	}
 	b := Bundle{
 		ID: name[1], Path: dir, Redacted: m.Redaction.Enabled, CreatedAt: m.CreatedAt, Verdict: d.Verdict,
-		From: d.Question.From.Ref, To: d.Question.To.Host + ":" + fmt.Sprint(d.Question.To.Port),
+		From: d.Question.From.Ref, To: d.Question.To.Host + ":" + strconv.Itoa(d.Question.To.Port),
 	}
 	if strings.Contains(d.Question.To.Host, ":") {
-		b.To = "[" + d.Question.To.Host + "]:" + fmt.Sprint(d.Question.To.Port)
+		b.To = "[" + d.Question.To.Host + "]:" + strconv.Itoa(d.Question.To.Port)
 	}
 	if len(d.Findings) > 0 {
 		b.Primary = d.Findings[0].RuleID
@@ -326,7 +327,7 @@ func reRedact(b Bundle, o ExportOptions) (map[string][]byte, manifest, error) {
 		return nil, manifest{}, err
 	}
 	var evs bytes.Buffer
-	for _, line := range bytes.Split(bytes.TrimSpace(files["evidence.jsonl"]), []byte("\n")) {
+	for line := range bytes.SplitSeq(bytes.TrimSpace(files["evidence.jsonl"]), []byte("\n")) {
 		if len(line) == 0 {
 			continue
 		}

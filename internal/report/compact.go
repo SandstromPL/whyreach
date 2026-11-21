@@ -99,7 +99,7 @@ func Compact(d *engine.Diagnosis) Diagnosis {
 		c.NextChecks = append(c.NextChecks, engine.NextCheck{Why: cut(n.Why, maxDetail), Tool: n.Tool, Args: n.Args})
 	}
 	if len(d.Suppressed) > 0 {
-		var ids []string
+		ids := make([]string, 0, len(d.Suppressed))
 		for _, s := range d.Suppressed {
 			ids = append(ids, s.RuleID+" (explained by "+s.By+")")
 		}
@@ -217,7 +217,7 @@ func CompactProbe(r *engine.ProbeResult, howTo func(evidence.Evidence) string) P
 	if out.SideEffects == nil {
 		out.SideEffects = []string{}
 	}
-	var lines []string
+	lines := make([]string, 0, len(r.Evidence))
 	for _, e := range r.Evidence {
 		line := EvidenceLine(e)
 		out.Results = append(out.Results, Record{ID: e.ID, Kind: kindName(e.Kind), Status: string(e.Status), Text: line})

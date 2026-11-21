@@ -417,7 +417,7 @@ func (r *run) gapsFrom(v evidence.View) []Gap {
 			kinds[k] = append(kinds[k], label)
 		}
 	}
-	var out []Gap
+	out := make([]Gap, 0, len(order))
 	for _, k := range order {
 		g := byKey[k]
 		ctx := k.ctx
