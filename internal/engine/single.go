@@ -112,9 +112,7 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 		return restamp([]evidence.Evidence{ev}, stamp), nil
 	}
 	if !owner.Running() {
-		return executor.Failed(stamp, "", []probe.Spec{spec}, evidence.StatusFailed, &evidence.Error{
-			Code: evidence.CodeNotFound, Message: fmt.Sprintf("%s is %s, so nothing can be tested from its network namespace; start it first", owner.DisplayName(), owner.State),
-		}), nil
+		return ownerStopped(stamp, owner, []probe.Spec{spec}), nil
 	}
 	// The same executor as a diagnosis's probe stage. A host-network
 	// container shares the host's network namespace, but its /etc/hosts and
@@ -122,9 +120,7 @@ func (e *Engine) probeContainer(ctx context.Context, from target.From, spec prob
 	// made from inside it too, not with whyreach's files.
 	ex := r.containerExecutor()
 	if ex == nil {
-		return executor.Failed(stamp, evidence.ExecutorProbeContainer, []probe.Spec{spec}, evidence.StatusPermissionDenied, &evidence.Error{
-			Code: evidence.CodePermissionDenied, Message: executor.ProbeContainersOff,
-		}), nil
+		return probesOff(stamp, []probe.Spec{spec}), nil
 	}
 	var bounded atomic.Bool
 	ctx = executor.WithKnownNames(ctx, func(ctx context.Context, name string) bool {

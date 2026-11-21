@@ -46,10 +46,7 @@ func (r *run) probe(ctx context.Context) error {
 		// in the source's context, which shares that netns.
 		where = evidence.InContainer(owner.C)
 		if !owner.C.Running() {
-			r.store.Add(executor.Failed(stamp, "", specs, evidence.StatusFailed, &evidence.Error{
-				Code:    evidence.CodeNotFound,
-				Message: fmt.Sprintf("%s is %s, so nothing can be tested from its network namespace; start it first", owner.C.DisplayName(), owner.C.State),
-			})...)
+			r.store.Add(ownerStopped(stamp, owner.C, specs)...)
 			return nil
 		}
 		ex = r.containerExecutor()
@@ -64,9 +61,7 @@ func (r *run) probe(ctx context.Context) error {
 		return nil
 	}
 	if ex == nil {
-		r.store.Add(executor.Failed(stamp, evidence.ExecutorProbeContainer, specs, evidence.StatusPermissionDenied, &evidence.Error{
-			Code: evidence.CodePermissionDenied, Message: executor.ProbeContainersOff,
-		})...)
+		r.store.Add(probesOff(stamp, specs)...)
 		return nil
 	}
 
@@ -79,6 +74,24 @@ func (r *run) probe(ctx context.Context) error {
 	}
 	r.store.Add(restamp(evs, stamp)...)
 	return nil
+}
+
+// ownerStopped are the records of checks that can't run because the
+// container whose network namespace they need, owner, isn't running; stamp
+// is the source's context.
+func ownerStopped(stamp evidence.ContextRef, owner evidence.Container, specs []probe.Spec) []evidence.Evidence {
+	return executor.Failed(stamp, "", specs, evidence.StatusFailed, &evidence.Error{
+		Code:    evidence.CodeNotFound,
+		Message: fmt.Sprintf("%s is %s, so nothing can be tested from its network namespace; start it first", owner.DisplayName(), owner.State),
+	})
+}
+
+// probesOff are the records of checks from a container that need probe
+// containers (tier 2b) while they are off.
+func probesOff(stamp evidence.ContextRef, specs []probe.Spec) []evidence.Evidence {
+	return executor.Failed(stamp, evidence.ExecutorProbeContainer, specs, evidence.StatusPermissionDenied, &evidence.Error{
+		Code: evidence.CodePermissionDenied, Message: executor.ProbeContainersOff,
+	})
 }
 
 // restamp files the records an executor returned under the context to (the
