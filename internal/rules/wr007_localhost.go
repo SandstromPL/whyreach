@@ -63,6 +63,13 @@ func (r wr007) Evaluate(v evidence.View) []Finding {
 	}
 	srcName := src.C.DisplayName()
 	local, haveLocal := v.ListenersIn(owner.C.ID)
+	if !haveLocal && owner.C.ID != src.C.ID {
+		// The source shares another container's network namespace (a
+		// sidecar setup): localhost there is that container's as well, and
+		// without the namespace's listeners nothing shows whether it serves
+		// the port (on Docker Desktop without probe containers, say).
+		return nil
+	}
 	if haveLocal {
 		if local.L.AcceptsLoopback(port) {
 			return nil // localhost:port reaches a listener in the source itself
