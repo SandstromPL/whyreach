@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -251,12 +252,35 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 				}
 			}
 		case s.MentionsPort(port):
-			if len(cands) < maxMatches {
-				cands = append(cands, s)
-			}
+			cands = append(cands, s)
 		case s.State == evidence.StateRunning:
 			others = append(others, s)
 		}
+	}
+	// The containers that publish the port come first, so the bound leaves
+	// out only ones that merely expose it, unless more than maxMatches
+	// publish it. Those left out are a gap and a record, as in collect.
+	slices.SortStableFunc(cands, func(a, b docker.Summary) int { return cmp.Compare(publishRank(a, port), publishRank(b, port)) })
+	if len(cands) > maxMatches {
+		dropped := cands[maxMatches:]
+		cands = cands[:maxMatches]
+		r.metadataIncomplete = true
+		g := Gap{
+			What:   fmt.Sprintf("%d more %s with port %d published or exposed", len(dropped), plural(len(dropped), "container", "containers"), port),
+			Why:    "skipped",
+			Detail: fmt.Sprintf("whyreach inspects at most %d containers that publish or expose the target port, those that publish it first", maxMatches),
+		}
+		r.gaps = append(r.gaps, g)
+		r.store.Add(skippedContainers(g))
+		// A running one may serve the port without publishing it (WR019):
+		// the search below reads it, ahead of those that don't mention it.
+		var running []docker.Summary
+		for _, s := range dropped {
+			if s.State == evidence.StateRunning {
+				running = append(running, s)
+			}
+		}
+		others = append(running, others...)
 	}
 	inspected, failed := r.inspectAll(ctx, cands)
 	r.store.Add(failed...)
@@ -318,6 +342,24 @@ func (r *run) collectHost(ctx context.Context, list []docker.Summary, have map[s
 	if len(cut) > 0 {
 		r.gaps = append(r.gaps, r.probeListenersGap(cut)) // a skipped record makes no gap of its own
 	}
+}
+
+// publishRank orders the containers that mention a TCP port: those that
+// publish it on the host first (what a connection to the host reaches),
+// then those that publish their own port of that number elsewhere (WR006),
+// then those that only expose it.
+func publishRank(s docker.Summary, port uint16) int {
+	rank := 2
+	for _, p := range s.Ports {
+		switch {
+		case p.Type != "" && p.Type != "tcp":
+		case p.PublicPort == port:
+			return 0
+		case p.PrivatePort == port && p.PublicPort != 0:
+			rank = 1
+		}
+	}
+	return rank
 }
 
 // scanUnread sums up the running containers whose listening sockets the
