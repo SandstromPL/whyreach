@@ -210,7 +210,9 @@ func Export(b Bundle, o ExportOptions) (Exported, error) {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	mtime := m.CreatedAt
+	// Whole seconds, truncated: tar rounds to the nearest one otherwise,
+	// and a time in the future makes tar warn when it is extracted at once.
+	mtime := m.CreatedAt.Truncate(time.Second)
 	names := []string{"manifest.json", "diagnosis.json", "evidence.jsonl", "report.md"}
 	if err := tw.WriteHeader(&tar.Header{Typeflag: tar.TypeDir, Name: b.ID + "/", Mode: 0o755, ModTime: mtime}); err != nil {
 		return Exported{}, err

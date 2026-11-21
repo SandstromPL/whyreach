@@ -224,3 +224,50 @@ func TestTamperedManifestIsRefused(t *testing.T) {
 		}
 	}
 }
+
+// An export's file times are the bundle's creation time in whole seconds,
+// truncated: rounded up, they lie in the future, and tar warns about a time
+// stamp in the future when the archive is extracted right away.
+func TestExportTimesAreNotInTheFuture(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "reports")
+	d := identifying()
+	if _, err := Save(d, SaveOptions{Dir: dir, Redact: false, Version: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	b, err := FindBundle(dir, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 11, 13, 10, 0, 1, 900_000_000, time.UTC)
+	ex, err := Export(b, ExportOptions{Dir: dir, Version: "test", Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(ex.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr := tar.NewReader(gz)
+	entries := 0
+	for {
+		h, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries++
+		if want := now.Truncate(time.Second); !h.ModTime.Equal(want) {
+			t.Errorf("%s: time %s, want %s", h.Name, h.ModTime.UTC(), want)
+		}
+	}
+	if entries != 5 {
+		t.Errorf("%d entries, want the directory and its four files", entries)
+	}
+}
