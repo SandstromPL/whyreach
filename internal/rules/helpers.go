@@ -33,6 +33,21 @@ func idNum(id string) int {
 	return n
 }
 
+// targetAddr is the address the source connects to when the target gives
+// it: literally, or as a name the source's extra_hosts map to an address
+// (host-gateway is the host, not an address).
+func targetAddr(q evidence.Question, d evidence.Destinations) (netip.Addr, bool) {
+	switch {
+	case q.To.Class == evidence.TargetIP:
+		return q.To.Addr.Unmap(), q.To.Addr.IsValid()
+	case q.To.Class == evidence.TargetName && d.HostsEntry != "":
+		a, err := netip.ParseAddr(d.HostsEntry)
+		return a.Unmap(), err == nil
+	default:
+		return netip.Addr{}, false
+	}
+}
+
 // fromSource returns the TCP probes that ran in the source's netns.
 func fromSource(v evidence.View) []evidence.TCPEv {
 	q := v.Question()

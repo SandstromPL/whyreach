@@ -443,10 +443,7 @@ func (lanDocker) ListNetworks(ctx context.Context) ([]docker.Network, error) {
 func (lanDocker) ListContainers(ctx context.Context, all bool, labels ...string) ([]docker.Summary, error) {
 	list, err := fakeDocker{}.ListContainers(ctx, all, labels...)
 	pihole := docker.Summary{ID: strings.Repeat("c", 64), Names: []string{"/pihole"}, State: evidence.StateRunning}
-	pihole.NetworkSettings.Networks = map[string]struct {
-		IPAddress         string `json:"IPAddress"`
-		GlobalIPv6Address string `json:"GlobalIPv6Address"`
-	}{"lan": {IPAddress: "192.168.1.53"}}
+	pihole.NetworkSettings.Networks = map[string]docker.SummaryEndpoint{"lan": {IPAddress: "192.168.1.53"}}
 	return append(list, pihole), err
 }
 

@@ -113,6 +113,13 @@ type NetAttachment struct {
 	IPv4      netip.Addr `json:"ipv4,omitzero"`
 	IPv6      netip.Addr `json:"ipv6,omitzero"`
 	Gateway   netip.Addr `json:"gateway,omitzero"`
+	// FixedIPv4 and FixedIPv6 are the addresses the container is configured
+	// with (Compose ipv4_address and ipv6_address, docker run --ip): Docker
+	// keeps them while it is stopped, when IPv4 and IPv6 are empty, and
+	// gives them back when it starts, unless a running container has taken
+	// them meanwhile.
+	FixedIPv4 netip.Addr `json:"fixed_ipv4,omitzero"`
+	FixedIPv6 netip.Addr `json:"fixed_ipv6,omitzero"`
 	Names     []string   `json:"names,omitempty"` // names Docker's DNS answers for on this network (aliases and DNSNames), sorted
 	// Internal is the network's internal: true (no way out of the host),
 	// from Docker's network list; false when that list couldn't be read.
@@ -214,6 +221,11 @@ func (c Container) DisplayName() string {
 // network namespace that can be read or joined.
 func (c Container) Running() bool { return c.State == StateRunning }
 
+// Up reports a running or paused container: one whose network endpoints
+// exist, so the addresses it shows are its own. A stopped container's are
+// empty, except a created one's fixed address, which it doesn't hold yet.
+func (c Container) Up() bool { return c.State == StateRunning || c.State == StatePaused }
+
 // NetnsOwner returns the container ID whose network namespace this container
 // uses, for network_mode "container:<id>", and "" otherwise.
 func (c Container) NetnsOwner() string {
@@ -273,6 +285,18 @@ func (c Container) SubnetHolding(addr netip.Addr) (string, bool) {
 			if p.Contains(addr) {
 				return a.Network, true
 			}
+		}
+	}
+	return "", false
+}
+
+// FixedOn returns the network on which addr is the container's fixed
+// address (Compose ipv4_address or ipv6_address).
+func (c Container) FixedOn(addr netip.Addr) (string, bool) {
+	addr = addr.Unmap()
+	for _, a := range c.Networks {
+		if addr.IsValid() && (a.FixedIPv4 == addr || a.FixedIPv6 == addr) {
+			return a.Network, true
 		}
 	}
 	return "", false

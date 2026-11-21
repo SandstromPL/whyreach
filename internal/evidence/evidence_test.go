@@ -333,6 +333,55 @@ func TestDestinationsEdgeCases(t *testing.T) {
 	}
 }
 
+// A stopped container's fixed address makes it the destination of a
+// connection to that address, unless a container that is up holds it:
+// Docker hands a stopped container's fixed address to others (measured on
+// Engine 29.9.3). A created container shows its fixed address as its
+// address, which it doesn't hold either.
+func TestDestinationsFixedAddress(t *testing.T) {
+	worker := container("wwwwwwwwwwwwwwww", "shop-worker-1", "shop", "worker", att("shop_default", "172.22.0.2", "worker"))
+	stopped := func(id, name, state, shown string) Container {
+		c := container(id, name, "shop", strings.TrimSuffix(strings.TrimPrefix(name, "shop-"), "-1"), att("shop_default", shown))
+		c.State = state
+		c.Networks[0].FixedIPv4 = netip.MustParseAddr("172.22.0.11")
+		return c
+	}
+	db := stopped("dddddddddddddddd", "shop-db-1", StateExited, "")
+	created := stopped("nnnnnnnnnnnnnnnn", "shop-new-1", StateCreated, "172.22.0.11")
+	cache := container("cccccccccccccccc", "shop-cache-1", "shop", "cache", att("shop_default", "172.22.0.11", "cache"))
+	paused := cache
+	paused.State = StatePaused
+	dynamic := container("oooooooooooooooo", "shop-old-1", "shop", "old", att("shop_default", ""))
+	dynamic.State = StateExited
+	q := Question{From: Source{Kind: SourceContainer, ContainerID: worker.ID}, To: Target{Host: "172.22.0.11", Port: 5432, Class: TargetIP, Addr: netip.MustParseAddr("172.22.0.11")}}
+	mapped := worker
+	mapped.ExtraHosts = []string{"db:172.22.0.11"}
+	byHosts := Question{From: Source{Kind: SourceContainer, ContainerID: worker.ID}, To: Target{Host: "db", Port: 5432, Class: TargetName}}
+	tests := []struct {
+		name string
+		v    View
+		want []string
+	}{
+		{"a stopped container's fixed address", viewWith(q, worker, db), []string{"shop-db-1"}},
+		{"through extra_hosts", viewWith(byHosts, mapped, db), []string{"shop-db-1"}},
+		{"a created container's", viewWith(q, worker, created), []string{"shop-new-1"}},
+		{"taken by a running container", viewWith(q, worker, db, created, cache), []string{"shop-cache-1"}},
+		{"taken by a paused one", viewWith(q, worker, db, paused), []string{"shop-cache-1"}},
+		{"a dynamic address isn't kept", viewWith(q, worker, dynamic), nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, m := range tt.v.Destinations().All() {
+				got = append(got, m.C.Name)
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("destinations (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestViewContainerByReference(t *testing.T) {
 	c := container(strings.Repeat("ab", 32), "shop-api-1", "shop", "api", att("shop_default", "172.22.0.3"))
 	v := viewWith(Question{}, c)

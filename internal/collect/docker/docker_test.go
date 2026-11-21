@@ -258,6 +258,56 @@ func TestPortBindingsOfStoppedContainer(t *testing.T) {
 	}
 }
 
+// A stopped container keeps its fixed address (Compose ipv4_address and
+// ipv6_address) in IPAMConfig while Docker clears its address; a created
+// one shows the fixed address as its address too. The shapes are those
+// Engine 29.9.3 returned, with other addresses.
+func TestFixedAddresses(t *testing.T) {
+	var raw containerJSON
+	in := `{"State": {"Status": "exited"}, "NetworkSettings": {"Networks": {
+		"shop_default": {"IPAMConfig": {"IPv4Address": "172.29.0.11", "IPv6Address": "2001:db8:29::11"}, "IPAddress": "", "GlobalIPv6Address": "", "Gateway": ""},
+		"shop_backend": {"IPAMConfig": null, "IPAddress": "", "GlobalIPv6Address": ""}}}}`
+	if err := json.Unmarshal([]byte(in), &raw); err != nil {
+		t.Fatal(err)
+	}
+	want := []evidence.NetAttachment{
+		{Network: "shop_backend"},
+		{Network: "shop_default", FixedIPv4: netip.MustParseAddr("172.29.0.11"), FixedIPv6: netip.MustParseAddr("2001:db8:29::11")},
+	}
+	if diff := cmp.Diff(want, raw.toEvidence().Networks, cmpopts.EquateComparable(netip.Addr{}, netip.Prefix{})); diff != "" {
+		t.Errorf("inspect (-want +got):\n%s", diff)
+	}
+
+	f := newFakeDaemon(t, "1.56", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, []map[string]any{
+			{"Id": "d", "Names": []string{"/shop-db-1"}, "State": "exited", "NetworkSettings": map[string]any{"Networks": map[string]any{
+				"shop_default": map[string]any{"IPAMConfig": map[string]string{"IPv4Address": "172.29.0.11"}, "IPAddress": ""}}}},
+			{"Id": "n", "Names": []string{"/shop-new-1"}, "State": "created", "NetworkSettings": map[string]any{"Networks": map[string]any{
+				"shop_default": map[string]any{"IPAMConfig": map[string]string{"IPv4Address": "172.29.0.12"}, "IPAddress": "172.29.0.12"}}}},
+			{"Id": "o", "Names": []string{"/shop-old-1"}, "State": "exited", "NetworkSettings": map[string]any{"Networks": map[string]any{
+				"shop_default": map[string]any{"IPAMConfig": nil, "IPAddress": ""}}}},
+		})
+	})
+	c, _ := New(f.endpoint, ReadRoutes())
+	_, _ = c.Negotiate(context.Background())
+	list, err := c.ListContainers(context.Background(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][2]bool{}
+	for _, s := range list {
+		got[s.Name()] = [2]bool{s.HasAddr(netip.MustParseAddr("172.29.0.11")), s.HasFixedAddr(netip.MustParseAddr("172.29.0.11"))}
+	}
+	if d := cmp.Diff(map[string][2]bool{"shop-db-1": {false, true}, "shop-new-1": {false, false}, "shop-old-1": {false, false}}, got); d != "" {
+		t.Errorf("holds and fixed 172.29.0.11 (-want +got):\n%s", d)
+	}
+	for _, s := range list {
+		if a := netip.MustParseAddr("172.29.0.12"); s.Name() == "shop-new-1" && (!s.HasAddr(a) || !s.HasFixedAddr(a)) {
+			t.Errorf("a created container shows its fixed address as its address too: %+v", s)
+		}
+	}
+}
+
 func TestListContainersFilters(t *testing.T) {
 	f := newFakeDaemon(t, "1.56", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, []map[string]any{

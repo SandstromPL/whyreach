@@ -30,13 +30,39 @@ type Summary struct {
 	Created         int64             `json:"Created"`
 	Labels          map[string]string `json:"Labels"`
 	NetworkSettings struct {
-		Networks map[string]struct {
-			IPAddress         string `json:"IPAddress"`
-			GlobalIPv6Address string `json:"GlobalIPv6Address"`
-		} `json:"Networks"`
+		Networks map[string]SummaryEndpoint `json:"Networks"`
 	} `json:"NetworkSettings"`
 	// Ports lists published ports, and exposed ones without a PublicPort.
 	Ports []SummaryPort `json:"Ports"`
+}
+
+// SummaryEndpoint is a container's place on one network in the container
+// list: its addresses (empty while it is stopped, except a created
+// container's fixed one) and its fixed address, if it has one.
+type SummaryEndpoint struct {
+	IPAddress         string      `json:"IPAddress"`
+	GlobalIPv6Address string      `json:"GlobalIPv6Address"`
+	IPAMConfig        *IPAMConfig `json:"IPAMConfig"`
+}
+
+// IPAMConfig is the fixed address a container is configured with on a
+// network (Compose ipv4_address and ipv6_address, docker run --ip and
+// --ip6). Docker keeps it while the container is stopped and gives the
+// container that address when it starts, unless a running container has
+// taken it meanwhile: Docker hands it out to others, and the start then
+// fails with "Address already in use" (measured on Engine 29.9.3).
+type IPAMConfig struct {
+	IPv4Address string `json:"IPv4Address"`
+	IPv6Address string `json:"IPv6Address"`
+}
+
+// Fixed returns the configured addresses, IPv4 then IPv6; invalid where
+// unset.
+func (c *IPAMConfig) Fixed() (netip.Addr, netip.Addr) {
+	if c == nil {
+		return netip.Addr{}, netip.Addr{}
+	}
+	return parseAddr(c.IPv4Address), parseAddr(c.IPv6Address)
 }
 
 // SummaryPort is one entry of a container list's Ports.
@@ -75,6 +101,17 @@ func (s Summary) Networks() []string {
 func (s Summary) HasAddr(addr netip.Addr) bool {
 	for _, n := range s.NetworkSettings.Networks {
 		if parseAddr(n.IPAddress) == addr || parseAddr(n.GlobalIPv6Address) == addr {
+			return true
+		}
+	}
+	return false
+}
+
+// HasFixedAddr reports whether the container is configured with addr as
+// its fixed address on any network, running or not.
+func (s Summary) HasFixedAddr(addr netip.Addr) bool {
+	for _, n := range s.NetworkSettings.Networks {
+		if v4, v6 := n.IPAMConfig.Fixed(); addr.IsValid() && (v4 == addr || v6 == addr) {
 			return true
 		}
 	}
@@ -146,12 +183,13 @@ type containerJSON struct {
 		// published have no bindings.
 		Ports    map[string][]portBinding `json:"Ports"`
 		Networks map[string]struct {
-			NetworkID         string   `json:"NetworkID"`
-			IPAddress         string   `json:"IPAddress"`
-			GlobalIPv6Address string   `json:"GlobalIPv6Address"`
-			Gateway           string   `json:"Gateway"`
-			Aliases           []string `json:"Aliases"`
-			DNSNames          []string `json:"DNSNames"`
+			NetworkID         string      `json:"NetworkID"`
+			IPAddress         string      `json:"IPAddress"`
+			GlobalIPv6Address string      `json:"GlobalIPv6Address"`
+			Gateway           string      `json:"Gateway"`
+			Aliases           []string    `json:"Aliases"`
+			DNSNames          []string    `json:"DNSNames"`
+			IPAMConfig        *IPAMConfig `json:"IPAMConfig"`
 		} `json:"Networks"`
 	} `json:"NetworkSettings"`
 }
@@ -218,6 +256,7 @@ func (r containerJSON) toEvidence() evidence.Container {
 			IPv6:      parseAddr(n.GlobalIPv6Address),
 			Gateway:   parseAddr(n.Gateway),
 		}
+		a.FixedIPv4, a.FixedIPv6 = n.IPAMConfig.Fixed()
 		var names []string
 		for _, name := range append(slices.Clone(n.Aliases), n.DNSNames...) {
 			if dnsName.MatchString(name) {

@@ -285,11 +285,25 @@ func (v View) Destinations() Destinations {
 	if src, ok := v.Source(); ok && src.C.Compose != nil {
 		srcProject = src.C.Compose.Project
 	}
+	// A connection to an address goes to the container that holds it,
+	// running or paused. Only when none does is it a stopped container's
+	// address, its fixed one (or the one Docker shows for a created
+	// container), which it would hold if it ran (WR008). Docker hands a
+	// stopped container's fixed address to other containers, so one that
+	// is up takes precedence; a dynamic address isn't kept at all.
+	held := addr.IsValid() && slices.ContainsFunc(v.Containers(), func(c ContainerEv) bool {
+		return c.C.Up() && len(holdsAddr(c.C, addr, false)) > 0
+	})
 	for _, c := range v.Containers() {
 		m := Match{Port: t.Port}
 		switch {
 		case addr.IsValid():
-			m.Networks = holdsAddr(c.C, addr)
+			switch {
+			case c.C.Up():
+				m.Networks = holdsAddr(c.C, addr, false)
+			case !held:
+				m.Networks = holdsAddr(c.C, addr, true)
+			}
 			if len(m.Networks) == 0 {
 				continue
 			}
@@ -361,10 +375,12 @@ func intersect(nets []string, set map[string]bool) []string {
 	return out
 }
 
-func holdsAddr(c Container, addr netip.Addr) []string {
+// holdsAddr lists the networks where c shows addr as its address, or with
+// fixed also as its fixed address.
+func holdsAddr(c Container, addr netip.Addr, fixed bool) []string {
 	var out []string
 	for _, a := range c.Networks {
-		if a.IPv4 == addr || a.IPv6 == addr {
+		if a.IPv4 == addr || a.IPv6 == addr || (fixed && (a.FixedIPv4 == addr || a.FixedIPv6 == addr)) {
 			out = append(out, a.Network)
 		}
 	}

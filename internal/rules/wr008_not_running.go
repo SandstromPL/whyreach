@@ -86,6 +86,16 @@ func (r wr008) Evaluate(v evidence.View) []Finding {
 		f.Explanation = fmt.Sprintf("%s %s and has no network address, so nothing can connect to it.", name, state)
 		f.Fix = fmt.Sprintf("Start it (with Compose: docker compose up -d %s) and check why it stopped: docker logs %s.", c.DisplayName(), c.Name)
 	}
+	if a, ok := targetAddr(v.Question(), d); ok && !c.Up() {
+		if network, ok := c.FixedOn(a); ok {
+			setting, flag := "ipv4_address", "--ip"
+			if a.Is6() {
+				setting, flag = "ipv6_address", "--ip6"
+			}
+			f.Explanation += fmt.Sprintf(" %s is its fixed address on %s (Compose %s, docker run %s): Docker gives it back when %s starts, and until then no container holds it.",
+				a, network, setting, flag, c.DisplayName())
+		}
+	}
 	if len(down) > 1 {
 		f.Explanation += fmt.Sprintf(" None of the %d containers that answer to %s is up.", len(down), v.Question().To.Host)
 		for _, m := range down[1:] {

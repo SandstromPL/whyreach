@@ -96,7 +96,7 @@ func (r *run) collect(ctx context.Context) error {
 			continue
 		}
 		switch {
-		case (byName && nameMatches(s, to.Host)) || (byAddr.IsValid() && s.HasAddr(byAddr)):
+		case (byName && nameMatches(s, to.Host)) || (byAddr.IsValid() && (s.HasAddr(byAddr) || s.HasFixedAddr(byAddr))):
 			if len(matches) == maxMatches {
 				droppedMatches++
 				continue

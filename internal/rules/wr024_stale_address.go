@@ -48,17 +48,8 @@ func (r wr024) Evaluate(v evidence.View) []Finding {
 	if d.Host != nil || len(d.All()) > 0 {
 		return nil // the host, or a container holds it
 	}
-	var addr netip.Addr
-	switch {
-	case q.To.Class == evidence.TargetIP:
-		addr = q.To.Addr.Unmap()
-	case q.To.Class == evidence.TargetName && d.HostsEntry != "":
-		a, err := netip.ParseAddr(d.HostsEntry)
-		if err != nil {
-			return nil // host-gateway is the host
-		}
-		addr = a.Unmap()
-	default:
+	addr, ok := targetAddr(q, d)
+	if !ok {
 		return nil
 	}
 	network, ok := owner.C.SubnetHolding(addr)
@@ -209,10 +200,19 @@ func wr024Fix(v evidence.View, src, owner evidence.Container, network string, ad
 		return fix + ", then " + recreateOwner + "."
 	}
 	fix := fmt.Sprintf("Connect by name instead of by address: Docker's DNS on %s answers a service's name with its current address. Wherever %s's configuration has %s, use the name of the service that held it", network, name, addr)
-	if peers := others(v, owner, network); len(peers) == 1 {
-		fix += fmt.Sprintf(" (probably %s, the only other container on %s)", hostPort(peers[0], port), network)
+	up, down := others(v, owner, network)
+	if len(up) == 1 && len(down) == 0 {
+		fix += fmt.Sprintf(" (probably %s, the only other container on %s)", hostPort(up[0], port), network)
 	}
-	return fix + ", then " + recreate + "."
+	fix += ", then " + recreate + "."
+	switch len(down) {
+	case 0:
+	case 1:
+		fix += fmt.Sprintf(" %s on %s isn't running: if the address was its, start it as well; it may come back with another address, which is why the name matters.", down[0], network)
+	default:
+		fix += fmt.Sprintf(" %s on %s aren't running: if the address was one of theirs, start that one as well; it may come back with another address, which is why the name matters.", quoteList(down), network)
+	}
+	return fix
 }
 
 // answering names the running containers on a network, other than owner,
@@ -228,15 +228,20 @@ func answering(v evidence.View, owner evidence.Container, network, name string) 
 	return quoteList(slices.Compact(out))
 }
 
-// others lists the display names of the running containers on a network
-// other than owner, sorted.
-func others(v evidence.View, owner evidence.Container, network string) []string {
-	var out []string
+// others lists the display names of the containers on a network other
+// than owner, sorted: those that are up, and those that aren't.
+func others(v evidence.View, owner evidence.Container, network string) (up, down []string) {
 	for _, c := range v.Containers() {
-		if _, ok := c.C.Attachment(network); ok && c.C.ID != owner.ID && c.C.Running() {
-			out = append(out, c.C.DisplayName())
+		if _, ok := c.C.Attachment(network); !ok || c.C.ID == owner.ID {
+			continue
+		}
+		if c.C.Up() {
+			up = append(up, c.C.DisplayName())
+		} else {
+			down = append(down, c.C.DisplayName())
 		}
 	}
-	slices.Sort(out)
-	return slices.Compact(out)
+	slices.Sort(up)
+	slices.Sort(down)
+	return slices.Compact(up), slices.Compact(down)
 }

@@ -57,10 +57,7 @@ func (w *world) ListContainers(_ context.Context, _ bool, labels ...string) ([]d
 			s.Labels[docker.LabelComposeProject] = c.Compose.Project
 			s.Labels[docker.LabelComposeService] = c.Compose.Service
 		}
-		s.NetworkSettings.Networks = map[string]struct {
-			IPAddress         string `json:"IPAddress"`
-			GlobalIPv6Address string `json:"GlobalIPv6Address"`
-		}{}
+		s.NetworkSettings.Networks = map[string]docker.SummaryEndpoint{}
 		for _, pm := range c.Ports {
 			s.Ports = append(s.Ports, docker.SummaryPort{IP: pm.HostIP, PrivatePort: pm.ContainerPort, PublicPort: pm.HostPort, Type: pm.Proto})
 		}
@@ -69,10 +66,17 @@ func (w *world) ListContainers(_ context.Context, _ bool, labels ...string) ([]d
 			if a.IPv4.IsValid() {
 				ip = a.IPv4.String()
 			}
-			s.NetworkSettings.Networks[a.Network] = struct {
-				IPAddress         string `json:"IPAddress"`
-				GlobalIPv6Address string `json:"GlobalIPv6Address"`
-			}{IPAddress: ip}
+			ep := docker.SummaryEndpoint{IPAddress: ip}
+			if a.FixedIPv4.IsValid() || a.FixedIPv6.IsValid() {
+				ep.IPAMConfig = &docker.IPAMConfig{}
+				if a.FixedIPv4.IsValid() {
+					ep.IPAMConfig.IPv4Address = a.FixedIPv4.String()
+				}
+				if a.FixedIPv6.IsValid() {
+					ep.IPAMConfig.IPv6Address = a.FixedIPv6.String()
+				}
+			}
+			s.NetworkSettings.Networks[a.Network] = ep
 		}
 		match := true
 		for _, l := range labels {

@@ -339,3 +339,56 @@ func TestStaleAddressNamesThePeers(t *testing.T) {
 		t.Errorf("WR024 fired for the network's gateway: %+v", d.Findings)
 	}
 }
+
+// TestStoppedFixedAddress: a connection to a stopped container's fixed
+// address (Compose ipv4_address) is about that container: the container
+// list's IPAMConfig matches it, its record carries the address, and WR008
+// names it rather than WR024 calling the address stale. A running
+// container that took the address meanwhile is where the connection goes.
+func TestStoppedFixedAddress(t *testing.T) {
+	stoppedDB := func() evidence.Container {
+		db := ctr("d", "shop-db-1", "shop", "db", "shop_default", "172.22.0.5", 0)
+		db.State, db.ExitCode = evidence.StateExited, 1
+		db.Networks[0].IPv4 = netip.Addr{} // Docker clears it on stop
+		db.Networks[0].FixedIPv4 = netip.MustParseAddr("172.22.0.11")
+		return db
+	}
+	for _, probes := range []bool{false, true} {
+		w := shopWorld()
+		w.containers = append(w.containers, stoppedDB())
+		d := diagnoseWith(t, w, "container:shop-worker-1", "172.22.0.11:5432", probes)
+		if p := d.Primary(); p == nil || p.RuleID != "WR008" || p.Confidence != rules.High || !strings.Contains(p.Explanation, "fixed address") {
+			t.Errorf("probes=%v: primary = %+v, want WR008 at high naming db's fixed address", probes, p)
+		}
+		if slices.ContainsFunc(d.Findings, func(f rules.Finding) bool { return f.RuleID == "WR024" }) {
+			t.Errorf("probes=%v: WR024 fired for a stopped container's fixed address: %+v", probes, d.Findings)
+		}
+		found := false
+		for _, e := range d.Evidence {
+			if c, ok := e.Data.(evidence.Container); ok && c.Name == "shop-db-1" {
+				a, _ := c.Attachment("shop_default")
+				found = a.FixedIPv4 == netip.MustParseAddr("172.22.0.11")
+			}
+		}
+		if !found {
+			t.Errorf("probes=%v: db's record doesn't carry its fixed address", probes)
+		}
+	}
+	// With db stopped, nothing holds the address, so the gate skips the
+	// connect; with cache holding it, the connect runs.
+	for _, withCache := range []bool{false, true} {
+		w := shopWorld()
+		w.containers = append(w.containers, stoppedDB())
+		if withCache {
+			w.containers = append(w.containers, ctr("c", "shop-cache-1", "shop", "cache", "shop_default", "172.22.0.11", 300))
+		}
+		d := diagnoseWith(t, w, "container:shop-worker-1", "172.22.0.11:5432", true)
+		ran := slices.ContainsFunc(d.Evidence, func(e evidence.Evidence) bool { return e.Kind == evidence.KindTCP && e.OK() })
+		if ran != withCache {
+			t.Errorf("cache=%v: the connect ran=%v", withCache, ran)
+		}
+		if withCache && slices.ContainsFunc(d.Findings, func(f rules.Finding) bool { return f.RuleID == "WR008" || f.RuleID == "WR024" }) {
+			t.Errorf("cache holds the address, yet: %+v", d.Findings)
+		}
+	}
+}
