@@ -351,14 +351,19 @@ func reRedact(b Bundle, o ExportOptions) (map[string][]byte, manifest, error) {
 	return out, m, nil
 }
 
-// cleanJSON passes every string value of an encoded JSON value through
-// clean.
-func cleanJSON(b []byte, clean func(string) string, indent bool) ([]byte, error) {
+// cleanJSON drops the top-level keys in drop from an encoded JSON value and
+// passes every string value left through clean, indented or not.
+func cleanJSON(b []byte, clean func(string) string, indent bool, drop ...string) ([]byte, error) {
 	var tree any
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.UseNumber()
 	if err := dec.Decode(&tree); err != nil {
 		return nil, err
+	}
+	if m, ok := tree.(map[string]any); ok {
+		for _, k := range drop {
+			delete(m, k)
+		}
 	}
 	tree = walk(tree, clean)
 	if indent {

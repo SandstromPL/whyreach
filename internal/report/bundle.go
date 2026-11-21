@@ -115,13 +115,16 @@ func render(d *engine.Diagnosis, o SaveOptions) (map[string][]byte, manifest, er
 		r.Learn(d)
 		clean = r.Apply
 	}
-	diagJSON, err := redactJSON(d, clean, true, "evidence")
+	// diagnosis.json leaves the evidence out: evidence.jsonl holds it.
+	bare := *d
+	bare.Evidence = nil
+	diagJSON, err := marshalClean(&bare, clean, true, "evidence")
 	if err != nil {
 		return nil, manifest{}, err
 	}
 	var evs bytes.Buffer
 	for _, e := range d.Evidence {
-		b, err := redactJSON(e, clean, false)
+		b, err := marshalClean(e, clean, false)
 		if err != nil {
 			return nil, manifest{}, err
 		}
@@ -202,31 +205,15 @@ func readSaved(dir string) (Saved, error) {
 	return savedOf(dir, m), nil
 }
 
-// redactJSON encodes v, drops the top-level keys in drop, and passes every
-// string value through clean. Redacted addresses are no longer addresses, so
-// a redacted bundle decodes as plain JSON, not into whyreach's types.
-func redactJSON(v any, clean func(string) string, indent bool, drop ...string) ([]byte, error) {
+// marshalClean encodes v and then cleans it as cleanJSON does. Redacted
+// addresses are no longer addresses, so a redacted bundle decodes as plain
+// JSON, not into whyreach's types.
+func marshalClean(v any, clean func(string) string, indent bool, drop ...string) ([]byte, error) {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return nil, err
 	}
-	var tree any
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.UseNumber()
-	if err := dec.Decode(&tree); err != nil {
-		return nil, err
-	}
-	if m, ok := tree.(map[string]any); ok {
-		for _, k := range drop {
-			delete(m, k)
-		}
-	}
-	tree = walk(tree, clean)
-	if indent {
-		out, err := json.MarshalIndent(tree, "", "  ")
-		return append(out, '\n'), err
-	}
-	return json.Marshal(tree)
+	return cleanJSON(b, clean, indent, drop...)
 }
 
 func walk(v any, clean func(string) string) any {
