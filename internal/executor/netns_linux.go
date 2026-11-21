@@ -4,6 +4,7 @@ package executor
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -137,14 +138,14 @@ func (n *Netns) lookUp(ctx context.Context, where evidence.ContextRef) (evidence
 		return evidence.Container{}, &containerError{evidence.StatusError, evidence.CodeInternal, "the netns executor can only enter a container's network namespace"}
 	}
 	ictx, cancel := context.WithTimeout(ctx, inspectTimeout)
-	c, err := n.Docker.InspectContainer(ictx, where.Container)
+	c, err := n.Docker.InspectContainer(ictx, cmp.Or(where.ID, where.Container))
 	cancel()
 	switch {
 	case errors.Is(err, docker.ErrNotFound):
 		return c, &containerError{evidence.StatusFailed, evidence.CodeNotFound, fmt.Sprintf("%s no longer exists: %v", where, err)}
 	case err != nil:
 		return c, fmt.Errorf("look up %s before entering its network namespace: %w", where, err)
-	case !strings.HasPrefix(c.ID, where.Container):
+	case where.ID != "" && c.ID != where.ID, !strings.HasPrefix(c.ID, where.Container):
 		return c, &containerError{evidence.StatusError, evidence.CodeInternal, fmt.Sprintf("asked Docker for container %s, got %s", where.Container, evidence.ShortID(c.ID))}
 	case !c.Running() || c.Pid <= 0:
 		return c, &containerError{evidence.StatusFailed, evidence.CodeNotFound, fmt.Sprintf("%s is %s, so nothing can be tested from its network namespace; start it first", c.DisplayName(), c.State)}

@@ -623,3 +623,30 @@ func TestSweepIsRetriedAfterAFailure(t *testing.T) {
 		t.Errorf("leftovers listed %d times, want a retry after the failed sweep", n)
 	}
 }
+
+// TestProbeContainerJoinsByFullID: with the container's full ID at hand, the
+// probe container joins by it. Docker resolves a short ID only after exact
+// names, so a container named like the target's short ID would be joined
+// instead.
+func TestProbeContainerJoinsByFullID(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the probe container needs a Linux whyreach")
+	}
+	api := &fakeAPI{
+		version: docker.Version{Os: "linux", Arch: runtime.GOARCH},
+		stdout: probeOutput(t, evidence.Evidence{
+			Kind: evidence.KindTCP, Subject: "api:8080", Status: evidence.StatusOK,
+			Data:   evidence.TCPProbe{Target: "api:8080", Addr: netip.MustParseAddrPort("172.22.0.3:8080"), Via: evidence.ViaDNS, Outcome: evidence.OutcomeRefused},
+			Source: "TCP connect, then close (no payload)",
+		}),
+	}
+	pc := NewProbeContainer(api, fakeELF(t, false), "0.1.0-dirty", nil)
+	where := worker
+	where.ID = worker.Container + strings.Repeat("0", 64-len(worker.Container))
+	if _, err := pc.Run(context.Background(), where, []probe.Spec{{Kind: probe.SpecTCP, Host: "api", Port: 8080}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(api.created) != 1 || api.created[0].NetnsOf != where.ID {
+		t.Fatalf("joined %+v, want the full ID %s", api.created, where.ID)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -111,7 +112,7 @@ func (p *ProbeContainer) Run(ctx context.Context, where evidence.ContextRef, spe
 
 	name := "wr-probe-" + randomHex(4)
 	cmd := append([]string{"--spec", specJSON, "--budget", probeBudget(ctx).String()}, probe.LimitsFrom(ctx).ProbeArgs()...)
-	spec := docker.ProbeSpec{Name: name, Image: ref, NetnsOf: where.Container, Cmd: cmd}
+	spec := docker.ProbeSpec{Name: name, Image: ref, NetnsOf: cmp.Or(where.ID, where.Container), Cmd: cmd}
 	id, err := p.API.Create(ctx, spec)
 	if errors.Is(err, docker.ErrNotFound) {
 		// The image may be gone since prepare found it (docker image prune

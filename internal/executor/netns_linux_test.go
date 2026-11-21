@@ -102,6 +102,11 @@ func TestReadInRootStaysInside(t *testing.T) {
 	}
 }
 
+func withID(c evidence.ContextRef, id string) evidence.ContextRef {
+	c.ID = id
+	return c
+}
+
 type fakeInspector struct {
 	c   evidence.Container
 	err error
@@ -141,6 +146,14 @@ func TestNetnsRunRefusesWhatItCannotEnter(t *testing.T) {
 		{
 			name: "another container", where: where, inspector: fakeInspector{c: evidence.Container{ID: strings.Repeat("cd", 32), State: evidence.StateRunning, Pid: 1}},
 			wantStatus: evidence.StatusError, wantCode: evidence.CodeInternal, wantText: "got cdcdcdcdcdcd",
+		},
+		{
+			// The full ID is known: a container whose ID only shares the
+			// short one (or that Docker found by a name equal to it) is
+			// another container.
+			name: "another container with the same short ID", where: withID(where, id),
+			inspector:  fakeInspector{c: evidence.Container{ID: id[:12] + strings.Repeat("ef", 26), State: evidence.StateRunning, Pid: 1}},
+			wantStatus: evidence.StatusError, wantCode: evidence.CodeInternal, wantText: "asked Docker for container",
 		},
 		{
 			name: "stopped", where: where, inspector: fakeInspector{c: evidence.Container{ID: id, Name: "worker", State: evidence.StateExited}},

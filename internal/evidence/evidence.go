@@ -74,6 +74,11 @@ type ContextRef struct {
 	Name      string `json:"name,omitempty"`      // display name: Compose service or container name
 	NetnsID   uint64 `json:"netns_id,omitempty"`  // netns inode, when readable: proves two checks shared a netns
 	Executor  string `json:"executor,omitempty"`  // how a probe ran there; empty for metadata and host-read data
+	// ID is the container's full ID, for the executors that join or enter
+	// it: Docker resolves a short ID after names, so a container named like
+	// another's short ID would be taken instead. Never serialized; a
+	// context read back from JSON has only the short ID.
+	ID string `json:"-"`
 }
 
 // Host is the ContextRef of the machine whyreach runs on.
@@ -94,7 +99,7 @@ func HostOn(p Platform) ContextRef {
 
 // InContainer is the ContextRef of a container's network namespace.
 func InContainer(c Container) ContextRef {
-	return ContextRef{Kind: ContextContainer, Container: ShortID(c.ID), Name: c.DisplayName()}
+	return ContextRef{Kind: ContextContainer, Container: ShortID(c.ID), Name: c.DisplayName(), ID: c.ID}
 }
 
 // Where names the context in prose: a container's name, or "the host"
