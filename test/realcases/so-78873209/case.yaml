@@ -1,0 +1,34 @@
+source: https://stackoverflow.com/questions/78873209
+author: Robert Anderson
+licence: CC BY-SA 4.0
+asked: >-
+  A Spring Boot service and Authentik both run in Docker with Docker Compose,
+  Authentik on ports 80 and 443. At startup Spring Security can't fetch
+  https://localhost/application/o/{name}/.well-known/openid-configuration:
+  Connection refused. The same path over http://localhost works in the
+  browser. localhost, 0.0.0.0 and the container's name, with and without a
+  scheme, all failed.
+projects: [compose.yaml, compose.authentik.yaml]
+from: service:app@${PROJECT}
+to: localhost:${LAB_PORT}
+symptom: refused
+images: []
+stubbed:
+  - what: the asker's Spring Boot service (name not given)
+    how: the stand-in, listening on 0.0.0.0:8080, Spring Boot's default
+    why: it is only where the failing connection starts; the stand-in keeps running where the real app would stop when Spring Security fails at startup
+  - what: Authentik's server (ghcr.io/goauthentik/server, not one of the lab's images)
+    how: the stand-in, listening where Authentik's server listens by default (HTTP 0.0.0.0:9000, HTTPS 0.0.0.0:9443)
+    why: only where it listens and how it is published matter to the failing connection
+assumptions:
+  - The failing connection is the one in the title, https://localhost/..., so port 443 on localhost, made from inside the Spring Boot service's container; the other URL roots the asker tried aren't rebuilt.
+  - Authentik and the Spring Boot service are separate Compose projects, as Authentik's basic setup is its own Compose file; the question only says both run with Docker Compose.
+  - The asker's "Authentik is running on port 80/443" is read as the host's ports, published to the server's default 9000 (HTTP) and 9443 (HTTPS), as Authentik's basic Compose file does; the browser's http://localhost reaching it supports host port 80.
+  - The lab has one ${LAB_PORT}; it replaces host port 443, the one the failing URL uses, so the target is localhost:${LAB_PORT}. Host port 80 is published on a port Docker picks ("9000").
+  - Authentik's basic setup also runs a worker, PostgreSQL and Redis; they are left out, since the question names none of them and none is on the failing connection. The server's service name, server, is the one in Authentik's basic Compose file.
+  - The Spring Boot service's name, ports and networks aren't given; it is app, unpublished, on its project's default network.
+  - The self-signed certificate is not reproduced; the harness's check is a TCP connect.
+read:
+  - bin/realcases/raw/so-78873209/question.md
+  - bin/realcases/raw/so-78873209/meta.json
+  - test/realcases/README.md

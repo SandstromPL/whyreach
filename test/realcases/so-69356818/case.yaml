@@ -1,0 +1,36 @@
+source: https://stackoverflow.com/questions/69356818
+author: TennisTechBoy
+licence: CC BY-SA 4.0
+asked: >-
+  Apache Kafka 2.7.0 runs in Compose as one ZooKeeper and three brokers, each
+  in its own container, built from the asker's own images. Producing and
+  consuming with the CLI inside the containers works, but kafka-python's
+  producer and consumer, run outside Docker on the same machine, can't reach
+  the brokers.
+settle_seconds: 5
+from: host
+to: localhost:9092
+symptom: failure
+images: []
+stubbed:
+  - what: zookeeper-1, the asker's ZooKeeper image (zookeeper:2.7.0, built from ./zookeeper, run with Kafka's zookeeper.properties)
+    how: the stand-in, listening on 0.0.0.0:2181
+    why: 2181 is the clientPort in Kafka's shipped zookeeper.properties, and ZooKeeper listens on all addresses; only where it listens matters here
+  - what: kafka-1, kafka-2 and kafka-3, the asker's Kafka 2.7.0 broker image (kafka:2.7.0, built from the asker's Dockerfile)
+    how: the stand-in in each, listening on 0.0.0.0:9092
+    why: a Kafka broker's default listener is PLAINTEXT on port 9092 on all addresses; what clients get back in the broker's metadata (advertised listeners) can't be served by the stand-in
+  - what: kafka-python's producer and consumer, run on the host
+    how: the harness's own connect from the host
+    why: they are the failing client; only their target matters
+assumptions:
+  - The question doesn't say what address the host-side client used or how it failed. The target is localhost:9092, kafka-python's default bootstrap_servers, and the symptom is failure.
+  - The mounted server.properties and zookeeper.properties files aren't shown, so each broker is taken to listen on Kafka's default (port 9092, all addresses) and ZooKeeper on 2181.
+  - The config and data bind mounts (./config/..., ./data/kafka-N/) are left out; they serve only the replaced programs, and binding missing paths would create folders on the host.
+  - No ports are published and no networks are named, as in the question's Compose file; all four services share the project's default network, which gets the lab label through a networks.default entry.
+  - container_names zookeeper-1, kafka-1, kafka-2 and kafka-3 became whyreach-lab-${REALCASE_PROJECT}-zookeeper-1, -kafka-1, -kafka-2 and -kafka-3; the service names are unchanged.
+  - The question's Compose file lost its indentation under "services:" in the post; it is read as the four services nested under it.
+  - The host runs Docker Engine on Linux ("on the same machine"); the asker's OS isn't given.
+read:
+  - bin/realcases/raw/so-69356818/question.md
+  - bin/realcases/raw/so-69356818/meta.json
+  - test/realcases/README.md

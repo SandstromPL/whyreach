@@ -1,0 +1,34 @@
+source: https://github.com/takwerx/infra-TAK/issues/372
+author: Tech-Guyish
+asked: >
+  After CloudTAK v13.117.0 moved basemap serving into the tiles container,
+  tiles looks up basemap config from the API at API_URL and falls back to
+  localhost:5001 when it isn't set. Compose didn't pass API_URL to tiles, so
+  every basemap lookup failed with ECONNREFUSED, returned a 500 and the map
+  went blank. infra-TAK's override sets API_URL to http://api:5000 for events
+  and media, but not for tiles.
+from: service:tiles@${PROJECT}
+to: localhost:5001
+symptom: refused
+images: []
+stubbed:
+  - what: api, CloudTAK's API
+    how: the stand-in, listening on 0.0.0.0:5000
+    why: only where it listens matters; the issue gives its address as api:5000
+  - what: tiles, CloudTAK's PMTiles server (the failing client)
+    how: the stand-in, listening on 0.0.0.0:5002
+    why: it only needs to exist; the address it falls back to (localhost:5001) is the case's target
+  - what: events and media, CloudTAK's other services that call the API
+    how: the stand-in, listening on 0.0.0.0:5003 (events) and 0.0.0.0:9997 (media)
+    why: they only show the override's API_URL entries that tiles lacks
+assumptions:
+  - The state rebuilt is v13.117.0's, the one the reporter saw fail (tiles has no API_URL and uses localhost:5001). On v13.117.1 without an override, tiles would get .env's public URL and go out through hairpin NAT and Caddy; the reporter didn't test that path and it can't be rebuilt here (no public URL, router or Caddy).
+  - The upstream docker-compose.yml and infra-TAK's docker-compose.override.yml are merged into one compose.yaml, since the harness runs each Compose file as its own project.
+  - The ports tiles, events and media listen on are not in the issue; 5002, 5003 and 9997 are guesses. None of them is 5001.
+  - api's port 5000 is published on the host (as ${LAB_PORT}), assuming Caddy on the host reaches the API through a published port; the issue doesn't give the mapping.
+  - CloudTAK's other services (the database, object store) and Caddy are left out; the issue doesn't mention them and they aren't on the failing path.
+  - All services share the project's default network; the issue names no networks.
+read:
+  - bin/realcases/raw/gh-takwerx-infra-TAK-372/question.md
+  - bin/realcases/raw/gh-takwerx-infra-TAK-372/meta.json
+  - test/realcases/README.md

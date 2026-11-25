@@ -1,0 +1,42 @@
+source: https://stackoverflow.com/questions/75237114
+author: Vladislav Mikhailov
+licence: CC BY-SA 4.0
+asked: >-
+  Two Django containers on a network called web: a web application published
+  as 8000:8000 and an accounts service published as 8001:8000. The asker can
+  open both from the browser, but when the web application sends its sign-in
+  request to http://127.0.0.1:8001 it gets "[Errno 111] Connection refused".
+from: service:container_1@${PROJECT}
+to: 127.0.0.1:${LAB_PORT}
+symptom: refused
+images: []
+stubbed:
+  - what: container_1, the asker's Django web application, built from a Dockerfile the question doesn't show and started with ./start.sh
+    how: the stand-in, listening on 0.0.0.0:8000
+    why: the failing request starts there; only its network setup matters
+  - what: container_2, the asker's Django accounts API, built from a Dockerfile the question doesn't show
+    how: the stand-in, listening on 0.0.0.0:8000
+    why: only where it listens matters to the failing connection
+assumptions:
+  - >-
+    The request runs in container_1, the web application; container_2 is the accounts service (its env_file is under accounts/).
+  - >-
+    The host side of container_2's published port, 8001 in the question, is ${LAB_PORT}. The client's URL used that same number, so `to` uses ${LAB_PORT} too, keeping the client's port equal to container_2's host-side port as in the question. (Literally as written, `to` would be 127.0.0.1:8001.)
+  - >-
+    container_1's fixed host port 8000 can't also be ${LAB_PORT} and could be taken on this machine, so it publishes container port 8000 on a host port Docker picks.
+  - >-
+    Both Django apps listen on 0.0.0.0:8000, not Django's runserver default of 127.0.0.1, because the asker opens both from the browser through their published ports.
+  - >-
+    container_2's block in the question lacks its `build:` key and is mis-indented; it is read as a build from ./container_2 like container_1's, and both builds are replaced by the stand-in.
+  - >-
+    The env files (.env and accounts/settings/.env) aren't shown; they are kept as optional (required false) and don't exist here.
+  - >-
+    The bind mounts ./data:/data and ./data:/app are left out; they hold the asker's code and data, which the stand-in replaces, and a bind mount would create a directory on this machine. working_dir, stdin_open and tty are kept; command ./start.sh becomes the stand-in's command.
+  - >-
+    The top-level definition of the web network isn't shown; it is a plain Compose network.
+  - >-
+    The asker's Docker host and engine version aren't given; the lab runs Linux Docker Engine.
+read:
+  - bin/realcases/raw/so-75237114/question.md
+  - bin/realcases/raw/so-75237114/meta.json
+  - test/realcases/README.md

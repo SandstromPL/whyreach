@@ -24,6 +24,7 @@ FIELDS = ["case", "decision", "out_reason", "cause", "connection", "rule", "plan
 
 def main():
     labelled = {}
+    after = yaml.safe_load((HERE / "after-rebuild.yaml").read_text()) or {}
     for f in sorted(LABELS.glob("*.yaml")):
         for entry in yaml.safe_load(f.read_text()) or []:
             labelled[entry["case"]] = entry
@@ -40,6 +41,11 @@ def main():
             entry = {"source": source, "position": pos, "url": c["url"]}
             entry |= {k: label[k] for k in FIELDS if label.get(k) not in (None, "", [])}
             entry["selected"] = label["decision"] == "in"
+            if c["id"] in (after.get("out") or {}):
+                entry |= {"selected": False, "decision_after_rebuild": "out",
+                          "out_reason_after_rebuild": "not rebuildable from the question: " + after["out"][c["id"]]}
+            if c["id"] in (after.get("not_reproduced") or {}):
+                entry["not_reproduced"] = after["not_reproduced"][c["id"]]
             taken += entry["selected"]
             last = pos
             out.append(entry)

@@ -1,0 +1,11 @@
+# Rebuilt from https://stackoverflow.com/questions/78151189 (asked by Jovany González),
+# CC BY-SA 4.0.
+services:
+  local-redis:
+    container_name: whyreach-lab-${REALCASE_PROJECT}-local-redis
+    image: redis:7-alpine
+    # Port 6379 shifted to ${LAB_PORT} on both sides: 6379 is taken on the
+    # machine running the check (see case.yaml).
+    command: ["redis-server", "--port", "${LAB_PORT}"]
+    network_mode: bridge
+    labels: { io.whyreach.lab: "1" }

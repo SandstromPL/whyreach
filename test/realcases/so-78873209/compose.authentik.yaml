@@ -1,0 +1,15 @@
+# Rebuilt from https://stackoverflow.com/questions/78873209 (Robert Anderson), CC BY-SA 4.0.
+# A basic Authentik setup, on the host's ports 80 and 443 (443 is ${LAB_PORT} here).
+services:
+  server:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:9000", "0.0.0.0:9443"]
+    ports:
+      - "9000"
+      - "${LAB_PORT}:9443"
+    labels: { io.whyreach.lab: "1" }
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

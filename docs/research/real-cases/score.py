@@ -51,7 +51,9 @@ def main():
             continue
         r = results.get(case)
         row = {"case": case, "label": label["rule"]}
-        if r is None:
+        if label.get("not_reproduced"):
+            row["status"] = "not reproduced: " + label["not_reproduced"]
+        elif r is None:
             row["status"] = "not run"
         elif r.get("error"):
             row["status"] = "error: " + r["error"]

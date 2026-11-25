@@ -112,6 +112,16 @@ Recorded as it happened, before whyreach ran on any case.
 - **GitHub isn't blind.** An issue is often opened after its reporter found the cause, so the issue's own text may state it, and the reproducer reads it. The rebuilds of the GitHub cases follow the issue as opened, without its comments, but can't be blind.
 - **CLAUDE.md.** Every agent in this repository is given its CLAUDE.md, which describes whyreach's rules in a few words. The reproducers are told not to read the rule pages; they still had that summary.
 
+## What happened while rebuilding (2026-11-25)
+
+Also before whyreach ran on any case.
+
+- **Five reproducers** rebuilt the 20 cases from the questions alone, in batches of four. None ran Docker. The symptom check then ran on each (`-realcases.symptoms-only`, no whyreach).
+- **Operator changes,** each recorded in its case.yaml: so-78151189's Redis listens on `${LAB_PORT}` instead of 6379, on both sides, because this machine runs its own Redis on 127.0.0.1:6379; list items in four case.yaml files were quoted so they parse as text (content unchanged).
+- **Label and rebuild must describe the same failing connection.** Comparing each rebuild's `from` and `to` with its label's connection (allowing for the harness's port substitutions, and a name the question doesn't give), three forum cases disagreed: the question showed one setup, and the confirmed fix was for a later one the asker moved to in the thread. Decided then, before any run: such a case is out as not rebuildable from the question, and the next eligible case takes its place (`real-cases/after-rebuild.yaml`). forum-130073, forum-150611 and forum-147588 went out; forum-139130 and forum-121911 came in. The forum pool then holds only 3 eligible cases, not 4.
+- **One case can't be rebuilt as a running setup.** In gh-Anagamedina-ft_transcendence-309 the failure lives in the address nginx cached at its start, before the backend was recreated. Compose can't recreate a service after another starts, and the reproducer's workaround (writing that address into nginx's config and using it as the target) changes what the app named, against the rebuild rules. It stays in the sample as not reproduced, unscored.
+- **One rebuild didn't fail:** gh-coryfinnegan-CollectionMaxxing-819 connected where its issue reports a failure; its reproducer got the one more try the method allows.
+
 ## Decisions (2026-11-25, before sampling)
 
 The owner settled the plan's four open decisions as proposed:

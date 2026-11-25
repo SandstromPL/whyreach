@@ -1,0 +1,33 @@
+source: https://stackoverflow.com/questions/78151189
+author: Jovany González
+licence: CC BY-SA 4.0
+asked: >-
+  A Laravel app running on the host (PHP 8.1 FPM, artisan) connects to Redis at
+  REDIS_HOST=127.0.0.1, REDIS_PORT=6379 and gets "Connection refused". Redis
+  runs in a Docker container named local-redis, and redis-cli inside that
+  container answers PING with PONG.
+settle_seconds: 5
+from: host
+to: 127.0.0.1:${LAB_PORT}
+symptom: refused
+images: [redis:7-alpine]
+stubbed:
+  - what: the Laravel app and its artisan command, run on the host with the phpredis extension
+    how: the harness's own connect from the host to 127.0.0.1:6379
+    why: the app is the failing client; only its target matters
+assumptions:
+  - >-
+    The question doesn't show how local-redis was started. It is rebuilt as a plain "docker run --name local-redis redis" would make it: the default bridge network (network_mode bridge), no published port, since the question mentions none.
+  - >-
+    container_name local-redis became whyreach-lab-${REALCASE_PROJECT}-local-redis, as the README requires.
+  - >-
+    The Redis image's version isn't given; it runs as redis:7-alpine with its defaults (no command, no config).
+  - >-
+    The host runs Docker Engine on Linux (the asker uses systemctl and php8.1-fpm); Docker Desktop isn't mentioned.
+  - >-
+    The target keeps host port 6379, the client's setting, since no published port is involved; it assumes nothing else on the test machine listens on 127.0.0.1:6379.
+  - "Changed by the operator, not the reproducer: the machine running the check has its own Redis on 127.0.0.1:6379, so the client and the Redis in local-redis both use ${LAB_PORT} (a free port) instead of 6379. The client's port still equals the port Redis listens on in the container, as in the question."
+read:
+  - bin/realcases/raw/so-78151189/question.md
+  - bin/realcases/raw/so-78151189/meta.json
+  - test/realcases/README.md

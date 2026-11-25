@@ -1,0 +1,34 @@
+# Rebuilt from https://stackoverflow.com/questions/78901825 (Jan Etschel), CC BY-SA 4.0.
+# ki-ui is the asker's nginx image: its nginx.conf listens on 0.0.0.0:443 (ssl)
+# and proxies /ai to http://localhost:8000.
+services:
+  ki-backend:
+    platform: linux/amd64
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:8000"]
+    container_name: whyreach-lab-${REALCASE_PROJECT}-ki-backend
+    ports:
+      - "${LAB_PORT}:8000"
+    expose:
+      - 8080
+    networks:
+      - comms
+    labels: { io.whyreach.lab: "1" }
+
+  ki-ui:
+    platform: linux/amd64
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:443"]
+    container_name: whyreach-lab-${REALCASE_PROJECT}-ki-ui
+    ports:
+      - "443"
+    networks:
+      - comms
+    labels: { io.whyreach.lab: "1" }
+
+networks:
+    comms:
+      driver: bridge
+      labels: { io.whyreach.lab: "1" }

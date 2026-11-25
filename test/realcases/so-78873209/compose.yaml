@@ -1,0 +1,13 @@
+# Rebuilt from https://stackoverflow.com/questions/78873209 (Robert Anderson), CC BY-SA 4.0.
+# The asker's Spring Boot service; at startup Spring Security fetches
+# https://localhost/application/o/{name}/.well-known/openid-configuration.
+services:
+  app:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:8080"]
+    labels: { io.whyreach.lab: "1" }
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

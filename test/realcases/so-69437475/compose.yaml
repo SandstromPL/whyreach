@@ -1,0 +1,23 @@
+# Rebuilt from https://stackoverflow.com/questions/69437475, asked by rewrewty1 (CC BY-SA 4.0).
+services:
+  api:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:3030"]
+    ports:
+      - "${LAB_PORT}:3030"
+    expose:
+      - "22"
+    depends_on:
+      - mysql_db
+    labels: { io.whyreach.lab: "1" }
+
+  mysql_db:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:3306"]
+    labels: { io.whyreach.lab: "1" }
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

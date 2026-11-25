@@ -1,0 +1,35 @@
+source: https://stackoverflow.com/questions/73415151
+author: Domenico
+licence: CC BY-SA 4.0
+asked: >-
+  One Compose file runs two MongoDB containers, one published as 27017:27017
+  and the other as 27018:27017, each with its own backend. The backend that
+  uses the first database on port 27017 connects; the one whose DATABASE_URL
+  points at mongo-db-showcase-db:27018 fails with ECONNREFUSED on that
+  container's address and port 27018.
+from: service:backend-showcase@${PROJECT}
+to: mongo-db-showcase-db:${LAB_PORT}
+symptom: refused
+images: []
+stubbed:
+  - what: both MongoDB servers (mongo:latest), which aren't among the lab's images
+    how: the stand-in, listening on 0.0.0.0:27017
+    why: the official mongo image starts mongod on its default port 27017 on all addresses; where it listens is the only part of it the failing connection meets
+  - what: backend-showcase and backend-manager, the asker's Node.js (mongoose) apps, built from Dockerfiles the question doesn't show
+    how: the stand-in, listening on 0.0.0.0:3000 and 0.0.0.0:8000, the container ports they publish
+    why: backend-showcase is only where the failing connection starts, and backend-manager only completes the setup; their DATABASE_URL values are kept as environment
+  - what: frontend-showcase and frontend-manager, built from Dockerfiles the question doesn't show
+    how: the stand-in, listening on 0.0.0.0:80, the container port both publish
+    why: they take no part in the failing connection and are kept only so the setup is complete
+assumptions:
+  - The host side of mongo-db-showcase-db's published port, 27018 in the question, is ${LAB_PORT}. The failing backend's DATABASE_URL used that same number, 27018, so the rebuild's DATABASE_URL and `to` use ${LAB_PORT} too, keeping the client's port equal to that container's host-side port as in the question. (Literally as written, `to` would be mongo-db-showcase-db:27018.)
+  - The other fixed host ports (80:80, 3000:3000, 27017:27017, 8080:80, 8000:8000) can't all be ${LAB_PORT} and could be taken on this machine, so those services publish their container ports on host ports Docker picks; the container sides are unchanged.
+  - DB_USER and DB_PASSWORD come from an environment or .env file the question doesn't show; they default to the placeholders dbuser and dbpassword so Compose has a value.
+  - The `build:` sections and the asker's image names (showcase-frontend-showcase-image:latest and the others) are replaced by the stand-in image, since no build is allowed.
+  - The top-level version key ('3.7') is left out; Compose ignores it.
+  - The asker's apps listen on all addresses on the container ports they publish; the question doesn't say, and the manager's side is reported to work.
+  - The asker's Docker host and engine version aren't given; the lab runs Linux Docker Engine.
+read:
+  - bin/realcases/raw/so-73415151/question.md
+  - bin/realcases/raw/so-73415151/meta.json
+  - test/realcases/README.md

@@ -1,0 +1,34 @@
+# Rebuilt from https://stackoverflow.com/questions/69356818 (asked by TennisTechBoy),
+# CC BY-SA 4.0.
+services:
+  zookeeper-1:
+    container_name: whyreach-lab-${REALCASE_PROJECT}-zookeeper-1
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:2181"]
+    labels: { io.whyreach.lab: "1" }
+
+  kafka-1:
+    container_name: whyreach-lab-${REALCASE_PROJECT}-kafka-1
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:9092"]
+    labels: { io.whyreach.lab: "1" }
+
+  kafka-2:
+    container_name: whyreach-lab-${REALCASE_PROJECT}-kafka-2
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:9092"]
+    labels: { io.whyreach.lab: "1" }
+
+  kafka-3:
+    container_name: whyreach-lab-${REALCASE_PROJECT}-kafka-3
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:9092"]
+    labels: { io.whyreach.lab: "1" }
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

@@ -1,0 +1,42 @@
+source: https://stackoverflow.com/questions/69437475
+author: rewrewty1
+licence: CC BY-SA 4.0
+asked: >-
+  A Node.js app (node-ssh) running in the api container of a Compose stack
+  connects to localhost port 22 to log in to the SSH server of the asker's
+  WSL Ubuntu, where ssh works from the shell. From the container the
+  connection fails with ECONNREFUSED 127.0.0.1:22.
+host_listen: [loopback, docker0]
+from: service:api@${PROJECT}
+to: localhost:${HOST_PORT}
+symptom: refused
+images: []
+stubbed:
+  - what: the api service, the asker's Node.js app built on node:alpine and started with npm run start
+    how: the stand-in, listening on 0.0.0.0:3030, the container port it publishes
+    why: the failing connection starts there; only its network setup matters
+  - what: mysql_db, which the question elides ("...") but api depends on
+    how: the stand-in, listening on 0.0.0.0:3306, MySQL's default port
+    why: it takes no part in the failing connection and is kept only because api's depends_on names it
+  - what: the SSH server (sshd) on the asker's WSL Ubuntu, outside Docker
+    how: the harness's host listeners on loopback and on docker0, port ${HOST_PORT}
+    why: sshd listens on all of the host's addresses by default; those two listeners stand in for that on the lab host
+assumptions:
+  - >-
+    The rebuild follows the Dockerfile the error was reported with, and its second update, both of which run the Node app (npm run start) and no SSH server in the container. The first update's version, which starts sshd -D inside the container, is not used. The Dockerfile's EXPOSE 22 is kept as the service's expose list, port 22.
+  - >-
+    The host's SSH port 22 becomes ${HOST_PORT}, and the app's localhost:22 becomes localhost:${HOST_PORT}, so the app still dials the port the host's SSH server listens on. The container-side EXPOSE stays 22.
+  - >-
+    The asker's sshd_config changes only PasswordAuthentication, so sshd keeps its default of listening on all addresses; the lab approximates that with listeners on 127.0.0.1 and on docker0's gateway.
+  - >-
+    The asker runs Docker with WSL Ubuntu 18; whether Docker ran inside WSL or through Docker Desktop isn't said. The lab host is Linux with Docker Engine, so its host plays the part of the WSL machine.
+  - >-
+    The Node app listens on all addresses on port 3030, the port it publishes.
+  - >-
+    The volumes (an anonymous volume at /app/node_modules and the bind mount ./server:/app) are left out; they hold the asker's code and packages, which the stand-in replaces, and a bind mount would create a directory on this machine.
+  - >-
+    The rest of the Compose file is elided in the question; only api and mysql_db, which api depends on, are rebuilt.
+read:
+  - bin/realcases/raw/so-69437475/question.md
+  - bin/realcases/raw/so-69437475/meta.json
+  - test/realcases/README.md

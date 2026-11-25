@@ -1,0 +1,31 @@
+source: https://stackoverflow.com/questions/65766633
+author: gary
+licence: CC BY-SA 4.0
+asked: >-
+  An Angular app served by an nginx container calls a Spring Boot API
+  container. With http://localhost:6060 the call works; with the Compose
+  service name, http://files-service:8080, it fails with
+  net::ERR_NAME_NOT_RESOLVED in the browser console, although all containers
+  share one Docker network.
+projects: [compose.yaml]
+from: host
+to: files-service:8080
+symptom: name-not-found
+images: [nginx:stable-alpine]
+stubbed:
+  - what: files-service, the asker's Spring Boot API
+    how: the stand-in, listening on 0.0.0.0:8080, Spring Boot's default port
+    why: only its network setup matters to the failing connection
+assumptions:
+  - The failing client is the Angular code in the browser on the host (the asker's edit says so), so the connection starts on the host.
+  - files-service is in the same Compose file as nginx-files-ui, on the shared default network; the question shows only nginx-files-ui's block.
+  - files-service listens on 8080 (Spring Boot's default, and the port the asker switched to for the service name) and is published to the host, since http://localhost:6060 reached it; the mapping 6060:8080 is inferred.
+  - The lab has one ${LAB_PORT}; it replaces the host port the question fixes (99 for nginx-files-ui), and files-service's inferred 6060 is published on a host port Docker picks ("8080").
+  - nginx:latest became nginx:stable-alpine, with its default config, as the question says it uses. The resolver 127.0.0.11 line the asker tried later is left out; it would go in the http block of nginx.conf, which can't be set on the command line.
+  - The volume ./files-ui/dist/html (the built Angular app) is left out; it isn't in the question and only holds static files.
+  - The external network files-net (default, external) becomes a network Compose creates, named whyreach-lab-${REALCASE_PROJECT}-files-net, since the lab creates nothing outside Compose; it is a plain bridge as docker network create makes.
+  - container_name nginx-files-ui became whyreach-lab-${REALCASE_PROJECT}-nginx-files-ui, per the lab's naming rule.
+read:
+  - bin/realcases/raw/so-65766633/question.md
+  - bin/realcases/raw/so-65766633/meta.json
+  - test/realcases/README.md

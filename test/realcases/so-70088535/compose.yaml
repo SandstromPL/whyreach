@@ -1,0 +1,35 @@
+# Rebuilt from https://stackoverflow.com/questions/70088535 (asked by Bruno Paris),
+# CC BY-SA 4.0.
+services:
+  test-service:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:50054"]
+    restart: always
+    depends_on:
+      - consul
+    environment:
+      - CONSUL_HOST=consul
+      - DISCOVERY_HOST=localhost
+    ports:
+      - "50054"
+    labels: { io.whyreach.lab: "1" }
+
+  consul:
+    container_name: whyreach-lab-${REALCASE_PROJECT}-consul
+    ports:
+      - "8400"
+      - "${LAB_PORT}:8500"
+      - "53/udp"
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:8300", "0.0.0.0:8301", "0.0.0.0:8302", "0.0.0.0:8500", "0.0.0.0:8600"]
+    labels:
+      kompose.service.type: nodeport
+      kompose.service.expose: "true"
+      kompose.image-pull-policy: "Always"
+      io.whyreach.lab: "1"
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

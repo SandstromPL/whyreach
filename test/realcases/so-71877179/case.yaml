@@ -1,0 +1,40 @@
+source: https://stackoverflow.com/questions/71877179
+author: ThunD3eR
+licence: CC BY-SA 4.0
+asked: >-
+  A MySQL, phpMyAdmin and Node Express stack works under Compose on the
+  asker's machine. On a DigitalOcean droplet the asker pulls each built image
+  and runs it on its own with a published port; there the Express server's
+  MySQL pool to host "dbcontainer" fails with ENOTFOUND from getaddrinfo, and
+  phpMyAdmin can't resolve its database host either.
+settle_seconds: 30
+from: service:server@${PROJECT}
+to: dbcontainer:3306
+symptom: name-not-found
+images: [mysql:8.4]
+stubbed:
+  - what: the Express server, the asker's Node.js app built from a Dockerfile the question doesn't show
+    how: the stand-in, listening on 0.0.0.0:4000, the port it publishes
+    why: the failing connection starts there; only its network setup matters
+  - what: phpMyAdmin (phpmyadmin/phpmyadmin), which isn't among the lab's images
+    how: the stand-in, listening on 0.0.0.0:80, the container port it publishes
+    why: it takes no part in the rebuilt connection (its own lookup fails the same way) and is kept so the droplet's three containers are all there
+assumptions:
+  - >-
+    The rebuild is the droplet's setup, where the failure happens, not the Compose file that works locally. The asker says each image was pulled and run separately on its own port, and the droplet's container list shows Docker-generated names, so the three run on Docker's default bridge (network_mode bridge) with no container_name and no user-defined network. One Compose project stands in for the separate runs.
+  - >-
+    The Compose-level settings of the local file (container_name dbcontainer, mynetwork, the --default-authentication-plugin command, cap_add, restart, healthcheck, environment) were not baked into the images and the droplet's run commands aren't given, so none of them are applied. On the droplet the MySQL container's image was named dbcontainer; that image name isn't reproduced.
+  - >-
+    The MySQL image is the asker's build FROM mysql with ENV MYSQL_ROOT_PASSWORD Dsb2016! and an init SQL file; the rebuild uses mysql:8.4 with that root password. The init SQL (database todo, user produser) is left out, since the failing step is the name lookup before any login.
+  - >-
+    The Express pool sets no port, so it dials the mysql package's default, 3306.
+  - >-
+    The droplet's published ports were 3307:3306 (MySQL), 4000:4000 (server) and 8183:80 (phpMyAdmin). MySQL's host side is ${LAB_PORT}; the other two publish their container ports on host ports Docker picks, since only one ${LAB_PORT} exists and fixed ports could be taken on this machine.
+  - >-
+    phpMyAdmin's environment on the droplet isn't given, so none is set.
+  - >-
+    The droplet ran Docker 19.03.12 on Ubuntu; the lab runs a current Linux Docker Engine.
+read:
+  - bin/realcases/raw/so-71877179/question.md
+  - bin/realcases/raw/so-71877179/meta.json
+  - test/realcases/README.md

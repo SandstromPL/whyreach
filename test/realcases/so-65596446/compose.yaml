@@ -1,0 +1,44 @@
+# Rebuilt from https://stackoverflow.com/questions/65596446 (Shivam Patil), CC BY-SA 4.0.
+# cth-docker-container is a Spring MVC WAR in tomcat:8.0.20-jre8; it reads the
+# CTH_* variables to reach MySQL. 3307 (the host side of MySQL's mapping) is
+# ${LAB_PORT} here, in the mapping and in the variables alike.
+version: '3'
+services:
+  mysql-standalone:
+    image: 'mysql:8.4'
+    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      - MYSQL_ROOT_PASSWORD= root
+      - MYSQL_USER= root
+      - MYSQL_PASSWORD= root
+      - MYSQL_DATABASE= CTH
+      - MYSQL_DATABASE= CTH_CHAT
+    ports:
+      - "${LAB_PORT}:3306"
+    labels: { io.whyreach.lab: "1" }
+  cth-docker-container:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:8080", "0.0.0.0:8009", "127.0.0.1:8005"]
+    ports:
+      - "8082"
+    environment:
+      CTH_DATASOURCE_DATABASE: CTH
+      CTH_DATASOURCE_SERVERNAME: mysql-standalone
+      CTH_DATASOURCE_USERNAME: root
+      CTH_DATASOURCE_PASSWORD: root
+      CTH_DATASOURCE_PORT: ${LAB_PORT}
+
+      CTH_CHAT_DATASOURCE_DATABASE: CTH_CHAT
+      CTH_CHAT_DATASOURCE_SERVERNAME: mysql-standalone
+      CTH_CHAT_DATASOURCE_USERNAME: root
+      CTH_CHAT_DATASOURCE_PASSWORD: root
+      CTH_CHAT_DATASOURCE_PORT: ${LAB_PORT}
+
+    depends_on:
+      - mysql-standalone
+    labels: { io.whyreach.lab: "1" }
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

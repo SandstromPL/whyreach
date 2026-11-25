@@ -1,0 +1,34 @@
+source: https://stackoverflow.com/questions/69061621
+author: Hamza Jadid
+licence: CC BY-SA 4.0
+asked: >-
+  A Node.js app in Compose (service `be`) connects to Postgres in the same
+  project with the URL postgres://agoodusername:astrongpassword@db:5433/dbname
+  and keeps getting ECONNREFUSED on db's address, port 5433. pgAdmin in the
+  same project can't connect to the database either. Run as separate
+  containers without Compose, it worked.
+settle_seconds: 15
+from: service:be@${PROJECT}
+to: db:${LAB_PORT}
+symptom: refused
+images: [postgres:17]
+stubbed:
+  - what: be, the asker's Node.js/Express/TypeORM app (build from a Dockerfile on node:12.18.1-alpine)
+    how: the stand-in, listening on 0.0.0.0:3333
+    why: the app listens on 0.0.0.0:3333 (app.listen(3333, '0.0.0.0')); only its network setup and its connect to the database matter
+  - what: pgadmin, the dpage/pgadmin4 image (not one of the lab's images)
+    how: the stand-in, listening on 0.0.0.0:80, pgAdmin's default port, with the question's environment kept
+    why: it only sits on the same network; its own failing connect to db isn't shown in enough detail to rebuild
+assumptions:
+  - The app's port 5433 is the host side of db's published mapping 5433:5432. That host port becomes ${LAB_PORT}, so the app's target becomes db:${LAB_PORT} to keep its relation to the mapping.
+  - The other two fixed host ports (pgadmin's 5050:80, be's 3333:3333) can't all be ${LAB_PORT}, so they are published on host ports Docker picks ("80", "3333"), keeping the container sides.
+  - The bind mount ./pgdata:/var/lib/postgresql/data became a named volume (pgdata) at the same path, so Postgres's files don't land in the repository; it starts empty, as a first run would.
+  - container_name db, pgadmin4 and be became whyreach-lab-${REALCASE_PROJECT}-db, -pgadmin4 and -be, as the README requires; the service names (db, pgadmin, be) are unchanged, so db still resolves by its service name.
+  - image postgres (untagged in the question) runs as postgres:17, the README's tag.
+  - The top-level version 3.9 is left out (Compose ignores it); pgadmin's platform linux/amd64 is left out too, since it named the replaced pgAdmin image's platform.
+  - The network postgres keeps driver bridge; the asker said it also failed without the network, and the version with it is rebuilt.
+  - The failing connection is be's connect; the symptom is ECONNREFUSED from the app's log.
+read:
+  - bin/realcases/raw/so-69061621/question.md
+  - bin/realcases/raw/so-69061621/meta.json
+  - test/realcases/README.md

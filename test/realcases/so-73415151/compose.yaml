@@ -1,0 +1,69 @@
+# Rebuilt from https://stackoverflow.com/questions/73415151, asked by Domenico (CC BY-SA 4.0).
+services:
+  mongo-db-showcase-db:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:27017"]
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: '${DB_USER:-dbuser}'
+      MONGO_INITDB_ROOT_PASSWORD: '${DB_PASSWORD:-dbpassword}'
+    ports:
+      - '${LAB_PORT}:27017'
+    labels: { io.whyreach.lab: "1" }
+
+  frontend-showcase:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:80"]
+    ports:
+      - '80'
+    labels: { io.whyreach.lab: "1" }
+
+  backend-showcase:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:3000"]
+    environment:
+      DATABASE_URL: 'mongodb://${DB_USER:-dbuser}:${DB_PASSWORD:-dbpassword}@mongo-db-showcase-db:${LAB_PORT}/'
+    ports:
+      - '3000'
+    links:
+      - mongo-db-showcase-db
+    labels: { io.whyreach.lab: "1" }
+
+  mongo-db-admin-manager-db:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:27017"]
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: '${DB_USER:-dbuser}'
+      MONGO_INITDB_ROOT_PASSWORD: '${DB_PASSWORD:-dbpassword}'
+    ports:
+      - '27017'
+    labels: { io.whyreach.lab: "1" }
+
+  frontend-manager:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:80"]
+    ports:
+      - '80'
+    labels: { io.whyreach.lab: "1" }
+
+  backend-manager:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:8000"]
+    environment:
+      DATABASE_URL: 'mongodb://${DB_USER:-dbuser}:${DB_PASSWORD:-dbpassword}@mongo-db-admin-manager-db:27017/'
+    ports:
+      - '8000'
+    links:
+      - mongo-db-admin-manager-db
+    labels: { io.whyreach.lab: "1" }
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

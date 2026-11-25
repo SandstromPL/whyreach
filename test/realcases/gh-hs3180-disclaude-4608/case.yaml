@@ -1,0 +1,27 @@
+source: https://github.com/hs3180/disclaude/issues/4608
+author: hs3180
+asked: >
+  In the production container disclaude-primary, the agent's channel MCP tools
+  fail with "fetch failed: connect ECONNREFUSED 127.0.0.1:9200". After the
+  Unix-socket IPC was removed, REST on --api-port is the only IPC, but the
+  compose command starts the primary node without --api-port, so no
+  HttpApiServer is created, while the MCP side connects to its default
+  http://localhost:9200.
+from: service:primary@${PROJECT}
+to: localhost:9200
+symptom: refused
+images: [node:22-alpine]
+stubbed:
+  - what: the primary node, the project's own Node app (node packages/primary-node/dist/cli.js start)
+    how: node:22-alpine running node -e "setInterval(() => {}, 3600000)", a process that stays up and listens on nothing
+    why: started without --api-port the app creates no HttpApiServer, so nothing listens on 9200; the stand-in would have to listen somewhere
+assumptions:
+  - The Compose service is named primary (the issue speaks of "the primary command") and its container disclaude-primary; the container_name gets the lab's prefix and project.
+  - The issue names no other port the primary node listens on, so the rebuild listens on none.
+  - The failing client is the MCP server the agent runs inside the same container; it uses the default base URL http://localhost:9200, so DISCLAUDE_REST_IPC_BASE_URL isn't set in the compose file.
+  - The image, volumes (/data/logs), environment and any other services of the deployment aren't in the issue and are left out.
+  - The loopback family split the issue lists as a risk after the fix (a server on ::1 only, a client trying 127.0.0.1) isn't part of this failure and isn't rebuilt.
+read:
+  - bin/realcases/raw/gh-hs3180-disclaude-4608/question.md
+  - bin/realcases/raw/gh-hs3180-disclaude-4608/meta.json
+  - test/realcases/README.md

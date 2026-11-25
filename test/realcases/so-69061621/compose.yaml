@@ -1,0 +1,57 @@
+# Rebuilt from https://stackoverflow.com/questions/69061621 (asked by Hamza Jadid),
+# CC BY-SA 4.0.
+services:
+  db:
+    container_name: whyreach-lab-${REALCASE_PROJECT}-db
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_USER: agoodusername
+      POSTGRES_PASSWORD: astrongpassword
+      POSTGRES_DB: dbname
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${LAB_PORT}:5432"
+    networks:
+      - postgres
+    labels: { io.whyreach.lab: "1" }
+
+  pgadmin:
+    container_name: whyreach-lab-${REALCASE_PROJECT}-pgadmin4
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:80"]
+    restart: always
+    depends_on:
+      - db
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: root
+    ports:
+      - "80"
+    networks:
+      - postgres
+    labels: { io.whyreach.lab: "1" }
+
+  be:
+    container_name: whyreach-lab-${REALCASE_PROJECT}-be
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:3333"]
+    depends_on:
+      - db
+    ports:
+      - "3333"
+    networks:
+      - postgres
+    labels: { io.whyreach.lab: "1" }
+
+networks:
+  postgres:
+    driver: bridge
+    labels: { io.whyreach.lab: "1" }
+
+volumes:
+  pgdata:
+    labels: { io.whyreach.lab: "1" }

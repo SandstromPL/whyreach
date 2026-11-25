@@ -1,0 +1,31 @@
+source: https://forums.docker.com/t/127146
+author: fravaccaro
+asked: >-
+  HAProxy in front of three replicas of a Node.js app (port 8001) and a MongoDB
+  logs "[ALERT] backend 'app' has no server available!", while each app answers
+  in the browser on its own published port.
+settle_seconds: 15
+from: service:haproxy@${PROJECT}
+to: app1:8001
+symptom: failure
+images: [haproxytech/haproxy-alpine:2.4]
+stubbed:
+  - what: app1, app2 and app3, the asker's Node.js app (built from node:13-alpine, `npm start`)
+    how: the stand-in, listening on 0.0.0.0:8001
+    why: only where it listens matters to HAProxy's servers; the question says it listens on 8001 and answers from the browser through the published ports
+  - what: mongo (image mongo)
+    how: the stand-in, listening on 0.0.0.0:27017
+    why: the apps' database, not on the failing connection; the image isn't one the lab may use
+assumptions:
+  - HAProxy runs the exact image the asker's Dockerfile starts from, haproxytech/haproxy-alpine:2.4, because the failure could depend on that image's own behaviour (its default configuration, and which file it reads). This image isn't in the README's list; the owner is to approve pulling it.
+  - The Dockerfile's `COPY haproxy.conf /usr/local/etc/haproxy/haproxy.conf` becomes a Compose config from haproxy.conf in this folder, written as the question shows it, mounted at the same path.
+  - The Compose file's smart quotes and uneven indentation are read as the forum paste; quotes are straightened, and `networks:` is read as top level, since it defines my-net (name and driver) for the services to join.
+  - '`version: "3"` is kept as given.'
+  - The apps listen on all addresses, since the browser reaches them through the published ports.
+  - Six host ports are fixed in the question; haproxy's 80, the one the asker uses for the balancer, is published as ${LAB_PORT}, and 81, 82, 83, 27017 and 8404 become ephemeral host ports, since the harness gives one free port.
+  - The failing connection is HAProxy's to its servers, as the asker's haproxy.conf names them; app1:8001 is the first. The log names a backend 'app' while the config shown names its backend 'apps'; rebuilt as shown.
+  - The question gives only "no server available", not how HAProxy's checks failed, so the symptom is failure.
+read:
+  - bin/realcases/raw/forum-127146/question.md
+  - bin/realcases/raw/forum-127146/meta.json
+  - test/realcases/README.md

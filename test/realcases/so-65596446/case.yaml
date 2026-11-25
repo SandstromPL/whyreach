@@ -1,0 +1,32 @@
+source: https://stackoverflow.com/questions/65596446
+author: Shivam Patil
+licence: CC BY-SA 4.0
+asked: >-
+  A Spring MVC app in Tomcat and a MySQL container run from one Compose file.
+  The app is told to reach MySQL at mysql-standalone, port 3307 (MySQL is
+  published 3307:3306), and on docker-compose up it fails with a
+  communications link failure caused by java.net.UnknownHostException:
+  mysql-standalone.
+projects: [compose.yaml]
+up_wait: false
+settle_seconds: 30
+from: service:cth-docker-container@${PROJECT}
+to: mysql-standalone:${LAB_PORT}
+symptom: name-not-found
+images: [mysql:8.4]
+stubbed:
+  - what: cth-docker-container, the asker's Spring MVC WAR in tomcat:8.0.20-jre8 (built from their Dockerfile)
+    how: the stand-in, listening where Tomcat 8.0 listens by default (HTTP 0.0.0.0:8080, AJP 0.0.0.0:8009, shutdown port 127.0.0.1:8005)
+    why: the Dockerfile only copies the WAR into Tomcat, so Tomcat's default ports apply; the app itself is only where the failing connection starts
+assumptions:
+  - mysql:5.7 became mysql:8.4, the lab's MySQL tag; the command and the environment are kept as given, leading spaces in the values and the repeated MYSQL_DATABASE included.
+  - The volume ./docker/provision/mysql/init (init scripts adapted from an article's repository, not shown in the question) is left out.
+  - The build (context ./, Dockerfile) is dropped, since the lab builds nothing; the image cth-docker-container became the stand-in.
+  - The app connects to the published host port 3307; the lab replaces that host port with ${LAB_PORT}, so CTH_DATASOURCE_PORT, CTH_CHAT_DATASOURCE_PORT and the target use ${LAB_PORT} too, keeping the app's port equal to MySQL's host port.
+  - The question fixes two host ports (3307 for MySQL, 8082 for the app) and the lab has one ${LAB_PORT}; MySQL's took it, and the app's 8082:8082 is published on a host port Docker picks ("8082").
+  - The default network is declared only to carry the lab's label.
+  - The app sees an unknown host for a service of its own Compose project, which can mean mysql-standalone isn't running, so the harness doesn't wait for every service to be up (up_wait false) and gives MySQL 30 seconds to initialise.
+read:
+  - bin/realcases/raw/so-65596446/question.md
+  - bin/realcases/raw/so-65596446/meta.json
+  - test/realcases/README.md

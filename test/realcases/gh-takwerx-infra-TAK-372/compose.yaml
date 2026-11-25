@@ -1,0 +1,39 @@
+# CloudTAK v13.117.0 as infra-TAK runs it: the upstream docker-compose.yml
+# merged with infra-TAK's generated docker-compose.override.yml. The override
+# gives events and media API_URL "http://api:5000"; tiles gets no API_URL at
+# all (v13.117.0's compose didn't pass one), so it falls back to
+# localhost:5001 for its basemap lookups (GET /api/basemap/:id).
+services:
+  api:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:5000"]
+    ports:
+      - "${LAB_PORT}:5000"
+    labels: { io.whyreach.lab: "1" }
+
+  tiles:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:5002"]
+    labels: { io.whyreach.lab: "1" }
+
+  events:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:5003"]
+    environment:
+      API_URL: "http://api:5000"
+    labels: { io.whyreach.lab: "1" }
+
+  media:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:9997"]
+    environment:
+      API_URL: "http://api:5000"
+    labels: { io.whyreach.lab: "1" }
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

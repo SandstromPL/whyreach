@@ -1,0 +1,28 @@
+# CollectionMaxxing's nightly backup container next to Postgres. Its health
+# check fails when the newest good backup is 30 h old or more, when Postgres
+# can't be reached, or when it isn't running; the alert reports the first:
+# the newest successful backup is 30 h old (limit 30 h).
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: lab-only
+    labels: { io.whyreach.lab: "1" }
+
+  backup:
+    image: postgres:17
+    depends_on:
+      - db
+    environment:
+      CM_BACKUP_DIR: /backups
+    command: ["sh", "-c", "mkdir -p /backups && touch -d '30 hours ago' /backups/collectionmaxxing.dump && exec sleep infinity"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -h db -p 5432 && find /backups -name '*.dump' -mmin -1800 | grep -q ."]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    labels: { io.whyreach.lab: "1" }
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

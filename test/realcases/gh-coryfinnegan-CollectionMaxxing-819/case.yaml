@@ -1,0 +1,29 @@
+source: https://github.com/coryfinnegan/CollectionMaxxing/issues/819
+author: coryfinnegan
+asked: >
+  An automatic alert from the project's deployer: the backup container
+  reports unhealthy because the newest successful backup is 30 h old (limit
+  30 h). The alert's check also covers Postgres being unreachable and the
+  container not running, but the reported line is the backup's age. The
+  deployer's log before it shows a stretch where Docker or GHCR couldn't be
+  reached for image pulls, which had recovered before the alert.
+up_wait: false
+from: service:backup@${PROJECT}
+to: db:5432
+symptom: failure
+images: [postgres:17]
+stubbed:
+  - what: backup, the project's backup container running backup.sh nightly
+    how: postgres:17 running sh -c that leaves one backup file dated 30 hours ago and sleeps, with a healthcheck that wants Postgres reachable (pg_isready) and a backup newer than 30 h
+    why: the reported state is the container's health; the stand-in has no shell for a healthcheck, and the Postgres image carries the client tools a backup container uses
+assumptions:
+  - The issue reports no failed connection, only a stale backup. backup to Postgres is the one connection its health check names, so it is the case's connection, with symptom failure since nothing says how (or whether) it failed. Nothing in the issue says Postgres was unreachable, so the rebuild leaves it reachable; the harness's check will likely find this connection working, and the case may not be a network failure at all.
+  - The Postgres service is named db and listens on 5432, its default; the issue names neither.
+  - Postgres's password is a lab-only placeholder; the backup's connection settings and credentials aren't in the issue.
+  - CM_BACKUP_DIR is a host folder in the reporter's setup; here it is /backups inside the container, so no host files are made. The newest backup being 30 h old is rebuilt as one file touched 30 hours back; the nightly schedule and backup.sh aren't rebuilt.
+  - The backup's healthcheck command and timings are invented from the alert's text; it fails here, so up_wait is false.
+  - The API (ghcr.io/coryfinnegan/collectionmaxxing-api), the shelf reader (llama.cpp) and the deployer on the PC are left out; the failed pulls in the deployer's log are Docker or GHCR being unavailable and had recovered before the alert.
+read:
+  - bin/realcases/raw/gh-coryfinnegan-CollectionMaxxing-819/question.md
+  - bin/realcases/raw/gh-coryfinnegan-CollectionMaxxing-819/meta.json
+  - test/realcases/README.md

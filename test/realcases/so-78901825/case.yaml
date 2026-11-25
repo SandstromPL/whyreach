@@ -1,0 +1,31 @@
+source: https://stackoverflow.com/questions/78901825
+author: Jan Etschel
+licence: CC BY-SA 4.0
+asked: >-
+  An nginx container (ki-ui) serves a frontend on 443 and proxies /ai to
+  http://localhost:8000, meaning the backend container (ki-backend, published
+  8080:8000) on the same Compose network. The frontend loads, but /ai returns
+  502 Bad Gateway, and nginx logs connect() failed (111: Connection refused)
+  to upstream http://[::1]:8000.
+projects: [compose.yaml]
+from: service:ki-ui@${PROJECT}
+to: localhost:8000
+symptom: refused
+images: []
+stubbed:
+  - what: ki-backend, the asker's own image (ki-backend:latest), an app whose framework the question doesn't name
+    how: the stand-in, listening on 0.0.0.0:8000
+    why: only where it listens matters to the failing connection; 8000 is the container side of its published port and the port nginx proxies to
+  - what: ki-ui, the asker's own nginx image (ki-ui:latest) with the given nginx.conf (listen 0.0.0.0:443 ssl, proxy_pass http://localhost:8000)
+    how: the stand-in, listening on 0.0.0.0:443, where that nginx.conf listens
+    why: the certificate and key the config loads aren't in the question, so nginx:stable-alpine with that config wouldn't start; the failing connection is nginx's own connect to localhost:8000, which the harness makes from ki-ui
+assumptions:
+  - ki-backend listens on all addresses (0.0.0.0), on port 8000; the question doesn't say where its app binds.
+  - The question fixes two host ports (8080 for ki-backend, 443 for ki-ui) and the lab has one ${LAB_PORT}; ki-backend's 8080 became ${LAB_PORT}, and ki-ui's 443 is published on a host port Docker picks ("443").
+  - container_name ki-backend and ki-ui became whyreach-lab-${REALCASE_PROJECT}-ki-backend and -ki-ui, per the lab's naming rule.
+  - pull_policy if_not_present became never, for the stand-in; platform linux/amd64 is kept, which assumes the stand-in image is amd64, as on the lab machine.
+  - The /ai request path (GET /ai/chatGPT) isn't reproduced; the harness's connect from ki-ui to localhost:8000 stands for nginx's upstream connect.
+read:
+  - bin/realcases/raw/so-78901825/question.md
+  - bin/realcases/raw/so-78901825/meta.json
+  - test/realcases/README.md

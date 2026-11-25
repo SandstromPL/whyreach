@@ -1,0 +1,33 @@
+source: https://stackoverflow.com/questions/70088535
+author: Bruno Paris
+licence: CC BY-SA 4.0
+asked: >-
+  A NestCloud microservice (test-service) and Consul run in one Compose
+  project. The microservice can't start: its ConfigModule keeps retrying with
+  "consul: kv.get: connect ECONNREFUSED 127.0.0.1:8500". Its bootstrap config
+  points Consul at localhost:8500. Pinging consul from the microservice's
+  container works.
+settle_seconds: 10
+from: service:test-service@${PROJECT}
+to: localhost:8500
+symptom: refused
+images: []
+stubbed:
+  - what: test-service, the asker's NestCloud app (build from a Dockerfile on node:12-alpine, tagged test-service:latest)
+    how: the stand-in, listening on 0.0.0.0:50054
+    why: the app's service port is 50054 (EXPOSE 50054, port 50054 in its bootstrap config); only its network setup and its connect to Consul matter
+  - what: consul, the consul image (not one of the lab's images) run with "agent -server -bootstrap -ui -client 0.0.0.0"
+    how: the stand-in, listening on 0.0.0.0 at Consul's default TCP ports for that command (8300 server RPC, 8301 Serf LAN, 8302 Serf WAN, 8500 HTTP, 8600 DNS)
+    why: the -client 0.0.0.0 flag puts the HTTP API and DNS on all addresses, and the server ports bind all addresses by default; the stand-in serves TCP only, so the UDP side of 8301, 8302 and 8600 is missing
+assumptions:
+  - The app's target is localhost:8500, as its bootstrap-development.yaml writes it (consul host localhost, port 8500); the error shows it resolved to 127.0.0.1.
+  - 8500 is Consul's own HTTP port as well as the host side of 8500:8500, so the target keeps 8500; that mapping's host side becomes ${LAB_PORT}.
+  - The other fixed host ports (8400:8400, 8600:53/udp, test-service's 50054:50054) are published on host ports Docker picks ("8400", "53/udp", "50054"), keeping the container sides.
+  - Consul is taken at the version current in late 2021 (1.10), where nothing listens on 8400 (its old RPC port) and gRPC is off outside dev mode, so the stand-in doesn't listen there either.
+  - container_name consul became whyreach-lab-${REALCASE_PROJECT}-consul; the service name consul is unchanged. test-service has no container_name in the Compose file (the asker's "docker exec test-service" suggests one), so none is added.
+  - The top-level version 3.2, the build sections and the image name test-service:latest are left out; the kompose labels are kept.
+  - The default network gets the lab label through a networks.default entry; nothing else about it changes.
+read:
+  - bin/realcases/raw/so-70088535/question.md
+  - bin/realcases/raw/so-70088535/meta.json
+  - test/realcases/README.md

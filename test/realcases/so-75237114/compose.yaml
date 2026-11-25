@@ -1,0 +1,42 @@
+# Rebuilt from https://stackoverflow.com/questions/75237114, asked by Vladislav Mikhailov (CC BY-SA 4.0).
+services:
+  container_1:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    env_file:
+      - path: .env
+        required: false
+    stdin_open: true
+    tty: true
+    ports:
+      - '8000'
+    expose:
+      - 8000
+    working_dir: /data
+    command: ["serve", "0.0.0.0:8000"]
+    networks:
+      - web
+    labels: { io.whyreach.lab: "1" }
+
+  container_2:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    env_file:
+      - path: accounts/settings/.env
+        required: false
+    stdin_open: true
+    tty: true
+    environment:
+      - 'DJANGO_SETTINGS_MODULE=project.settings'
+    expose:
+      - 8000
+    ports:
+      - "${LAB_PORT}:8000"
+    command: ["serve", "0.0.0.0:8000"]
+    networks:
+      - web
+    labels: { io.whyreach.lab: "1" }
+
+networks:
+  web:
+    labels: { io.whyreach.lab: "1" }

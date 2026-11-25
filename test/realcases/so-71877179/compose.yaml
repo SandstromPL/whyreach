@@ -1,0 +1,29 @@
+# Rebuilt from https://stackoverflow.com/questions/71877179, asked by ThunD3eR (CC BY-SA 4.0).
+# The droplet's setup: each image run on its own with a published port, on Docker's default bridge.
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: "Dsb2016!"
+    ports:
+      - "${LAB_PORT}:3306"
+    network_mode: bridge
+    labels: { io.whyreach.lab: "1" }
+
+  server:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:4000"]
+    ports:
+      - "4000"
+    network_mode: bridge
+    labels: { io.whyreach.lab: "1" }
+
+  phpmyadmin:
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:80"]
+    ports:
+      - "80"
+    network_mode: bridge
+    labels: { io.whyreach.lab: "1" }

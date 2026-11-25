@@ -4,7 +4,7 @@ quotas:
   github: 4
 labelled_past_the_quota:
   stackoverflow: 26
-  forum: 8
+  forum: 0
   github: 38
 cases:
 - source: stackoverflow
@@ -493,7 +493,11 @@ cases:
     a root-owned 0600 resolv.conf and run the client as a non-root user. Not WR020: the upstream servers
     answer, the client never gets to ask them. If the mode came from a Docker bug fixed later, this would
     be OUT (not-a-connection-failure).'
-  selected: true
+  selected: false
+  decision_after_rebuild: out
+  out_reason_after_rebuild: 'not rebuildable from the question: the question shows curl failing to resolve
+    ghcr.io~; the confirmed cause, a resolv.conf the container''s user can''t read, appears only later
+    in the thread'
 - source: forum
   position: 5
   url: https://forums.docker.com/t/147494
@@ -535,7 +539,11 @@ cases:
   notes: 'The 404 in between was a typo in that label (colon instead of equals), a Traefik config error,
     not a connection failure. Rebuild: a server listening on 801 only, and a client on a shared network
     connecting to its port 80 (Traefik, or any client).'
-  selected: true
+  selected: false
+  decision_after_rebuild: out
+  out_reason_after_rebuild: 'not rebuildable from the question: the question shows an nginx setup with
+    Compose profiles; the confirmed fix is for a Traefik setup the asker moved to later (Traefik to its
+    backend on port 80, Apache listening on 801)'
 - source: forum
   position: 7
   url: https://forums.docker.com/t/150611
@@ -559,7 +567,11 @@ cases:
     in #9 has bind-address = 127.0.0.1; the ''adapted'' cnf in use when the refusal happened (#12) was
     not shown, though the log shows mysqld up on port 3307. The same edit changed ports to 3307:3306,
     which only affects host access.'
-  selected: true
+  selected: false
+  decision_after_rebuild: out
+  out_reason_after_rebuild: 'not rebuildable from the question: the question''s phpMyAdmin uses PMA_HOST
+    127.0.0.1:db and port 3310; the confirmed fix is for a later version (PMA_HOST db, port 3307, a my.cnf
+    binding 127.0.0.1)'
 - source: forum
   position: 8
   url: https://forums.docker.com/t/147343
@@ -919,6 +931,176 @@ cases:
     image): haproxy''s actual connection would then show WR007''s pattern, and a reviewer may prefer WR007.
     I label outside because the cause the fix addressed is which config file haproxy read.'
   selected: true
+- source: forum
+  position: 26
+  url: https://forums.docker.com/t/137809
+  case: forum-137809
+  decision: out
+  out_reason: platform
+  cause: 'Docker Swarm on ESXi VMs: the overlay''s VXLAN data port, UDP 4789, is reserved by VMware (VTEP),
+    so routing-mesh traffic to tasks on the workers was lost; the page loaded only when a task ran on
+    the manager.'
+  connection:
+    from: a notebook on the LAN
+    to: 192.168.1.198:8888 (the manager; tasks on the workers)
+    symptom: unknown
+  fix: Re-created the swarm with `--data-path-port=7789`.
+  fix_source: solution post by meyay (#12, pointing at VMware's known issues with overlay networks), with
+    the asker's own post (#13) saying what changed
+  label_confidence: high
+  notes: Swarm ingress and overlay across VMs on VMware.
+  selected: false
+- source: forum
+  position: 27
+  url: https://forums.docker.com/t/139130
+  case: forum-139130
+  decision: in
+  cause: 'Not settled. Monica CRM behind nginx-proxy returns 502 for ''/'': the proxy (on proxy-tier)
+    forwards to web at 172.19.0.4:80, which answered /favicon.ico with 200 in the same second, so the
+    proxy reaches web and the 502 most likely comes from web''s FastCGI hop to app:9000 (app is on default
+    only, web on proxy-tier and default). The marked solution says app must join proxy-tier, but in the
+    posted Compose file web and app already share the default network, and the proxy goes to web, not
+    to app.'
+  connection:
+    from: the web container (nginx, FastCGI to the app)
+    to: app:9000
+    symptom: other
+  rule: ambiguous
+  fix: Add the app service to the proxy-tier network. This is the marked solution; the asker didn't say
+    what changed.
+  fix_source: solution post by rimelek (#4), marked by the asker
+  needs_other_image: Monica's php-fpm app (built from Monica's example ./app on the monica:fpm image)
+    and nginx-proxy (./proxy, jwilder/nginx-proxy) with the Let's Encrypt companion
+  label_confidence: low
+  notes: 'Ambiguous because the marked fix doesn''t fit the posted setup: no connection in it needs app
+    on proxy-tier. The asker''s real file may differ from the posted one, or the 502 was app''s php-fpm
+    not answering yet (Monica''s entrypoint runs migrations before php-fpm starts) and the redeploy hid
+    it. The only symptom shown is an HTTP 502/503 at the proxy and no connect error, so it could also
+    be out as not-a-connection-failure. Before the re-fetch this was no-confirmed-fix.'
+  selected: true
+- source: forum
+  position: 28
+  url: https://forums.docker.com/t/121911
+  case: forum-121911
+  decision: in
+  cause: 'pgAdmin runs in a container in the same Compose project as postgres, and its server entry used
+    localhost as the host: inside the pgAdmin container, localhost is pgAdmin itself, where nothing listens
+    on 5432.'
+  connection:
+    from: the pgadmin container
+    to: localhost:5432
+    symptom: refused
+  rule: WR007
+  fix: Entered the postgres service's Compose name as the host in pgAdmin's server connection instead
+    of localhost.
+  fix_source: the asker's own post (#3)
+  label_confidence: medium
+  notes: 'The Compose file is only linked (GitHub), not in the thread: the rebuild is a standard postgres
+    plus pgAdmin (dpage/pgadmin4) Compose project with pgAdmin pointed at localhost:5432, a gap I judged
+    small. The cause doesn''t depend on pgAdmin: any client container connecting to localhost:5432 reproduces
+    it. The Node.js app reached postgres fine.'
+  selected: true
+- source: forum
+  position: 29
+  url: https://forums.docker.com/t/128063
+  case: forum-128063
+  decision: out
+  out_reason: not-rebuildable
+  cause: 'The WordPress Compose template sets WORDPRESS_DB_HOST: db, but the asker has no db service:
+    the database is an existing server outside Docker, reached by its private IP.'
+  connection:
+    from: the wordpress container
+    to: db:3306
+    symptom: name-not-found
+  fix: Set WORDPRESS_DB_HOST to the database server's private IP address (the asker also mentions using
+    a bridge network).
+  fix_source: solution post by terpz (#2), confirmed by the asker (#3)
+  label_confidence: medium
+  notes: 'A how-to question with no error shown (the symptom is implied). The database is outside Docker,
+    and the thread doesn''t say whether it is on the Docker host or another machine. If counted in, wordpress
+    to db:3306 would be WR005 (the name matches no container). Posts #4 to #7 are another user''s unresolved
+    problem.'
+  selected: false
+- source: forum
+  position: 30
+  url: https://forums.docker.com/t/140459
+  case: forum-140459
+  decision: out
+  out_reason: platform
+  cause: 'A Swarm worker''s join timed out after its VM moved to another VM host: the virtualization infrastructure''s
+    network dropped frames larger than 1500 bytes between the manager and that worker, while the nodes''
+    interfaces had MTU 9000 (an MTU mismatch).'
+  connection:
+    from: the worker's Docker daemon (swarm agent)
+    to: the manager 172.27.32.18:2377
+    symptom: timeout
+  fix: Adjusted the MTU in the underlying infrastructure's network configuration so frames over 1500 bytes
+    pass.
+  fix_source: solution post by bluepuma77 (#2, an MTU mismatch, test with pings over 1500 bytes), with
+    the asker's own post (#4) saying what changed
+  label_confidence: high
+  notes: Swarm control traffic between two machines; also needs the hosts' infrastructure changed. The
+    cause is the kind planned WR017 (MTU mismatch) targets.
+  selected: false
+- source: forum
+  position: 31
+  url: https://forums.docker.com/t/138595
+  case: forum-138595
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: 'The health binary''s Node.js HTTP GET never called req.end(), so the request was never sent
+    and the check hung; the server on localhost:9000 (network_mode: host) was fine.'
+  connection:
+    from: 'the payload container''s health binary (network_mode: host)'
+    to: localhost:9000
+    symptom: other
+  fix: Added req.end() to the client code.
+  fix_source: the asker's own post (#3)
+  label_confidence: high
+  notes: An app bug over a working connection.
+  selected: false
+- source: forum
+  position: 32
+  url: https://forums.docker.com/t/145749
+  case: forum-145749
+  decision: out
+  out_reason: host-change
+  cause: Oracle Cloud's default Ubuntu image ships iptables INPUT rules that reject everything not explicitly
+    allowed, so containers' connects to the host's own addresses (172.17.0.1, 10.0.0.60) failed at once
+    with 'Host is unreachable', while the host's own connect to 172.17.0.1 worked.
+  connection:
+    from: a container (nginx-proxy-manager; an alpine test on the default bridge)
+    to: 172.17.0.1:9090 (a host service listening on [::]:9090)
+    symptom: no-route
+  fix: Ran `iptables -I INPUT -j ACCEPT` on the host.
+  fix_source: the asker's own post (#11)
+  label_confidence: high
+  notes: The cause is WR021's case exactly (the host's firewall rejects container-to-host traffic with
+    EHOSTUNREACH while the host's own connect works), but reproducing needs the host's firewall changed.
+    Tailscale was also running; the fix shows it wasn't the cause.
+  selected: false
+- source: forum
+  position: 33
+  url: https://forums.docker.com/t/119904
+  case: forum-119904
+  decision: out
+  out_reason: host-change
+  cause: ufw on the host allowed port 5432 only from 172.17.0.0/16 (the default bridge's subnet), but
+    the postgres container was on its Compose project's network (192.168.62.0/20, or 172.20.0.0/16 when
+    set), so ufw's default deny dropped its connects to the host's PostgreSQL at 172.17.0.1:5432.
+  connection:
+    from: the postgres container (psql)
+    to: 172.17.0.1:5432 (PostgreSQL on the host)
+    symptom: timeout
+  fix: Changed the ufw rule to allow 5432 from the container's actual network subnet (ufw allow from <that
+    subnet> to any port 5432).
+  fix_source: solution post by rimelek (#6, how ufw's allow rules match source and destination), with
+    the asker's own post (#5) saying what changed
+  label_confidence: high
+  notes: 'The cause is WR021''s case (the host''s firewall drops container-to-host traffic: a timeout
+    while the host answers itself), but reproducing needs ufw rules on the host. Post #1''s ''it works
+    with the custom network'' was after the asker had changed the ufw rule (post #5).'
+  selected: false
 - source: github
   position: 1
   url: https://github.com/jt-mchorse/agent-orchestration-platform/issues/271
@@ -1012,6 +1194,9 @@ cases:
     A fresh lookup of backend gives the current address, so nothing a fresh check sees is wrong. The old
     address answered with a refusal, so something else held it then.
   selected: true
+  not_reproduced: the failure lives in the address nginx cached at its start; Compose can't recreate the
+    backend after nginx starts, and the rebuild's workaround (that address written into nginx's config,
+    and to as an address) changes what the app named, against the rebuild rules
 - source: github
   position: 7
   url: https://github.com/xibodev/release-harness/issues/12

@@ -1,0 +1,13 @@
+# Decided after the rebuilds and before whyreach ran on any case
+# (docs/research/real-cases.md, "What happened while rebuilding").
+# out: the rebuild, made from the question, and the label, made from the
+# confirmed fix, describe different failing connections, because the setup
+# that failed shows up only later in the thread. Out as not rebuildable from
+# the question; the next eligible case in the pool takes its place.
+out:
+  forum-130073: the question shows an nginx setup with Compose profiles; the confirmed fix is for a Traefik setup the asker moved to later (Traefik to its backend on port 80, Apache listening on 801)
+  forum-150611: the question's phpMyAdmin uses PMA_HOST 127.0.0.1:db and port 3310; the confirmed fix is for a later version (PMA_HOST db, port 3307, a my.cnf binding 127.0.0.1)
+  forum-147588: the question shows curl failing to resolve ghcr.io~; the confirmed cause, a resolv.conf the container's user can't read, appears only later in the thread
+# not_reproduced: in the sample, reported, not scored.
+not_reproduced:
+  gh-Anagamedina-ft_transcendence-309: the failure lives in the address nginx cached at its start; Compose can't recreate the backend after nginx starts, and the rebuild's workaround (that address written into nginx's config, and to as an address) changes what the app named, against the rebuild rules

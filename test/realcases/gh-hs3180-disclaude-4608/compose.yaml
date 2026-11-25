@@ -1,0 +1,14 @@
+# disclaude's primary node, started without --api-port: its CLI creates the
+# HttpApiServer (the REST IPC, the only IPC left) only when that flag is
+# given, so nothing in the container listens on 9200. The MCP tools inside
+# the same container call the default http://localhost:9200 and are refused.
+services:
+  primary:
+    image: node:22-alpine
+    container_name: whyreach-lab-${REALCASE_PROJECT}-disclaude-primary
+    command: ["node", "-e", "setInterval(() => {}, 3600000)"]
+    labels: { io.whyreach.lab: "1" }
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }
