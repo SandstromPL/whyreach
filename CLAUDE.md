@@ -49,6 +49,7 @@ make lab        # go test -tags lab -count=1 ./test/e2e/...  (needs Docker; scen
 make lab-desktop  # the lab with whyreach behind a Docker API proxy whose /version says Docker Desktop: rehearses wsl2-desktop's run on Docker Engine (ADR 0004)
 make lab-agent  # go test -tags lab,agent -count=1 -run TestAgent ./test/e2e/...  (Docker + claude CLI; a small model diagnoses each scenario over MCP, under a neutral project name with a clean client, as in lab-bench)
 make lab-bench  # go test -tags lab,agent,bench -count=1 -run TestBench ./test/e2e/...  (the M5 agent benchmark: a shell-only agent, sandboxed, against a whyreach-only one on every scenario; Docker, bwrap, claude CLI; masked results in bin/bench/)
+make lab-realcases  # go test -tags lab,realcases -count=1 -run TestRealCases ./test/e2e/...  (the real-case check: setups from Stack Overflow, the Docker forums and GitHub issues rebuilt in test/realcases/; Docker and the cases' official images, never pulled; masked results in bin/realcases/)
 make lab-root   # builds as you, then sudo runs only the test binaries: the executor's root-only test and TestLabNetns (tags lab,privileged: every scenario through the netns executor, no Docker writes)
 make golden     # go test ./internal/report/... ./internal/mcpserver/... -update  (text, the compact MCP structured form, Diagnosis JSON, the MCP tools)
 make cross      # compile check: GOOS=darwin and GOOS=windows (amd64, arm64) go build ./...

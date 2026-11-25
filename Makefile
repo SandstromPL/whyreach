@@ -9,7 +9,7 @@ CROSS_TARGETS := darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 GOVULNCHECK := golang.org/x/vuln/cmd/govulncheck@v1.9.0
 GORELEASER := github.com/goreleaser/goreleaser/v2@v2.19.0
 
-.PHONY: build test lint vuln lab lab-desktop lab-agent lab-bench lab-root golden cross release-check release-snapshot release clean
+.PHONY: build test lint vuln lab lab-desktop lab-agent lab-bench lab-realcases lab-root golden cross release-check release-snapshot release clean
 
 ## build: static binary in bin/whyreach
 build:
@@ -50,6 +50,14 @@ lab-agent:
 ## about 15 minutes and $0.13 on Claude Haiku; docs/research/agent-benchmark.md)
 lab-bench:
 	go test -tags lab,agent,bench -count=1 -run TestBench -timeout 240m -v ./test/e2e/...
+
+## lab-realcases: the real-case check (docs/research/real-cases.md): broken
+## setups from Stack Overflow, the Docker forums and GitHub issues, rebuilt in
+## test/realcases/; checks each fails as its asker said, then runs whyreach with
+## probe containers on and off; masked results in bin/realcases/ (needs Docker
+## and the cases' official images, which it never pulls)
+lab-realcases:
+	go test -tags lab,realcases -count=1 -run TestRealCases -timeout 60m -v ./test/e2e/...
 
 ## lab-root: the lab as root, where whyreach enters the containers' network
 ## namespaces itself (the netns executor): every scenario, and no Docker
