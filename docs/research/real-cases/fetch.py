@@ -14,6 +14,7 @@ Standard library only; GitHub goes through `gh api`.
 import gzip
 import html
 import json
+import re
 import subprocess
 import sys
 import time
@@ -66,7 +67,34 @@ def stackoverflow(cases):
                 + urllib.parse.urlencode({"site": "stackoverflow", "filter": f, "pagesize": 100}))
         items |= {str(q["question_id"]): q for q in d["items"]}
         time.sleep(max(1, d.get("backoff", 0)))
+    # Comments nested in a question come back without their text, whatever
+    # the filter says, and a comment's markdown isn't served anonymously: so
+    # they're fetched per post, as HTML (the "withbody" filter).
+    posts = [str(p["question_id"]) for p in items.values()]
+    posts += [str(a["answer_id"]) for p in items.values() for a in p.get("answers", [])]
+    comments = {}
+    for i in range(0, len(posts), 100):
+        page = 1
+        while True:
+            d = get(f"https://api.stackexchange.com/2.3/posts/{';'.join(posts[i:i + 100])}/comments?"
+                    + urllib.parse.urlencode({"site": "stackoverflow", "filter": "withbody", "pagesize": 100,
+                                              "page": page, "sort": "creation", "order": "asc"}))
+            for cm in d["items"]:
+                comments.setdefault(cm["post_id"], []).append(cm)
+            time.sleep(max(1, d.get("backoff", 0)))
+            if not d.get("has_more"):
+                break
+            page += 1
+    for p in items.values():
+        p["comments"] = comments.get(p["question_id"], [])
+        for a in p.get("answers", []):
+            a["comments"] = comments.get(a["answer_id"], [])
     un = html.unescape
+
+    def text(cm):
+        b = re.sub(r"</?code>", "`", cm.get("body", ""))
+        b = re.sub(r'<a href="([^"]*)"[^>]*>(.*?)</a>', r"\2 (\1)", b)
+        return un(re.sub(r"<[^>]+>", "", b))
     for c in cases:
         q = items.get(c["id"].removeprefix("so-"))
         if q is None:
@@ -76,12 +104,12 @@ def stackoverflow(cases):
         question = f"# {un(q['title'])}\n\nAsked on Stack Overflow by {who}, {day(q['creation_date'])}.\n\n{un(q.get('body_markdown', ''))}\n"
         t = [question]
         for cm in q.get("comments", []):
-            t.append(f"> Comment on the question ({un(cm.get('owner', {}).get('display_name', '?'))}): {un(cm.get('body_markdown', ''))}\n")
+            t.append(f"> Comment on the question ({un(cm.get('owner', {}).get('display_name', '?'))}): {text(cm)}\n")
         for a in sorted(q.get("answers", []), key=lambda a: (not a.get("is_accepted"), -a.get("score", 0))):
             mark = "ACCEPTED ANSWER" if a.get("is_accepted") else "Answer"
             t.append(f"\n---\n\n## {mark} by {un(a.get('owner', {}).get('display_name', '?'))} (score {a.get('score', 0)}), {day(a['creation_date'])}\n\n{un(a.get('body_markdown', ''))}\n")
             for cm in a.get("comments", []):
-                t.append(f"> Comment ({un(cm.get('owner', {}).get('display_name', '?'))}): {un(cm.get('body_markdown', ''))}\n")
+                t.append(f"> Comment ({un(cm.get('owner', {}).get('display_name', '?'))}): {text(cm)}\n")
         write(c["id"], question, "\n".join(t), {"url": c["url"], "author": who, "created": day(q["creation_date"]),
                                                 "licence": "CC BY-SA 4.0 (Stack Overflow)"})
 
