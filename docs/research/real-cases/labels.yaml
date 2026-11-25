@@ -978,6 +978,9 @@ cases:
     it. The only symptom shown is an HTTP 502/503 at the proxy and no connect error, so it could also
     be out as not-a-connection-failure. Before the re-fetch this was no-confirmed-fix.'
   selected: true
+  not_reproduced: the question's only failure is an HTTP 503 from the proxy, which accepted the connection;
+    after its one more try the reproducer found no connection the question says failed (the label is ambiguous
+    too)
 - source: forum
   position: 28
   url: https://forums.docker.com/t/121911
