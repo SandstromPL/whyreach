@@ -71,3 +71,15 @@ github.com/SandstromPL/whyreach
 **Media:** `docs/assets/demo.gif`, with the alt text of post 1. With media attached, X shows the GIF instead of a link card.
 
 **Cards, if a post goes out without media:** a GitHub link shows the repository's card (its description, and its counts of contributors, issues, stars and forks); an MCPRush link shows that listing's card ("not scanned", 4 tools, v0.2.0), which doesn't say what whyreach does. Link GitHub, with the GIF or the chart attached.
+
+# A post with the animation
+
+For the 14.6-second animation (`whyreach-x-v02_x_1920x1080.mp4`, or the GIF `whyreach-x-v02_gif_1200x675.gif`; source in the Video Editor workspace, `projects/2026-11-25-whyreach-x-v02`). 220 of 280 characters.
+
+```
+Docker container can't reach another one? whyreach tells you why, and how to fix it. It never changes anything.
+
+v0.2 is out: works on Windows too (WSL2), catches 6 more problems, and runs in CI.
+
+github.com/SandstromPL/whyreach
+```
