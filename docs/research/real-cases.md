@@ -123,6 +123,10 @@ Also before whyreach ran on any case.
 - **One rebuild didn't fail:** gh-coryfinnegan-CollectionMaxxing-819 connected. Its reproducer got the one more try the method allows and changed nothing: the issue as opened reports a stale backup, not a failing connection (the startup race in its label comes from a maintainer's later comment). It stays in the sample as not reproduced, unscored.
 - **forum-139130,** which came in for an excluded forum case, connected too: its question reports an HTTP 503 from a proxy that accepted the connection. After its one more try, not reproduced, unscored (its label was ambiguous as well).
 
+## Before the run (2026-11-25)
+
+The owner read the 19 labels and approved the run, and pulling `haproxytech/haproxy-alpine:2.4` for forum-127146, whose label depends on that image's own default configuration. Images used, by digest: `postgres:17` (`sha256:2838b352…`), `mysql:8.4` (`sha256:8c233bad…`), `redis:7-alpine` (`sha256:7aec734b…`), `nginx:stable-alpine` (`sha256:47928bf6…`), `node:22-alpine` (`sha256:1314fb30…`), `python:3.13-slim` (`sha256:8a7c3cd3…`) and `haproxytech/haproxy-alpine:2.4` (`sha256:6c1210f7…`).
+
 ## Decisions (2026-11-25, before sampling)
 
 The owner settled the plan's four open decisions as proposed:
