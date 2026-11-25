@@ -1,0 +1,24 @@
+# Postgres and pgAdmin, dockerized together. The asker's NodeJS app connects to
+# Postgres, but pgAdmin gets "connection refused". The Compose file itself is
+# only linked from the question, so this follows what the question says.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "${LAB_PORT}:5432"
+    labels: { io.whyreach.lab: "1" }
+
+  pgadmin:
+    # pgAdmin 4's web UI: the stand-in on the pgAdmin image's default port.
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:80"]
+    ports:
+      - "80"
+    labels: { io.whyreach.lab: "1" }
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

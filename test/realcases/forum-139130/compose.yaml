@@ -1,0 +1,88 @@
+# Monica CRM from the official repository's example folder, as the question
+# lists it: app (Monica on PHP-FPM, port 9000, nothing published), db
+# (MariaDB), redis, cron, queue, web, proxy (Nginx, 80 and 443 published,
+# upstream php-handler at app:9000) and a Let's Encrypt companion. The browser
+# gets "503 Service Temporarily Unavailable".
+services:
+  app:
+    # Monica's PHP-FPM app (build ./app, image monica-app): the stand-in on
+    # PHP-FPM's port.
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:9000"]
+    labels: { io.whyreach.lab: "1" }
+
+  db:
+    # MariaDB: the stand-in on MariaDB's default port.
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:3306"]
+    labels: { io.whyreach.lab: "1" }
+
+  redis:
+    image: redis:7-alpine
+    labels: { io.whyreach.lab: "1" }
+
+  cron:
+    # A scheduler that listens on nothing; the stand-in has to listen
+    # somewhere to stay up, so loopback only.
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "127.0.0.1:3000"]
+    labels: { io.whyreach.lab: "1" }
+
+  queue:
+    # A queue worker that listens on nothing; loopback only, as for cron.
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "127.0.0.1:3000"]
+    labels: { io.whyreach.lab: "1" }
+
+  web:
+    # The question names this service but not what it runs: the stand-in on
+    # a web server's default port.
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "0.0.0.0:80"]
+    labels: { io.whyreach.lab: "1" }
+
+  proxy:
+    # Nginx (build ./proxy) with the upstream the question shows.
+    image: nginx:stable-alpine
+    ports:
+      - "${LAB_PORT}:80"
+      - "443"
+    configs:
+      - source: proxy_conf
+        target: /etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    labels: { io.whyreach.lab: "1" }
+
+  letsencrypt-companion:
+    # The Let's Encrypt companion listens on nothing; loopback only, as for
+    # cron.
+    image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}
+    pull_policy: never
+    command: ["serve", "127.0.0.1:3000"]
+    labels: { io.whyreach.lab: "1" }
+
+configs:
+  proxy_conf:
+    content: |
+      upstream php-handler {
+          server app:9000;
+      }
+
+      server {
+          listen 80;
+
+          location / {
+              fastcgi_pass php-handler;
+              include fastcgi_params;
+          }
+      }
+
+networks:
+  default:
+    labels: { io.whyreach.lab: "1" }

@@ -1,0 +1,43 @@
+source: https://forums.docker.com/t/121911
+author: "9109679196"
+asked: >-
+  Postgres and pgAdmin run in Docker from one Compose file; the asker's NodeJS
+  app connects to Postgres, but pgAdmin can't: connection refused.
+up_wait: true
+settle_seconds: 15
+from: service:pgadmin@${PROJECT}
+to: localhost:5432
+symptom: refused
+images: [postgres:17]
+stubbed:
+  - what: pgadmin, pgAdmin 4
+    how: the stand-in, listening on 0.0.0.0:80
+    why: >-
+      pgAdmin isn't an allowed image; it is only where the failing connection
+      starts, and its image serves its web UI on port 80
+assumptions:
+  - >-
+    The Compose file is only linked (a GitHub folder named postgres-pgadmin), not
+    shown, so the rebuild holds the two services the question names, postgres
+    and pgadmin, on the project's default network.
+  - >-
+    The question doesn't say which host and port were entered in pgAdmin. The
+    rebuild uses localhost:5432, the address the NodeJS app would use from the
+    host, on the assumption that the asker gave pgAdmin the same settings as the
+    app. This is the main gap: the question's only clue is "connection refused".
+  - >-
+    The NodeJS app isn't in the Compose file (the linked folder is named
+    postgres-pgadmin) and runs on the host, so Postgres publishes 5432, with
+    ${LAB_PORT} on the host side.
+  - >-
+    pgAdmin's web UI is reached from the asker's browser, so its port 80 is
+    published, on a port Docker picks since only one lab port is given.
+  - >-
+    Postgres's environment isn't shown; POSTGRES_PASSWORD is set because the
+    image won't start without it. Its version isn't given; postgres:17.
+    pgAdmin's environment (its login) and both services' volumes aren't shown
+    and are left out.
+read:
+  - bin/realcases/raw/forum-121911/question.md
+  - bin/realcases/raw/forum-121911/meta.json
+  - test/realcases/README.md

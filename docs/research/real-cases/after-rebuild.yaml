@@ -11,3 +11,4 @@ out:
 # not_reproduced: in the sample, reported, not scored.
 not_reproduced:
   gh-Anagamedina-ft_transcendence-309: the failure lives in the address nginx cached at its start; Compose can't recreate the backend after nginx starts, and the rebuild's workaround (that address written into nginx's config, and to as an address) changes what the app named, against the rebuild rules
+  gh-coryfinnegan-CollectionMaxxing-819: the issue as opened reports a stale backup, not a failing connection; the rebuild's backup reached Postgres, and after its one more try the reproducer found no connection the issue says failed (the label's startup race comes from a maintainer's later comment)

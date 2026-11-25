@@ -1288,3 +1288,6 @@ cases:
   notes: 'Transient: the failure exists only while Postgres starts. The port is psql''s default (not written
     in the thread). Compose file not shown; postgres plus a psql client started together rebuilds it.'
   selected: true
+  not_reproduced: the issue as opened reports a stale backup, not a failing connection; the rebuild's
+    backup reached Postgres, and after its one more try the reproducer found no connection the issue says
+    failed (the label's startup race comes from a maintainer's later comment)
