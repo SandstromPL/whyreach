@@ -311,3 +311,31 @@ ev-09 probe.tcp [host WSL2 VM  0 host] localhost:9000 ok [] ""
 gap "listening sockets in svc07, svc08" skipped "where Docker's PIDs aren't this machine's (Docker Desktop), each container's listening sockets take a probe container, and whyreach reads at most 6 in one diagnosis" "" []
 gap "listening sockets in 3 running containers" failed "the probe container exited 1" "" [ev-05]
 `
+
+// TestLoopbackPublisherInAnotherProject: a container's localhost:8443 is
+// another Compose project's published port. whyreach inspects the
+// container that publishes it, though it shares no network with the
+// source, so WR007's fix names it and its own port, with the network to
+// join, instead of host.docker.internal (so-78873209 in the real-case
+// check, docs/research/real-cases.md).
+func TestLoopbackPublisherInAnotherProject(t *testing.T) {
+	app := ctr("aa", "spring-app-1", "spring", "app", "spring_default", "172.22.0.2", 100)
+	server := ctr("bb", "authentik-server-1", "authentik", "server", "authentik_default", "172.23.0.2", 200)
+	server.Ports = []evidence.PortMap{{ContainerPort: 9443, Proto: "tcp", HostIP: "0.0.0.0", HostPort: 8443}}
+	w := &world{
+		containers: []evidence.Container{app, server},
+		sockets:    map[int][]string{100: {"0.0.0.0:8080"}, 200: {"0.0.0.0:9000", "0.0.0.0:9443"}},
+		host:       []string{"0.0.0.0:8443"},
+		tcp:        map[string]string{"127.0.0.1:8443": evidence.OutcomeRefused, "[::1]:8443": evidence.OutcomeRefused},
+	}
+	d := diagnoseWith(t, w, "container:spring-app-1", "localhost:8443", false)
+	p := d.Primary()
+	if p == nil || p.RuleID != "WR007" {
+		t.Fatalf("primary = %+v, want WR007", p)
+	}
+	for _, want := range []string{"server:9443", "authentik_default"} {
+		if !strings.Contains(p.Fix, want) {
+			t.Errorf("fix %q lacks %q", p.Fix, want)
+		}
+	}
+}

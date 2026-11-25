@@ -80,8 +80,11 @@ func (r *run) collect(ctx context.Context) error {
 
 	// Containers that match by name or address are always inspected (up to
 	// maxMatches). The other containers on the source's networks are
-	// inspected too, because only an inspect shows their aliases.
-	var matches, peers []docker.Summary
+	// inspected too, because only an inspect shows their aliases. For a
+	// loopback target, so are the containers that publish the port on the
+	// host, on any network: WR007's fix names the one it is (the real-case
+	// check), and without them a source that looks alone may not be.
+	var matches, peers, publishers []docker.Summary
 	var droppedMatches, droppedPeers int
 	for _, s := range list {
 		if have[s.ID] {
@@ -100,6 +103,8 @@ func (r *run) collect(ctx context.Context) error {
 				continue
 			}
 			peers = append(peers, s)
+		case loopback && publishRank(s, to.Port) == 0 && len(publishers) < maxMatches:
+			publishers = append(publishers, s)
 		}
 	}
 	// Skipped containers are a gap, and a record too: rules must not claim
@@ -122,7 +127,7 @@ func (r *run) collect(ctx context.Context) error {
 		r.gaps = append(r.gaps, g)
 		r.store.Add(skippedContainers(g))
 	}
-	inspected, failed := r.inspectAll(ctx, append(matches, peers...))
+	inspected, failed := r.inspectAll(ctx, slices.Concat(matches, peers, publishers))
 	r.store.Add(failed...)
 
 	// Decide what to record: for a loopback target every peer (WR007 looks
