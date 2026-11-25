@@ -931,6 +931,9 @@ cases:
     image): haproxy''s actual connection would then show WR007''s pattern, and a reviewer may prefer WR007.
     I label outside because the cause the fix addressed is which config file haproxy read.'
   selected: true
+  not_reproduced: the question's only failure is HAProxy's alert that a backend named app (not in the
+    config shown) has no server; the servers the question names were reachable, and after its one more
+    try the reproducer found no connection in the question it could rebuild as failing
 - source: forum
   position: 26
   url: https://forums.docker.com/t/137809

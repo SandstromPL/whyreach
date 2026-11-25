@@ -122,6 +122,7 @@ Also before whyreach ran on any case.
 - **One case can't be rebuilt as a running setup.** In gh-Anagamedina-ft_transcendence-309 the failure lives in the address nginx cached at its start, before the backend was recreated. Compose can't recreate a service after another starts, and the reproducer's workaround (writing that address into nginx's config and using it as the target) changes what the app named, against the rebuild rules. It stays in the sample as not reproduced, unscored.
 - **One rebuild didn't fail:** gh-coryfinnegan-CollectionMaxxing-819 connected. Its reproducer got the one more try the method allows and changed nothing: the issue as opened reports a stale backup, not a failing connection (the startup race in its label comes from a maintainer's later comment). It stays in the sample as not reproduced, unscored.
 - **forum-139130,** which came in for an excluded forum case, connected too: its question reports an HTTP 503 from a proxy that accepted the connection. After its one more try, not reproduced, unscored (its label was ambiguous as well).
+- **forum-127146,** after the owner approved its HAProxy image, connected as well: its question's only failure is HAProxy's alert that a backend named `app`, which isn't in the config shown, has no server, while the servers it names were reachable. After its one more try, not reproduced, unscored.
 
 ## Before the run (2026-11-25)
 
