@@ -1,0 +1,212 @@
+{
+ "source": "forum",
+ "fetched": "2026-11-25",
+ "seed": 20261125,
+ "queries": [
+  "\"connection refused\"",
+  "\"could not resolve\"",
+  "\"can't connect\"",
+  "\"timed out\""
+ ],
+ "size": 33,
+ "order": [
+  {
+   "id": "forum-148741",
+   "title": "OCI runtime exec failed: ... fork/exec /proc/self/fd/7: no such file or directory",
+   "url": "https://forums.docker.com/t/148741",
+   "created": "2025-07-07"
+  },
+  {
+   "id": "forum-127844",
+   "title": "Official Redmine Repo - Minimal example does not work",
+   "url": "https://forums.docker.com/t/127844",
+   "created": "2022-08-16"
+  },
+  {
+   "id": "forum-142192",
+   "title": "My containers cannot access certain urls",
+   "url": "https://forums.docker.com/t/142192",
+   "created": "2024-06-26"
+  },
+  {
+   "id": "forum-147588",
+   "title": "DNS problem? or something else :thinking:",
+   "url": "https://forums.docker.com/t/147588",
+   "created": "2025-04-11"
+  },
+  {
+   "id": "forum-147494",
+   "title": "Reverse SSH tunnel into a Docker container - Not able to tunnel back",
+   "url": "https://forums.docker.com/t/147494",
+   "created": "2025-04-04"
+  },
+  {
+   "id": "forum-130073",
+   "title": "How to dynamically configure a reverse proxy when using profiles in docker-compose",
+   "url": "https://forums.docker.com/t/130073",
+   "created": "2022-10-12"
+  },
+  {
+   "id": "forum-150611",
+   "title": "Phpmyadmin not connecting tot Mysql php_network_getaddresses: getaddrinfo for db failed",
+   "url": "https://forums.docker.com/t/150611",
+   "created": "2025-12-10"
+  },
+  {
+   "id": "forum-147343",
+   "title": "ChirpStack FUOTA Server - Persistent PostgreSQL Connection Refused Error in Docker Compose",
+   "url": "https://forums.docker.com/t/147343",
+   "created": "2025-03-25"
+  },
+  {
+   "id": "forum-123318",
+   "title": "How to connect from Docker container to the host?",
+   "url": "https://forums.docker.com/t/123318",
+   "created": "2022-04-11"
+  },
+  {
+   "id": "forum-138080",
+   "title": "Docker Swarm Mesh Networking not working as expected on Ubuntu 22.04 Server",
+   "url": "https://forums.docker.com/t/138080",
+   "created": "2023-10-13"
+  },
+  {
+   "id": "forum-135427",
+   "title": "Overlay network in computer with two IPs",
+   "url": "https://forums.docker.com/t/135427",
+   "created": "2023-04-04"
+  },
+  {
+   "id": "forum-137037",
+   "title": "Specify container IP as extra_hosts",
+   "url": "https://forums.docker.com/t/137037",
+   "created": "2023-07-31"
+  },
+  {
+   "id": "forum-125873",
+   "title": "Swarm networking - can connect to port from another container on same node but not from different node",
+   "url": "https://forums.docker.com/t/125873",
+   "created": "2022-06-20"
+  },
+  {
+   "id": "forum-150339",
+   "title": "Beginner's question to docker model/download problem",
+   "url": "https://forums.docker.com/t/150339",
+   "created": "2025-11-06"
+  },
+  {
+   "id": "forum-152440",
+   "title": "How to run etcd cluster as service with docker swarm mode?",
+   "url": "https://forums.docker.com/t/152440",
+   "created": "2026-09-24"
+  },
+  {
+   "id": "forum-150788",
+   "title": "Can't access localhost API from within docker container using host.docker.internal",
+   "url": "https://forums.docker.com/t/150788",
+   "created": "2026-01-08"
+  },
+  {
+   "id": "forum-151317",
+   "title": "Docker Selfhosted Nanoclaw",
+   "url": "https://forums.docker.com/t/151317",
+   "created": "2026-03-16"
+  },
+  {
+   "id": "forum-150418",
+   "title": "Docker DNS Error on Raspberry Pi",
+   "url": "https://forums.docker.com/t/150418",
+   "created": "2025-11-15"
+  },
+  {
+   "id": "forum-151108",
+   "title": "Docker stuck on Pulling fs layer after downloading is started",
+   "url": "https://forums.docker.com/t/151108",
+   "created": "2026-02-14"
+  },
+  {
+   "id": "forum-144581",
+   "title": "Slow network startup in docker-compose",
+   "url": "https://forums.docker.com/t/144581",
+   "created": "2024-10-24"
+  },
+  {
+   "id": "forum-130165",
+   "title": "Can't connect to the internet from subnet in IPVLAN L3 docker network",
+   "url": "https://forums.docker.com/t/130165",
+   "created": "2022-10-15"
+  },
+  {
+   "id": "forum-123780",
+   "title": "Docker Swarm - Issue with Routing Mesh not routing Published Port on all Nodes",
+   "url": "https://forums.docker.com/t/123780",
+   "created": "2022-04-22"
+  },
+  {
+   "id": "forum-138925",
+   "title": "Can't connect via global DN to an apparently bound TCP port",
+   "url": "https://forums.docker.com/t/138925",
+   "created": "2023-12-14"
+  },
+  {
+   "id": "forum-146503",
+   "title": "Ip banned? Always getting \"Too Many Requests\" error",
+   "url": "https://forums.docker.com/t/146503",
+   "created": "2025-02-06"
+  },
+  {
+   "id": "forum-127146",
+   "title": "Haproxy: backend 'app' has no server avaiable",
+   "url": "https://forums.docker.com/t/127146",
+   "created": "2022-07-27"
+  },
+  {
+   "id": "forum-137809",
+   "title": "Docker Swarm - The web service without loading",
+   "url": "https://forums.docker.com/t/137809",
+   "created": "2023-09-23"
+  },
+  {
+   "id": "forum-139130",
+   "title": "New to Self-Hosting and Struggling with Monica CRM Docker Setup (503 Error)",
+   "url": "https://forums.docker.com/t/139130",
+   "created": "2024-01-02"
+  },
+  {
+   "id": "forum-121911",
+   "title": "Connection refused postgres pgadmin",
+   "url": "https://forums.docker.com/t/121911",
+   "created": "2022-03-05"
+  },
+  {
+   "id": "forum-128063",
+   "title": "Establish database connection from docker wordpress to external database server",
+   "url": "https://forums.docker.com/t/128063",
+   "created": "2022-08-22"
+  },
+  {
+   "id": "forum-140459",
+   "title": "Swarm join problems: Timeout was reached before node joined",
+   "url": "https://forums.docker.com/t/140459",
+   "created": "2024-03-22"
+  },
+  {
+   "id": "forum-138595",
+   "title": "HTTP GET to localhost in a container hangs",
+   "url": "https://forums.docker.com/t/138595",
+   "created": "2023-11-22"
+  },
+  {
+   "id": "forum-145749",
+   "title": "Unable to connect to host service from inside Docker container",
+   "url": "https://forums.docker.com/t/145749",
+   "created": "2024-12-28"
+  },
+  {
+   "id": "forum-119904",
+   "title": "Docker Compose network: cannot use default docker gateway to connect to host machine from container, unless a custom network is manually specified",
+   "url": "https://forums.docker.com/t/119904",
+   "created": "2022-01-15"
+  }
+ ]
+}

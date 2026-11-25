@@ -1,0 +1,2976 @@
+{
+ "source": "github",
+ "fetched": "2026-11-25",
+ "seed": 20261125,
+ "queries": [
+  "\"docker compose\" \"connection refused\" is:issue is:closed created:>2023-01-01",
+  "\"docker-compose.yml\" \"ECONNREFUSED\" is:issue is:closed created:>2023-01-01"
+ ],
+ "size": 494,
+ "order": [
+  {
+   "id": "gh-jt-mchorse-agent-orchestration-platform-271",
+   "title": ".env.example: 'unset = in-memory' is false and the sample DATABASE_URL (5432/agent_traces) is not the compose database (5433/agent_trace)",
+   "url": "https://github.com/jt-mchorse/agent-orchestration-platform/issues/271",
+   "created": "2026-10-26"
+  },
+  {
+   "id": "gh-wallabag-docker-318",
+   "title": " An exception occurred in driver: SQLSTATE[HY000] [2002] Connection refused",
+   "url": "https://github.com/wallabag/docker/issues/318",
+   "created": "2023-02-04"
+  },
+  {
+   "id": "gh-onlyonee1-PaymentFlow-323",
+   "title": "Add local Docker Compose troubleshooting and networking guide",
+   "url": "https://github.com/onlyonee1/PaymentFlow/issues/323",
+   "created": "2026-10-16"
+  },
+  {
+   "id": "gh-takwerx-infra-TAK-372",
+   "title": "CloudTAK v13.117.x: tiles service needs an internal API_URL in infra-TAK’s override",
+   "url": "https://github.com/takwerx/infra-TAK/issues/372",
+   "created": "2026-11-02"
+  },
+  {
+   "id": "gh-thekim1-fors-106",
+   "title": "Rolling update e2e: a POST is occasionally lost (502) while a gateway container is replaced",
+   "url": "https://github.com/thekim1/fors/issues/106",
+   "created": "2026-11-16"
+  },
+  {
+   "id": "gh-Anagamedina-ft_transcendence-309",
+   "title": "[DEVOPS][P1] make all / make sim: el smoke falla a veces con 502 en /api/health",
+   "url": "https://github.com/Anagamedina/ft_transcendence/issues/309",
+   "created": "2026-10-29"
+  },
+  {
+   "id": "gh-xibodev-release-harness-12",
+   "title": "Health-check failure returns exit 3 HARNESS_ERROR for what is a product failure",
+   "url": "https://github.com/xibodev/release-harness/issues/12",
+   "created": "2026-09-05"
+  },
+  {
+   "id": "gh-hs3180-disclaude-4608",
+   "title": "[bug] docker compose 未传 --api-port — #4168 Phase 3 后 REST 成为唯一 IPC，channel MCP 工具全挂",
+   "url": "https://github.com/hs3180/disclaude/issues/4608",
+   "created": "2026-08-26"
+  },
+  {
+   "id": "gh-DataTalksClub-faq-441",
+   "title": "[FAQ] HW4 Q6: Grafana alert fires but the webhook never reaches the incident responder on localhost:8001",
+   "url": "https://github.com/DataTalksClub/faq/issues/441",
+   "created": "2026-10-06"
+  },
+  {
+   "id": "gh-SikamikanikoBG-homelab-monitor-369",
+   "title": "GPU and AI Models tabs vanish after a few seconds",
+   "url": "https://github.com/SikamikanikoBG/homelab-monitor/issues/369",
+   "created": "2026-11-21"
+  },
+  {
+   "id": "gh-DNikulshin-hair-lab-125",
+   "title": "chore(infra): CD на staging — деплой после merge в main",
+   "url": "https://github.com/DNikulshin/hair-lab/issues/125",
+   "created": "2026-11-15"
+  },
+  {
+   "id": "gh-coryfinnegan-CollectionMaxxing-819",
+   "title": "Backups: the nightly backup is overdue or unhealthy",
+   "url": "https://github.com/coryfinnegan/CollectionMaxxing/issues/819",
+   "created": "2026-11-12"
+  },
+  {
+   "id": "gh-KushagraPan-Metal-Ops-13",
+   "title": "[P0] #13 Docker Compose for the full system",
+   "url": "https://github.com/KushagraPan/Metal-Ops/issues/13",
+   "created": "2026-10-21"
+  },
+  {
+   "id": "gh-daniel-ospina-tortoise-7637",
+   "title": "security: the FalkorDB provisioner binds 0.0.0.0, exposing every lane's test DB on the LAN (`-p 0:6379`)",
+   "url": "https://github.com/daniel-ospina/tortoise/issues/7637",
+   "created": "2026-10-07"
+  },
+  {
+   "id": "gh-InumanSoul-kotauth-173",
+   "title": "Image ignores DB_HOST/DB_PORT/DB_NAME; only DB_URL is read",
+   "url": "https://github.com/InumanSoul/kotauth/issues/173",
+   "created": "2026-11-10"
+  },
+  {
+   "id": "gh-Mailu-Mailu-3274",
+   "title": "Resolver stops working with Docker 26.1.3",
+   "url": "https://github.com/Mailu/Mailu/issues/3274",
+   "created": "2024-05-25"
+  },
+  {
+   "id": "gh-COS301-SE-2026-Neighbourhood-WatchDog-837",
+   "title": "Infra: Postgres, Redis and backend ports published on deployed hosts; Redis has no password",
+   "url": "https://github.com/COS301-SE-2026/Neighbourhood-WatchDog/issues/837",
+   "created": "2026-10-14"
+  },
+  {
+   "id": "gh-ddd-ts-kit-ddd-ts-kit-476",
+   "title": "Under the regulated profile's sandbox, a session cannot reach the local PostgreSQL: no migration, no integration or e2e test on a real database",
+   "url": "https://github.com/ddd-ts-kit/ddd-ts-kit/issues/476",
+   "created": "2026-10-27"
+  },
+  {
+   "id": "gh-castorfou-back-office-lmelp-318",
+   "title": "Frontend : 502 sur /api après recréation du backend (nginx garde l'ancienne IP)",
+   "url": "https://github.com/castorfou/back-office-lmelp/issues/318",
+   "created": "2026-10-22"
+  },
+  {
+   "id": "gh-octabyte-io-cloudgate-5",
+   "title": "cloudgate template try: run a Template's compose part on local Docker",
+   "url": "https://github.com/octabyte-io/cloudgate/issues/5",
+   "created": "2026-11-12"
+  },
+  {
+   "id": "gh-PostHog-posthog-23755",
+   "title": "Intermittent `net::ERR_CONNECTION_REFUSED` Error When Accessing PostHog Frontend on Codespaces",
+   "url": "https://github.com/PostHog/posthog/issues/23755",
+   "created": "2024-07-16"
+  },
+  {
+   "id": "gh-fe-spark-EcoHub-103",
+   "title": "升级后，12个源10个缺分类，什么原因",
+   "url": "https://github.com/fe-spark/EcoHub/issues/103",
+   "created": "2026-11-18"
+  },
+  {
+   "id": "gh-gsi-upm-semantic_ethical_glass_box-50",
+   "title": "segb-ui healthcheck fails: localhost resolves to ::1 but nginx listens on IPv4 only",
+   "url": "https://github.com/gsi-upm/semantic_ethical_glass_box/issues/50",
+   "created": "2026-11-02"
+  },
+  {
+   "id": "gh-liverty-music-backend-851",
+   "title": "Local test PostgreSQL container is shared by worktrees but owned by one checkout",
+   "url": "https://github.com/liverty-music/backend/issues/851",
+   "created": "2026-11-17"
+  },
+  {
+   "id": "gh-kkzzbb-LedgerLens-7",
+   "title": "Health endpoint and Docker Compose with database",
+   "url": "https://github.com/kkzzbb/LedgerLens/issues/7",
+   "created": "2026-11-11"
+  },
+  {
+   "id": "gh-HsiChinHuang-expense-tracker-dashboard-48",
+   "title": "E2E app container dies at startup on postgres - health endpoint never ready (diagnosis-first)",
+   "url": "https://github.com/HsiChinHuang/expense-tracker-dashboard/issues/48",
+   "created": "2026-10-12"
+  },
+  {
+   "id": "gh-easypanel-io-templates-1715",
+   "title": "Postiz template is broken since v2.12: Temporal service missing (backend crashes with ECONNREFUSED :7233)",
+   "url": "https://github.com/easypanel-io/templates/issues/1715",
+   "created": "2026-11-09"
+  },
+  {
+   "id": "gh-wangzhengpengjay-AI-Health-Steward-5",
+   "title": "问题反馈：`docker-compose.prod.yml` 生产版部署存在 3 处配置缺陷",
+   "url": "https://github.com/wangzhengpengjay/AI-Health-Steward/issues/5",
+   "created": "2026-10-12"
+  },
+  {
+   "id": "gh-NginxProxyManager-nginx-proxy-manager-4418",
+   "title": "Error connection refused after update",
+   "url": "https://github.com/NginxProxyManager/nginx-proxy-manager/issues/4418",
+   "created": "2025-03-06"
+  },
+  {
+   "id": "gh-QuantumNous-new-api-7619",
+   "title": "Docker Compose 部署  pg 密码问题",
+   "url": "https://github.com/QuantumNous/new-api/issues/7619",
+   "created": "2026-09-30"
+  },
+  {
+   "id": "gh-620legal-OpenADLC-136",
+   "title": "Give a task a private Postgres server of its own when its repository needs one",
+   "url": "https://github.com/620legal/OpenADLC/issues/136",
+   "created": "2026-10-23"
+  },
+  {
+   "id": "gh-inpartnerhub-Diligence_Platform-53",
+   "title": "docs(infra): document minimum host memory requirements and profile separation to prevent OOM kills",
+   "url": "https://github.com/inpartnerhub/Diligence_Platform/issues/53",
+   "created": "2026-11-04"
+  },
+  {
+   "id": "gh-gfire-sigs-gvx-218",
+   "title": "Published ports (-p) of a container do not open on Windows 127.0.0.1",
+   "url": "https://github.com/gfire-sigs/gvx/issues/218",
+   "created": "2026-11-20"
+  },
+  {
+   "id": "gh-MargaritaV33-pinpoint-8",
+   "title": "Dockerfile and Docker Compose",
+   "url": "https://github.com/MargaritaV33/pinpoint/issues/8",
+   "created": "2026-10-12"
+  },
+  {
+   "id": "gh-unified-systems-com-tap-1158",
+   "title": "Stack ports are published on every interface; add a bind selector that defaults to localhost",
+   "url": "https://github.com/unified-systems-com/tap/issues/1158",
+   "created": "2026-11-05"
+  },
+  {
+   "id": "gh-mkolakowski-WalletWeather-215",
+   "title": "Create an account from Settings → Bank sync",
+   "url": "https://github.com/mkolakowski/WalletWeather/issues/215",
+   "created": "2026-11-17"
+  },
+  {
+   "id": "gh-srozen-codec-21",
+   "title": "Search every pane's output at once",
+   "url": "https://github.com/srozen/codec/issues/21",
+   "created": "2026-11-09"
+  },
+  {
+   "id": "gh-dunay2-dvt-3751",
+   "title": "TASK-CODECOMP1.1 Validar diseño, elegibilidad y correspondencia entre componentes y código",
+   "url": "https://github.com/dunay2/dvt/issues/3751",
+   "created": "2026-10-28"
+  },
+  {
+   "id": "gh-adminsyspro-proxcenter-ui-478",
+   "title": "[Bug]: LDAP Authentication error (possible caused by DNS change on docker-compose.yml)",
+   "url": "https://github.com/adminsyspro/proxcenter-ui/issues/478",
+   "created": "2026-06-22"
+  },
+  {
+   "id": "gh-jakobbjelver-messer-swipe-90",
+   "title": "Login requests not reaching Jellyfin server",
+   "url": "https://github.com/jakobbjelver/messer-swipe/issues/90",
+   "created": "2026-07-23"
+  },
+  {
+   "id": "gh-vjuliaife-TariffShield-852",
+   "title": "Makefile's db-reset target uses a fixed `sleep 3` instead of waiting for Postgres's healthcheck",
+   "url": "https://github.com/vjuliaife/TariffShield/issues/852",
+   "created": "2026-08-22"
+  },
+  {
+   "id": "gh-kikakkz-looming-131",
+   "title": "apply's bootstrap-invite POST races identityd's first boot (invite lost behind a WARNING)",
+   "url": "https://github.com/kikakkz/looming/issues/131",
+   "created": "2026-10-06"
+  },
+  {
+   "id": "gh-clusterzx-paperless-ai-798",
+   "title": "[Bug]: Ip address keep using old",
+   "url": "https://github.com/clusterzx/paperless-ai/issues/798",
+   "created": "2025-12-06"
+  },
+  {
+   "id": "gh-JohnFattore-FattoreStreet-311",
+   "title": "Learning topic: nginx's `set $upstream` + `resolver` trick — forcing per-request DNS re-resolution of Docker Compose service names",
+   "url": "https://github.com/JohnFattore/FattoreStreet/issues/311",
+   "created": "2026-10-31"
+  },
+  {
+   "id": "gh-rome-os-rome-964",
+   "title": "telemetry: expected boot-time loopback probes are recorded as Error spans and make up most of them",
+   "url": "https://github.com/rome-os/rome/issues/964",
+   "created": "2026-10-12"
+  },
+  {
+   "id": "gh-evaristocuesta-clovance-283",
+   "title": "Frontend nginx caches the API container IP and returns 502 on every /api request after an update",
+   "url": "https://github.com/evaristocuesta/clovance/issues/283",
+   "created": "2026-11-24"
+  },
+  {
+   "id": "gh-elabftw-elabftw-7839",
+   "title": "StartUp Error with 6.0.10",
+   "url": "https://github.com/elabftw/elabftw/issues/7839",
+   "created": "2026-11-23"
+  },
+  {
+   "id": "gh-os974-HorRAGor3-6",
+   "title": "[Anomalie] Ollama injoignable depuis le cluster : /chat renvoie le repli gothique",
+   "url": "https://github.com/os974/HorRAGor3/issues/6",
+   "created": "2026-10-19"
+  },
+  {
+   "id": "gh-dji-sdk-Cloud-API-2-157",
+   "title": "[问题] 平台部署过程提示Error creating database: dial tcp 10.0.2.10:3306: connect: connection refused",
+   "url": "https://github.com/dji-sdk/Cloud-API-2/issues/157",
+   "created": "2026-10-21"
+  },
+  {
+   "id": "gh-pulkitchowdry-cross_lingual_remote_workshop_facilitation-178",
+   "title": "local-inference container has no restart policy — translation permanently ECONNREFUSED until manually restarted",
+   "url": "https://github.com/pulkitchowdry/cross_lingual_remote_workshop_facilitation/issues/178",
+   "created": "2026-07-28"
+  },
+  {
+   "id": "gh-LucaNerlich-steam5-196",
+   "title": "Bind Prometheus and Grafana to loopback in the monitoring stack",
+   "url": "https://github.com/LucaNerlich/steam5/issues/196",
+   "created": "2026-10-15"
+  },
+  {
+   "id": "gh-fanotmz-docsearch-ai-1",
+   "title": "DOCSEARCH-02: validate local AI integration with Ollama",
+   "url": "https://github.com/fanotmz/docsearch-ai/issues/1",
+   "created": "2026-10-06"
+  },
+  {
+   "id": "gh-Techiebutler-freeframe-460",
+   "title": "sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) connection to server at \"localhost\" (::1), port 5432 failed: Connection refused",
+   "url": "https://github.com/Techiebutler/freeframe/issues/460",
+   "created": "2026-10-07"
+  },
+  {
+   "id": "gh-sassanix-Warracker-293",
+   "title": "[Bug]: Warracker 1.0.5 Docker image fails to start – missing packaging module",
+   "url": "https://github.com/sassanix/Warracker/issues/293",
+   "created": "2026-11-10"
+  },
+  {
+   "id": "gh-JuanCastrejon-gopass-task-manager-1",
+   "title": "chore(fundacion): monorepo, docker-compose, tsconfig y calidad base (RF-15)",
+   "url": "https://github.com/JuanCastrejon/gopass-task-manager/issues/1",
+   "created": "2026-09-05"
+  },
+  {
+   "id": "gh-StellarEdu-StellarEduPay-1933",
+   "title": "Frontend Docker build ignores BACKEND_PROXY_TARGET — /api is proxied to localhost:5000 inside the frontend container, so every API call fails under docker compose",
+   "url": "https://github.com/StellarEdu/StellarEduPay/issues/1933",
+   "created": "2026-11-18"
+  },
+  {
+   "id": "gh-masechkacat-mon-sinistre-12",
+   "title": "Тесты поиска без учёта регистра и диакритики",
+   "url": "https://github.com/masechkacat/mon-sinistre/issues/12",
+   "created": "2026-08-02"
+  },
+  {
+   "id": "gh-aura-historia-backend-2681",
+   "title": "Dev tooling: fail fast on an unreachable LOCAL_DB_URL host and apply a changed crawl root on re-registration",
+   "url": "https://github.com/aura-historia/backend/issues/2681",
+   "created": "2026-11-01"
+  },
+  {
+   "id": "gh-JonasGreim-Map-Capital-Cities-47",
+   "title": "[P1 Dev] Diagnose and stabilize npm dev watcher and database startup",
+   "url": "https://github.com/JonasGreim/Map-Capital-Cities/issues/47",
+   "created": "2026-10-25"
+  },
+  {
+   "id": "gh-code-corhuila-csp-worker-60",
+   "title": "chore(deploy): retry the connection of the migration executor while the instance starts",
+   "url": "https://github.com/code-corhuila/csp-worker/issues/60",
+   "created": "2026-11-03"
+  },
+  {
+   "id": "gh-Joseun-snomed-scribe-17",
+   "title": "Backend crashes on fresh docker compose up: no Postgres readiness wait",
+   "url": "https://github.com/Joseun/snomed-scribe/issues/17",
+   "created": "2026-10-25"
+  },
+  {
+   "id": "gh-MKU-Solution-VereinOrder-184",
+   "title": "fix(docker): Backend und Frontend melden keinen Bereitschaftszustand",
+   "url": "https://github.com/MKU-Solution/VereinOrder/issues/184",
+   "created": "2026-08-30"
+  },
+  {
+   "id": "gh-OdysseasKalaitsidis-MyIonio_MonoRepo-24",
+   "title": "fix(docker-compose): correct internal backend URL port for ai-service",
+   "url": "https://github.com/OdysseasKalaitsidis/MyIonio_MonoRepo/issues/24",
+   "created": "2026-08-18"
+  },
+  {
+   "id": "gh-ga4gh-anyvar-514",
+   "title": "failed to connect to dl.biocommons.org",
+   "url": "https://github.com/ga4gh/anyvar/issues/514",
+   "created": "2026-11-09"
+  },
+  {
+   "id": "gh-jrmoulckers-finance-4448",
+   "title": "Fix Caddy Docker healthcheck IPv6 localhost false negative",
+   "url": "https://github.com/jrmoulckers/finance/issues/4448",
+   "created": "2026-09-29"
+  },
+  {
+   "id": "gh-AlexMKX-tunstrap-47",
+   "title": "integration tests share one docker compose project name across worktrees",
+   "url": "https://github.com/AlexMKX/tunstrap/issues/47",
+   "created": "2026-08-31"
+  },
+  {
+   "id": "gh-roonga-qcms-316",
+   "title": "full-stack e2e cannot run from the dev container: full-stack-config.ts hardcodes localhost while compose publishes on the host loopback",
+   "url": "https://github.com/roonga/qcms/issues/316",
+   "created": "2026-08-06"
+  },
+  {
+   "id": "gh-tvolodi-org-letflow-2513",
+   "title": "Workspace test-DB Postgres containers have restart policy 'no': after a host power loss every test run fails with connection refused",
+   "url": "https://github.com/tvolodi-org/letflow/issues/2513",
+   "created": "2026-10-14"
+  },
+  {
+   "id": "gh-kimdre-doco-cd-1909",
+   "title": "Swarm: every task of a stack is recreated on every deployment (regression since v0.120.0, working_dir task-template label contains per-commit artifact path)",
+   "url": "https://github.com/kimdre/doco-cd/issues/1909",
+   "created": "2026-09-26"
+  },
+  {
+   "id": "gh-cubrid-lab-sqlalchemy-cubrid-1080",
+   "title": "bug: Match connection troubleshooting to pycubrid errors and the quickstart lab",
+   "url": "https://github.com/cubrid-lab/sqlalchemy-cubrid/issues/1080",
+   "created": "2026-10-27"
+  },
+  {
+   "id": "gh-kineticlogic-io-OpenTrack-19",
+   "title": "Deploy 0.4.0 to the live node",
+   "url": "https://github.com/kineticlogic-io/OpenTrack/issues/19",
+   "created": "2026-09-28"
+  },
+  {
+   "id": "gh-kesamot11-chaosnet-13",
+   "title": "Demo system: gateway -> orders -> inventory in Docker Compose",
+   "url": "https://github.com/kesamot11/chaosnet/issues/13",
+   "created": "2026-10-13"
+  },
+  {
+   "id": "gh-code-corhuila-csp-front-41",
+   "title": "fix(deploy): the container healthcheck resolves localhost to ::1, so the shell shows unhealthy while it serves traffic",
+   "url": "https://github.com/code-corhuila/csp-front/issues/41",
+   "created": "2026-10-13"
+  },
+  {
+   "id": "gh-lin612320-TeamProject-PaperReadingHelper-2",
+   "title": "[架构] Docker Compose 骨架（空服务可起）",
+   "url": "https://github.com/lin612320/TeamProject-PaperReadingHelper/issues/2",
+   "created": "2026-10-24"
+  },
+  {
+   "id": "gh-bakhytuly07-source-gradematch-93",
+   "title": "Add integration tests that run against docker-compose",
+   "url": "https://github.com/bakhytuly07-source/gradematch/issues/93",
+   "created": "2026-10-29"
+  },
+  {
+   "id": "gh-apache-iceberg-go-2455",
+   "title": "docs: integration test instructions miss AWS_S3_ENDPOINT, so S3 tests hit real AWS",
+   "url": "https://github.com/apache/iceberg-go/issues/2455",
+   "created": "2026-11-06"
+  },
+  {
+   "id": "gh-NaimElijah-UpHealther-75",
+   "title": "fix: the frontend container's healthcheck can never pass, so it reports unhealthy while serving fine",
+   "url": "https://github.com/NaimElijah/UpHealther/issues/75",
+   "created": "2026-08-28"
+  },
+  {
+   "id": "gh-dan-petty-vibes-170",
+   "title": "chore(resources): Move off Jaeger v1 and pin all images",
+   "url": "https://github.com/dan-petty/vibes/issues/170",
+   "created": "2026-10-09"
+  },
+  {
+   "id": "gh-tyxak-remotepower-33",
+   "title": "Scanner container always reports unhealthy: it carries the app's health check",
+   "url": "https://github.com/tyxak/remotepower/issues/33",
+   "created": "2026-10-25"
+  },
+  {
+   "id": "gh-privexlabs-BrandBlitz-924",
+   "title": "apps/api/Dockerfile HEALTHCHECK and EXPOSE hardcode port 3000 while docker-compose.yml runs the api service on PORT 3001",
+   "url": "https://github.com/privexlabs/BrandBlitz/issues/924",
+   "created": "2026-07-27"
+  },
+  {
+   "id": "gh-kossakovsky-selfhost-ai-84",
+   "title": "[BUG] Crawl4AI is not reachable from other containers in the same Docker network",
+   "url": "https://github.com/kossakovsky/selfhost-ai/issues/84",
+   "created": "2026-07-14"
+  },
+  {
+   "id": "gh-monicahq-monica-6585",
+   "title": "Docker Compose Apache and FPM Doesn't Connect",
+   "url": "https://github.com/monicahq/monica/issues/6585",
+   "created": "2023-02-22"
+  },
+  {
+   "id": "gh-beenuar-AiSOC-1848",
+   "title": "ueba/honeytokens/purple-team hardcode OTLP tracing to localhost:4317 — non-functional and noisy",
+   "url": "https://github.com/beenuar/AiSOC/issues/1848",
+   "created": "2026-11-12"
+  },
+  {
+   "id": "gh-Willxup-cpa-usage-keeper-572",
+   "title": "[Bug] CPA 反复出现 IP banned due to too many failed attempts",
+   "url": "https://github.com/Willxup/cpa-usage-keeper/issues/572",
+   "created": "2026-09-24"
+  },
+  {
+   "id": "gh-LeibnizDSMZ-strain-discovery-database-4",
+   "title": "`docker compose up --build` does not start the pipeline on a clean checkout",
+   "url": "https://github.com/LeibnizDSMZ/strain-discovery-database/issues/4",
+   "created": "2026-09-02"
+  },
+  {
+   "id": "gh-fiddur-aurboda-1125",
+   "title": "Login/auth follow-ups from the #1124 review: the schema sweep still blocks the first request after deploy",
+   "url": "https://github.com/fiddur/aurboda/issues/1125",
+   "created": "2026-09-13"
+  },
+  {
+   "id": "gh-supatype-supatype-84",
+   "title": "dev: a failed initial schema push runs `docker compose down -v`, deleting all local data",
+   "url": "https://github.com/supatype/supatype/issues/84",
+   "created": "2026-10-01"
+  },
+  {
+   "id": "gh-WattSnatch-wattsnatch-12",
+   "title": "TeslaMate Integration Connection failed: connect ECONNREFUSED",
+   "url": "https://github.com/WattSnatch/wattsnatch/issues/12",
+   "created": "2026-08-10"
+  },
+  {
+   "id": "gh-nathapp-io-nax-2538",
+   "title": "sandbox (macOS): sandboxed commands cannot reach host loopback services (e.g. a local test DB); expose srt allowLocalBinding as an opt-in",
+   "url": "https://github.com/nathapp-io/nax/issues/2538",
+   "created": "2026-10-15"
+  },
+  {
+   "id": "gh-paruff-uFawkesObs-471",
+   "title": "test: Testcontainers fixtures join the CI job's shared compose project and tear it down",
+   "url": "https://github.com/paruff/uFawkesObs/issues/471",
+   "created": "2026-09-24"
+  },
+  {
+   "id": "gh-hllous-Backend-M6-DAPS2-561",
+   "title": "fix(devops): el healthcheck del backend en docker compose falla por IPv6 (localhost)",
+   "url": "https://github.com/hllous/Backend-M6-DAPS2/issues/561",
+   "created": "2026-11-07"
+  },
+  {
+   "id": "gh-f18m-prometheus-snapshot-manager-15",
+   "title": "Wait/retry when Prometheus answers 'Service Unavailable' instead of exiting at startup",
+   "url": "https://github.com/f18m/prometheus-snapshot-manager/issues/15",
+   "created": "2026-11-18"
+  },
+  {
+   "id": "gh-subhadipnayek-navigator-28",
+   "title": "BUG-20: Default Local Run to SQLite & Enable Root Workspace Execution",
+   "url": "https://github.com/subhadipnayek/navigator/issues/28",
+   "created": "2026-10-31"
+  },
+  {
+   "id": "gh-chabelly-lbetancourt-oneleft-infra-70",
+   "title": "The oneleft-web container is unhealthy: its health check goes to IPv6",
+   "url": "https://github.com/chabelly-lbetancourt/oneleft-infra/issues/70",
+   "created": "2026-10-24"
+  },
+  {
+   "id": "gh-naren-m-yoga_sutras-12",
+   "title": "Frontend healthcheck fails: localhost resolves to ::1, nginx listens IPv4-only",
+   "url": "https://github.com/naren-m/yoga_sutras/issues/12",
+   "created": "2026-09-26"
+  },
+  {
+   "id": "gh-seanmizen-seanorepo-357",
+   "title": "bug: tcp-getter NGROK_API_URL is http://0.0.0.0:4040 — unreachable from inside the container",
+   "url": "https://github.com/seanmizen/seanorepo/issues/357",
+   "created": "2026-09-21"
+  },
+  {
+   "id": "gh-holjab-AutoMorph-9",
+   "title": "Obtainium repo url translation",
+   "url": "https://github.com/holjab/AutoMorph/issues/9",
+   "created": "2026-10-27"
+  },
+  {
+   "id": "gh-lucas42-lucos_arachne-696",
+   "title": "mcp/server.py: AITHNE_JWKS_URL override not supported — JWKS fetch fails in Docker dev",
+   "url": "https://github.com/lucas42/lucos_arachne/issues/696",
+   "created": "2026-06-30"
+  },
+  {
+   "id": "gh-coccinella-labs-mole-103",
+   "title": "Verify the nginx port-80 route at runtime (merged in #100 but never executed)",
+   "url": "https://github.com/coccinella-labs/mole/issues/103",
+   "created": "2026-10-17"
+  },
+  {
+   "id": "gh-takwerx-infra-TAK-85",
+   "title": "Authentik LDAP Install Fails",
+   "url": "https://github.com/takwerx/infra-TAK/issues/85",
+   "created": "2026-10-07"
+  },
+  {
+   "id": "gh-langgenius-dify-46449",
+   "title": "The icons for built-in tools cannot be displayed",
+   "url": "https://github.com/langgenius/dify/issues/46449",
+   "created": "2026-11-15"
+  },
+  {
+   "id": "gh-egovernments-Citizen-Complaint-Resolution-System-2579",
+   "title": "[Sherlog · Bomet] egov-mdms-service: egov-mdms-service logged errors because its fronting nginx could not reach its upstream backend during a short outage ar…",
+   "url": "https://github.com/egovernments/Citizen-Complaint-Resolution-System/issues/2579",
+   "created": "2026-10-19"
+  },
+  {
+   "id": "gh-vyomi-cloud-appliance-551",
+   "title": "docker-compose.cloudlite.yml (Homebrew/Docker-tier) doesn't publish the new AMQP ports from #188",
+   "url": "https://github.com/vyomi-cloud/appliance/issues/551",
+   "created": "2026-11-10"
+  },
+  {
+   "id": "gh-langgenius-dify-46495",
+   "title": "Docker public URL defaults diverge between web and API, breaking provider icons",
+   "url": "https://github.com/langgenius/dify/issues/46495",
+   "created": "2026-11-16"
+  },
+  {
+   "id": "gh-jballo-camino-126",
+   "title": "Production image and Compose hardening: recursive .dockerignore, pinned runtime Python, TCP database healthcheck",
+   "url": "https://github.com/jballo/camino/issues/126",
+   "created": "2026-10-16"
+  },
+  {
+   "id": "gh-NivedhReddy2048-CodeSage-17",
+   "title": "CI: backend job fails, no Redis service container",
+   "url": "https://github.com/NivedhReddy2048/CodeSage/issues/17",
+   "created": "2026-10-18"
+  },
+  {
+   "id": "gh-rasc88-appointment-confirmation-69",
+   "title": "Deploy without CloudFront: plain HTTP on the instance while the account awaits CloudFront verification",
+   "url": "https://github.com/rasc88/appointment-confirmation/issues/69",
+   "created": "2026-11-14"
+  },
+  {
+   "id": "gh-egovernments-Citizen-Complaint-Resolution-System-2577",
+   "title": "[Sherlog · Bomet] egov-user-proxy: egov-user-proxy logged errors because its upstream egov-user was unavailable during a restart window around 06:28:09 UTC",
+   "url": "https://github.com/egovernments/Citizen-Complaint-Resolution-System/issues/2577",
+   "created": "2026-10-19"
+  },
+  {
+   "id": "gh-OpenC3-cosmos-4229",
+   "title": "Changing REDIS Default Password Not Working as Documented",
+   "url": "https://github.com/OpenC3/cosmos/issues/4229",
+   "created": "2026-11-06"
+  },
+  {
+   "id": "gh-unniprem-saveme-1",
+   "title": "Native `python -m app` listens on 0.0.0.0 instead of loopback",
+   "url": "https://github.com/unniprem/saveme/issues/1",
+   "created": "2026-11-10"
+  },
+  {
+   "id": "gh-victor-lis-bronzo-iot-stressbed-23",
+   "title": "bug: api não grava telemetria no InfluxDB e web fica unhealthy no compose",
+   "url": "https://github.com/victor-lis-bronzo/iot-stressbed/issues/23",
+   "created": "2026-10-25"
+  },
+  {
+   "id": "gh-Yoshinori-Oda-osampo-tracker-public-24",
+   "title": "DBを作り直した直後にworkerが接続エラーを出す",
+   "url": "https://github.com/Yoshinori-Oda/osampo-tracker-public/issues/24",
+   "created": "2026-11-06"
+  },
+  {
+   "id": "gh-bruceamoser-OpenBaD-968",
+   "title": "web_search hard-fails with an opaque error when local SearXNG is down; no fallback backend and no provisioning path for the web services",
+   "url": "https://github.com/bruceamoser/OpenBaD/issues/968",
+   "created": "2026-11-17"
+  },
+  {
+   "id": "gh-EricRLeao1311-CapiWatt-32",
+   "title": "Corrigir queda do backend no primeiro \"docker compose up\" (corrida com o Postgres)",
+   "url": "https://github.com/EricRLeao1311/CapiWatt/issues/32",
+   "created": "2026-09-25"
+  },
+  {
+   "id": "gh-tale-project-tale-3572",
+   "title": "Bug: ghcr.io/tale-project/ops/minio publishes only a linux/amd64 manifest",
+   "url": "https://github.com/tale-project/tale/issues/3572",
+   "created": "2026-09-27"
+  },
+  {
+   "id": "gh-BrighterCommand-Brighter-4566",
+   "title": "Native-delay RabbitMQ image crash-loops: root-owned .erlang.cookie (eacces)",
+   "url": "https://github.com/BrighterCommand/Brighter/issues/4566",
+   "created": "2026-10-09"
+  },
+  {
+   "id": "gh-apostrophecms-apostrophe-4645",
+   "title": "Can't deploy apostroheCMS via Docker Compose",
+   "url": "https://github.com/apostrophecms/apostrophe/issues/4645",
+   "created": "2024-07-18"
+  },
+  {
+   "id": "gh-i2p-i2p.i2p-179",
+   "title": "SAM bridge inherits the 2-minute DEFAULT_STARTUP_DELAY; SAM clients started together with the router (e.g. qBittorrent) fail to connect and never retry",
+   "url": "https://github.com/i2p/i2p.i2p/issues/179",
+   "created": "2026-10-12"
+  },
+  {
+   "id": "gh-atlantiqshq-vexlyx-202",
+   "title": "A project whose app binds only 127.0.0.1 is reported healthy and Running while its domain returns 502",
+   "url": "https://github.com/atlantiqshq/vexlyx/issues/202",
+   "created": "2026-10-31"
+  },
+  {
+   "id": "gh-mmiura-2351-mc-server-dashboard-v2-2601",
+   "title": "cloudflared's :20241 exposes unauthenticated metrics, pprof and tunnel diagnostics to every MC container",
+   "url": "https://github.com/mmiura-2351/mc-server-dashboard-v2/issues/2601",
+   "created": "2026-08-02"
+  },
+  {
+   "id": "gh-KarimM02-CareDispatch-91",
+   "title": "#051 · REDIS_PORT dual-use in docker-compose breaks backend Redis connectivity on any non-default port",
+   "url": "https://github.com/KarimM02/CareDispatch/issues/91",
+   "created": "2026-07-31"
+  },
+  {
+   "id": "gh-floci-io-floci-ui-221",
+   "title": "[Bug/Deployment] floci-ui fails to connect to core runtime when deployed behind reverse proxy on remote host (Hardcoded localhost:4566 health check & S3 routing collision)",
+   "url": "https://github.com/floci-io/floci-ui/issues/221",
+   "created": "2026-09-13"
+  },
+  {
+   "id": "gh-DaveNijhuis-Fitman-274",
+   "title": "fix: dev compose frontend cannot reach the backend — every /api request 502s",
+   "url": "https://github.com/DaveNijhuis/Fitman/issues/274",
+   "created": "2026-09-20"
+  },
+  {
+   "id": "gh-fpittelo-coach-web-232",
+   "title": "bug: prod runbook ends with the stack torn down — e2e-preflight EXIT trap removes the lane it validates",
+   "url": "https://github.com/fpittelo/coach-web/issues/232",
+   "created": "2026-10-15"
+  },
+  {
+   "id": "gh-mqucifer-sprint-metrics-889",
+   "title": "sprint-metrics 4.2.1 failed its deploy at health",
+   "url": "https://github.com/mqucifer/sprint-metrics/issues/889",
+   "created": "2026-10-31"
+  },
+  {
+   "id": "gh-jt-mchorse-rag-production-kit-239",
+   "title": "Quickstart: 'docker compose up -d' doesn't wait for pg_isready (the comment says it does); telemetry.db lands untracked in the checkout",
+   "url": "https://github.com/jt-mchorse/rag-production-kit/issues/239",
+   "created": "2026-09-30"
+  },
+  {
+   "id": "gh-tf4fun-antnest-platform-219",
+   "title": "Runtime exits on ECONNREFUSED when Runtime Egress restarts",
+   "url": "https://github.com/tf4fun/antnest-platform/issues/219",
+   "created": "2026-10-09"
+  },
+  {
+   "id": "gh-aicers-bootroot-1201",
+   "title": "Wait for OpenBao to answer before init's first health check",
+   "url": "https://github.com/aicers/bootroot/issues/1201",
+   "created": "2026-11-12"
+  },
+  {
+   "id": "gh-lmarellanojr-Capstone2-deploy-317",
+   "title": "[SCENARIO-02] Fail-closed when DVWA compose/ready fails (Connection refused in embed)",
+   "url": "https://github.com/lmarellanojr/Capstone2-deploy/issues/317",
+   "created": "2026-10-27"
+  },
+  {
+   "id": "gh-mirzayv-chaindepo-1",
+   "title": "api.chaindepo.app returns 502 after the api container is recreated",
+   "url": "https://github.com/mirzayv/chaindepo/issues/1",
+   "created": "2026-11-24"
+  },
+  {
+   "id": "gh-Phantasmagoria-HELF-PenTester-94",
+   "title": "bug(cli): live secret leakage in help string and demo masquerades stale reports on failure",
+   "url": "https://github.com/Phantasmagoria-HELF/PenTester/issues/94",
+   "created": "2026-11-13"
+  },
+  {
+   "id": "gh-Loom-Harness-Loc-3578",
+   "title": "[elixir] A broker outage takes the whole Phoenix app down: `ChannelBroker` crashes on `{:error, :unknown_host}`, the outbox relay cascades, the release exits and crash-loops",
+   "url": "https://github.com/Loom-Harness/Loc/issues/3578",
+   "created": "2026-10-18"
+  },
+  {
+   "id": "gh-Lighfe-agent-graph-kit-321",
+   "title": "facts.py: listen on an address the Prometheus container can reach, not only on loopback",
+   "url": "https://github.com/Lighfe/agent-graph-kit/issues/321",
+   "created": "2026-11-13"
+  },
+  {
+   "id": "gh-02junho-SOLution-101",
+   "title": "fix: 운영 재생 기록이 남지 않고 docker에서 견적 API가 500",
+   "url": "https://github.com/02junho/SOLution/issues/101",
+   "created": "2026-11-18"
+  },
+  {
+   "id": "gh-CtrlCup-myCloud-48",
+   "title": "App-Start ohne DB-Retry: Container bleibt beim ersten Start aus",
+   "url": "https://github.com/CtrlCup/myCloud/issues/48",
+   "created": "2026-09-30"
+  },
+  {
+   "id": "gh-aicers-bootroot-1127",
+   "title": "Serve step-ca's PostgreSQL over TLS only",
+   "url": "https://github.com/aicers/bootroot/issues/1127",
+   "created": "2026-10-30"
+  },
+  {
+   "id": "gh-MichaelLeeHobbs-mirthless-306",
+   "title": "Prod web container is always unhealthy: healthcheck hits ::1, nginx listens on IPv4 only",
+   "url": "https://github.com/MichaelLeeHobbs/mirthless/issues/306",
+   "created": "2026-11-17"
+  },
+  {
+   "id": "gh-it-minds-troupe-225",
+   "title": "The dev services come back by themselves after a WSL restart",
+   "url": "https://github.com/it-minds/troupe/issues/225",
+   "created": "2026-09-27"
+  },
+  {
+   "id": "gh-smp46-pingvin-share-x-237",
+   "title": "Config variable share.enableUserRecipients not found",
+   "url": "https://github.com/smp46/pingvin-share-x/issues/237",
+   "created": "2026-10-04"
+  },
+  {
+   "id": "gh-shinds-team7-flexable-web-441",
+   "title": "fix(web): VM nginx가 api 컨테이너 IP 변경을 따라가지 못해 /api가 502",
+   "url": "https://github.com/shinds-team7/flexable-web/issues/441",
+   "created": "2026-11-16"
+  },
+  {
+   "id": "gh-opendefender-OpenRisk-728",
+   "title": "fix(infra): the backend cache never reaches Redis in Docker (REDIS_HOST unset)",
+   "url": "https://github.com/opendefender/OpenRisk/issues/728",
+   "created": "2026-09-18"
+  },
+  {
+   "id": "gh-gabriel-neutron-GAB-243",
+   "title": "STORE-SEAWEEDFS - MinIO is gone from the stack and from every registry, so no document can be stored",
+   "url": "https://github.com/gabriel-neutron/GAB/issues/243",
+   "created": "2026-10-05"
+  },
+  {
+   "id": "gh-sam-mfb-kashkeshet-137",
+   "title": "Docker + Tailscale: 502 over the tailnet when the machine name is kkt",
+   "url": "https://github.com/sam-mfb/kashkeshet/issues/137",
+   "created": "2026-10-29"
+  },
+  {
+   "id": "gh-comet-ml-opik-9225",
+   "title": "[Bug]: run_db_migrations.sh exits 0 when db migrate fails, so the backend-migrations init container passes",
+   "url": "https://github.com/comet-ml/opik/issues/9225",
+   "created": "2026-10-26"
+  },
+  {
+   "id": "gh-Afro666-notion-ical-bridge-14",
+   "title": "bug: container reports \"unhealthy\" despite serving traffic correctly",
+   "url": "https://github.com/Afro666/notion-ical-bridge/issues/14",
+   "created": "2026-05-05"
+  },
+  {
+   "id": "gh-Loom-Harness-Loc-3575",
+   "title": "[k8s] `--k8s` output never injects `<RESOURCE>_URL` for `kind: api` (or mailer) resources; every backend's api client then falls back to a hardcoded `http://localhost:3000`",
+   "url": "https://github.com/Loom-Harness/Loc/issues/3575",
+   "created": "2026-10-18"
+  },
+  {
+   "id": "gh-ca-mrc-loom-2836",
+   "title": "Local Compose stack can't run hosted-agent trials end to end (rootless Docker, non-root task images, gateway-only tasks)",
+   "url": "https://github.com/ca-mrc/loom/issues/2836",
+   "created": "2026-11-11"
+  },
+  {
+   "id": "gh-dudleylane-OrderProcessor-763",
+   "title": "oms-db reports healthy while Postgres's init server runs, so the server's first connects fail and log errors",
+   "url": "https://github.com/dudleylane/OrderProcessor/issues/763",
+   "created": "2026-11-22"
+  },
+  {
+   "id": "gh-seaweedfs-seaweedfs-12724",
+   "title": "filer: a peer filer that dies without its removal reaching this filer is followed forever, and its zero watermark holds aggregated metadata subscribers 2 x LogFlushInterval (120 s) behind",
+   "url": "https://github.com/seaweedfs/seaweedfs/issues/12724",
+   "created": "2026-11-18"
+  },
+  {
+   "id": "gh-mbaneshi-filetransfer.ir-9",
+   "title": "Compose: API exits when Postgres isn't ready yet (add healthchecks)",
+   "url": "https://github.com/mbaneshi/filetransfer.ir/issues/9",
+   "created": "2026-10-22"
+  },
+  {
+   "id": "gh-legend-esc-carbonchain-538",
+   "title": "Add Docker Compose health checks for all services — API starts before PostgreSQL ready, causing connection errors",
+   "url": "https://github.com/legend-esc/carbonchain/issues/538",
+   "created": "2026-07-23"
+  },
+  {
+   "id": "gh-orbstack-orbstack-2739",
+   "title": "Domain proxy keeps sending an open browser connection to a container's old IP after it is recreated",
+   "url": "https://github.com/orbstack/orbstack/issues/2739",
+   "created": "2026-10-08"
+  },
+  {
+   "id": "gh-KittyNiuNiu-winlog-99",
+   "title": "Follow-up from #38: the production backend sends no HSTS header",
+   "url": "https://github.com/KittyNiuNiu/winlog/issues/99",
+   "created": "2026-11-14"
+  },
+  {
+   "id": "gh-tiko-run-tiko-135",
+   "title": "The API container stops at about 1000 open boards on Linux hosts",
+   "url": "https://github.com/tiko-run/tiko/issues/135",
+   "created": "2026-10-12"
+  },
+  {
+   "id": "gh-DomeNinchen-ts6forkmanager-354",
+   "title": "Video stream issue: Bot shows \"LIVE / stream connect\" but video is completely blank/black in both Web UI and TS6 Client",
+   "url": "https://github.com/DomeNinchen/ts6forkmanager/issues/354",
+   "created": "2026-11-04"
+  },
+  {
+   "id": "gh-patternsatscale-brainsOS.ai-354",
+   "title": "[v0.1.5 RC2] Fix Appliance Container Update Health Probes, Authentik User Sync, XTerm WebSocket PTY & VS Code BYOK Startup",
+   "url": "https://github.com/patternsatscale/brainsOS.ai/issues/354",
+   "created": "2026-11-08"
+  },
+  {
+   "id": "gh-nightBaker-fleans-1082",
+   "title": "docs(website): after the Quick Start, guides switch to the contributor dev stack (localhost:7140, Aspire dashboard, repo-only fixtures); Quick Start says there is no REST deploy",
+   "url": "https://github.com/nightBaker/fleans/issues/1082",
+   "created": "2026-11-16"
+  },
+  {
+   "id": "gh-p-force-hotel-parser-1",
+   "title": "[CORE] Инициализация проекта",
+   "url": "https://github.com/p-force/hotel-parser/issues/1",
+   "created": "2026-10-25"
+  },
+  {
+   "id": "gh-youayou-Lee-LexMask-237",
+   "title": "frontend healthcheck 用 localhost 先解析 ::1 撞 nginx 仅 IPv4 监听——容器常年显示 unhealthy（Minor，外观性）",
+   "url": "https://github.com/youayou-Lee/LexMask/issues/237",
+   "created": "2026-11-03"
+  },
+  {
+   "id": "gh-artyomsv-marauder-244",
+   "title": "Gateway keeps a stale backend IP after the backend container gets a new address → all /api calls return 502",
+   "url": "https://github.com/artyomsv/marauder/issues/244",
+   "created": "2026-11-09"
+  },
+  {
+   "id": "gh-OpenRailAssociation-osrd-18257",
+   "title": "default docker compose doesn't work with docker rootless mode",
+   "url": "https://github.com/OpenRailAssociation/osrd/issues/18257",
+   "created": "2026-08-25"
+  },
+  {
+   "id": "gh-infiniflow-ragflow-8688",
+   "title": "[Question]: Elapsed: 10.7 ms Error: Error 111 connecting to redis:16379. Connection refused.",
+   "url": "https://github.com/infiniflow/ragflow/issues/8688",
+   "created": "2025-07-06"
+  },
+  {
+   "id": "gh-DEEIX-AI-DEEIX-Chat-902",
+   "title": "[Bug]: Docker image: login fails with ERR_CONNECTION_REFUSED when served on a loopback host port other than 8080",
+   "url": "https://github.com/DEEIX-AI/DEEIX-Chat/issues/902",
+   "created": "2026-10-25"
+  },
+  {
+   "id": "gh-guifagundes01-atlas-football-2",
+   "title": "Database connection and migration tooling",
+   "url": "https://github.com/guifagundes01/atlas-football/issues/2",
+   "created": "2026-08-18"
+  },
+  {
+   "id": "gh-algernon28-vespera-651",
+   "title": "Stage 2's start health check fails a run whose docling-serve is still starting, where a mid-step drop would be waited out",
+   "url": "https://github.com/algernon28/vespera/issues/651",
+   "created": "2026-10-23"
+  },
+  {
+   "id": "gh-thekaveh-atlas-928",
+   "title": "langfuse-web is permanently unhealthy: Next.js binds to $HOSTNAME (container IP), healthcheck probes loopback",
+   "url": "https://github.com/thekaveh/atlas/issues/928",
+   "created": "2026-08-10"
+  },
+  {
+   "id": "gh-StrGm-AI-Ltd-agentic-coding-evaluation-604",
+   "title": "ace-service's own bridge network means the agent can never reach a sibling compose service via localhost:<port>",
+   "url": "https://github.com/StrGm-AI-Ltd/agentic-coding-evaluation/issues/604",
+   "created": "2026-10-30"
+  },
+  {
+   "id": "gh-code-corhuila-csp-concessions-portal-50",
+   "title": "fix(deploy): the container healthcheck resolves localhost to ::1, so the portal shows unhealthy while it serves traffic",
+   "url": "https://github.com/code-corhuila/csp-concessions-portal/issues/50",
+   "created": "2026-10-13"
+  },
+  {
+   "id": "gh-THU-MAIC-OpenMAIC-2108",
+   "title": "[Bug]: render_scene_preview is registered and keeps failing with `fetch failed` when RENDER_SERVICE_URL is set but the render service is not running — no reachability probe like the video-export capability check",
+   "url": "https://github.com/THU-MAIC/OpenMAIC/issues/2108",
+   "created": "2026-10-30"
+  },
+  {
+   "id": "gh-arii-remote-server-966",
+   "title": "[bug] Repair worker cannot reach Ollama — all runs fail with Connection refused",
+   "url": "https://github.com/arii/remote-server/issues/966",
+   "created": "2026-11-05"
+  },
+  {
+   "id": "gh-cancinoray-stockroom-48",
+   "title": "T5.3 — Build once, tag, and publish the self-hosted release image",
+   "url": "https://github.com/cancinoray/stockroom/issues/48",
+   "created": "2026-11-04"
+  },
+  {
+   "id": "gh-cipansor-cipansor-665",
+   "title": "GET /health returns 200 while the database is down",
+   "url": "https://github.com/cipansor/cipansor/issues/665",
+   "created": "2026-10-07"
+  },
+  {
+   "id": "gh-criew-opaa-2968",
+   "title": "fix(frontend): Anfrage hängt 60 s und endet mit 504, wenn eine Backend-Instanz stoppt",
+   "url": "https://github.com/criew/opaa/issues/2968",
+   "created": "2026-10-21"
+  },
+  {
+   "id": "gh-AstralDeep-AstralDeep-293",
+   "title": "Bootstrap a valid production deployment safely",
+   "url": "https://github.com/AstralDeep/AstralDeep/issues/293",
+   "created": "2026-10-05"
+  },
+  {
+   "id": "gh-pinkroccade-nl-portal-480",
+   "title": "fix(auth): token-endpoint en issuer uit configuratie, niet uit het token",
+   "url": "https://github.com/pinkroccade/nl-portal/issues/480",
+   "created": "2026-11-19"
+  },
+  {
+   "id": "gh-humanitylabs-org-wizard-app-manager-53",
+   "title": "wam app start/restart passthrough fails: runtipi-cli can't reach queue on [::1]:5672",
+   "url": "https://github.com/humanitylabs-org/wizard-app-manager/issues/53",
+   "created": "2026-10-16"
+  },
+  {
+   "id": "gh-rebeliptv-iptv-100",
+   "title": "[Bug]: Container Not Starting",
+   "url": "https://github.com/rebeliptv/iptv/issues/100",
+   "created": "2026-09-28"
+  },
+  {
+   "id": "gh-cjohnstoniv-wardyn-3893",
+   "title": "Live e2e script starts wardynd before Postgres is ready and hides compose and UI build output",
+   "url": "https://github.com/cjohnstoniv/wardyn/issues/3893",
+   "created": "2026-11-01"
+  },
+  {
+   "id": "gh-smaramwbc-statewave-488",
+   "title": "[Bug][openrouter]: STATEWAVE_URL defaults to localhost:8000, but Statewave serves on 8100 - memory silently off",
+   "url": "https://github.com/smaramwbc/statewave/issues/488",
+   "created": "2026-10-05"
+  },
+  {
+   "id": "gh-OpenLakeForge-floe-596",
+   "title": "[Python spike S0] Local Polaris + S3-compatible harness for spikes",
+   "url": "https://github.com/OpenLakeForge/floe/issues/596",
+   "created": "2026-10-22"
+  },
+  {
+   "id": "gh-lucas-c-almeida-mba-ia-greenfield-project-60",
+   "title": "DB_HOST tem default 'localhost' em database.config.ts e env.validation.ts, contra a regra de Docker Networking do CLAUDE.md raiz",
+   "url": "https://github.com/lucas-c-almeida/mba-ia-greenfield-project/issues/60",
+   "created": "2026-10-07"
+  },
+  {
+   "id": "gh-Agri-fund-agri-fi-1296",
+   "title": "bug: soroban-rpc service in docker-compose exits immediately (runs --help instead of serving)",
+   "url": "https://github.com/Agri-fund/agri-fi/issues/1296",
+   "created": "2026-11-19"
+  },
+  {
+   "id": "gh-immichFrame-ImmichFrame-726",
+   "title": "ImmichFrame Crashes when Immich Server Can't be Reached",
+   "url": "https://github.com/immichFrame/ImmichFrame/issues/726",
+   "created": "2026-10-26"
+  },
+  {
+   "id": "gh-stjohnjohnson-extralife-helper-bot-108",
+   "title": "feat: replay missed donations after a bot restart",
+   "url": "https://github.com/stjohnjohnson/extralife-helper-bot/issues/108",
+   "created": "2026-10-20"
+  },
+  {
+   "id": "gh-routeflags-agent-bank-99",
+   "title": "VPS実行環境の構築（さくらVPS + Docker Compose、本番デプロイ基盤）",
+   "url": "https://github.com/routeflags/agent-bank/issues/99",
+   "created": "2026-10-27"
+  },
+  {
+   "id": "gh-23Star-xianyu-super-butler-85",
+   "title": "飞牛最新系统跑起来，但是打开不行",
+   "url": "https://github.com/23Star/xianyu-super-butler/issues/85",
+   "created": "2026-09-20"
+  },
+  {
+   "id": "gh-dmarzzz-shade-tree-node-237",
+   "title": "examples/searxng: restarting the shadenet container takes SearXNG down until it is restarted too; every search takes the full 20 s engine timeout",
+   "url": "https://github.com/dmarzzz/shade-tree-node/issues/237",
+   "created": "2026-10-01"
+  },
+  {
+   "id": "gh-tolerance-dev-arena-191",
+   "title": "Деплой пересоздаёт гейтвей и обрывает идущие запуски, они получают 0 вместо infra_error",
+   "url": "https://github.com/tolerance-dev/arena/issues/191",
+   "created": "2026-10-26"
+  },
+  {
+   "id": "gh-ThomasHartDev-microservice-mesh-15",
+   "title": "Run the mesh locally with docker compose and health-gated startup",
+   "url": "https://github.com/ThomasHartDev/microservice-mesh/issues/15",
+   "created": "2026-09-05"
+  },
+  {
+   "id": "gh-catduckgnaf-print-handy-443",
+   "title": "feature(docker): allow exposing bundled Spoolman API to LAN for printer Moonraker and Home Assistant",
+   "url": "https://github.com/catduckgnaf/print-handy/issues/443",
+   "created": "2026-10-27"
+  },
+  {
+   "id": "gh-Venu-Reservation-venue-reservation-14",
+   "title": "story # 8 Understand your test pull request",
+   "url": "https://github.com/Venu-Reservation/venue-reservation/issues/14",
+   "created": "2026-11-11"
+  },
+  {
+   "id": "gh-romanmoravskyi-nbu-rates-mcp-29",
+   "title": "Docker HEALTHCHECK probes a different PORT/HOST than the server binds",
+   "url": "https://github.com/romanmoravskyi/nbu-rates-mcp/issues/29",
+   "created": "2026-10-21"
+  },
+  {
+   "id": "gh-Mailu-Mailu-4128",
+   "title": "upgrade 20 to 2024.06 faiure",
+   "url": "https://github.com/Mailu/Mailu/issues/4128",
+   "created": "2026-10-14"
+  },
+  {
+   "id": "gh-qwopop-photo-music-4",
+   "title": "Set up PostgreSQL locally with Docker Compose",
+   "url": "https://github.com/qwopop/photo-music/issues/4",
+   "created": "2026-10-12"
+  },
+  {
+   "id": "gh-urrestarazu-org-menta-dance-340",
+   "title": "[TECH-DEBT] Tests de integración de api:app: contenedores MySQL compartidos por dominio (retroactivo de #275)",
+   "url": "https://github.com/urrestarazu-org/menta-dance/issues/340",
+   "created": "2026-10-04"
+  },
+  {
+   "id": "gh-percona-mongodb_exporter-1350",
+   "title": "Maintenance: Go toolchain, golangci-lint pin, VERSION, and two CI test flakes",
+   "url": "https://github.com/percona/mongodb_exporter/issues/1350",
+   "created": "2026-08-28"
+  },
+  {
+   "id": "gh-JaimeSolisS-classora-1",
+   "title": "[M1-01] Empty monorepo, verified local dev setup, readiness endpoint, one passing test",
+   "url": "https://github.com/JaimeSolisS/classora/issues/1",
+   "created": "2026-10-17"
+  },
+  {
+   "id": "gh-messiasneto74-app-pelada-184",
+   "title": "Ambiente dev:web:device para testar em dispositivo físico / LAN",
+   "url": "https://github.com/messiasneto74/app-pelada/issues/184",
+   "created": "2026-11-18"
+  },
+  {
+   "id": "gh-Steam-Headless-docker-steam-headless-275",
+   "title": "[Bug]: Can't connect to VNC port, VNC and Xorg never initialise",
+   "url": "https://github.com/Steam-Headless/docker-steam-headless/issues/275",
+   "created": "2026-10-25"
+  },
+  {
+   "id": "gh-NBISweden-sda-download-ui-115",
+   "title": "logging in with oidc in production",
+   "url": "https://github.com/NBISweden/sda-download-ui/issues/115",
+   "created": "2026-06-05"
+  },
+  {
+   "id": "gh-blomme-thomas-sport-hub-back-4",
+   "title": "Vérifier que la base de données répond au démarrage et dans le health check",
+   "url": "https://github.com/blomme-thomas/sport-hub-back/issues/4",
+   "created": "2026-11-05"
+  },
+  {
+   "id": "gh-mmiura-2351-mc-server-dashboard-v2-2627",
+   "title": "Segmentation does not close the relay: its host-published ports, including the worker dial-back 25665, stay reachable from MC containers via the host addresses",
+   "url": "https://github.com/mmiura-2351/mc-server-dashboard-v2/issues/2627",
+   "created": "2026-08-02"
+  },
+  {
+   "id": "gh-cubbit-dittofs-2619",
+   "title": "smbtorture harness shares one Docker Compose project across all worktrees, so concurrent runs destroy each other",
+   "url": "https://github.com/cubbit/dittofs/issues/2619",
+   "created": "2026-09-15"
+  },
+  {
+   "id": "gh-SasanLabs-VulnerableApp-755",
+   "title": "[Community Testing] Clickjacking",
+   "url": "https://github.com/SasanLabs/VulnerableApp/issues/755",
+   "created": "2026-08-15"
+  },
+  {
+   "id": "gh-cinatra-ai-cinatra-2731",
+   "title": "WayFlow runtime-unreachable error message is wrong on a released CLI: incomplete/project-forking docker fallback + names a CLI command not in any release",
+   "url": "https://github.com/cinatra-ai/cinatra/issues/2731",
+   "created": "2026-08-14"
+  },
+  {
+   "id": "gh-beckitrue-atproto-agents-15",
+   "title": "Operator scripts can't reach OpenFGA — the live grant and kill switch are both dead from the laptop",
+   "url": "https://github.com/beckitrue/atproto-agents/issues/15",
+   "created": "2026-07-22"
+  },
+  {
+   "id": "gh-dji-sdk-Cloud-API-2-142",
+   "title": "[咨询] 关于部署过程中 loki容器调用通过配置的minio端口调用失败导致部署失败",
+   "url": "https://github.com/dji-sdk/Cloud-API-2/issues/142",
+   "created": "2026-10-20"
+  },
+  {
+   "id": "gh-KacperBartlomiejczak-Hackathon-37",
+   "title": "infra: samo docker compose up nie startuje aplikacji (profil apps) + collector bez depends_on api",
+   "url": "https://github.com/KacperBartlomiejczak/Hackathon/issues/37",
+   "created": "2026-11-21"
+  },
+  {
+   "id": "gh-nazarli-shabnam-clevis-1031",
+   "title": "docs: the Quickstart leaves the stack unreachable on a clean clone because the committed compose file publishes no ports",
+   "url": "https://github.com/nazarli-shabnam/clevis/issues/1031",
+   "created": "2026-11-12"
+  },
+  {
+   "id": "gh-BANBAR1-Parking_Reservation-97",
+   "title": "🧹 Chore 20: A Database in a Box",
+   "url": "https://github.com/BANBAR1/Parking_Reservation/issues/97",
+   "created": "2026-11-12"
+  },
+  {
+   "id": "gh-milind-soni-OpenMausBot-4606",
+   "title": "Bot browser: ERR_SOCKS_CONNECTION_FAILED for names resolving to mixed IPv4/IPv6 lists on hosts without an IPv6 route (autoSelectFamily never falls back)",
+   "url": "https://github.com/milind-soni/OpenMausBot/issues/4606",
+   "created": "2026-11-06"
+  },
+  {
+   "id": "gh-ZK-VOTE-ZK-VOTE-705",
+   "title": "# SPIKE-020: Degraded-mode operation (indexer ECONNREFUSED) silently diverges from healthy behavior",
+   "url": "https://github.com/ZK-VOTE/ZK-VOTE/issues/705",
+   "created": "2026-10-14"
+  },
+  {
+   "id": "gh-Fidonis-papaia-424",
+   "title": "[Bug]: mcp-firecrawl is unhealthy and unreachable after the image moved from nginx:8080 to node:3000",
+   "url": "https://github.com/Fidonis/papaia/issues/424",
+   "created": "2026-11-20"
+  },
+  {
+   "id": "gh-stubbedev-treeman-187",
+   "title": "prepare fails immediately when an engine is still starting (ES connection refused)",
+   "url": "https://github.com/stubbedev/treeman/issues/187",
+   "created": "2026-11-05"
+  },
+  {
+   "id": "gh-kathleentest05-a11y-LeagueLens-1",
+   "title": "[M0] Verify M0 exit criteria and close out scaffold",
+   "url": "https://github.com/kathleentest05-a11y/LeagueLens/issues/1",
+   "created": "2026-11-20"
+  },
+  {
+   "id": "gh-spatiumnorth-spatiumddi-4662",
+   "title": "DOCKER.md: agents on another host must use the frontend port; the api listens on localhost only",
+   "url": "https://github.com/spatiumnorth/spatiumddi/issues/4662",
+   "created": "2026-11-21"
+  },
+  {
+   "id": "gh-KanishJebaMathewM-Truxify-1607",
+   "title": "[BUG}: `docker-compose.yml`: `api` service starts before Postgres/Mongo/Redis are ready - `depends_on` has no `condition: service_healthy`",
+   "url": "https://github.com/KanishJebaMathewM/Truxify/issues/1607",
+   "created": "2026-07-02"
+  },
+  {
+   "id": "gh-le03nava-LifeControl-890",
+   "title": "fix: redis, postgres and mailpit are published on every host interface, and redis authenticates nobody",
+   "url": "https://github.com/le03nava/LifeControl/issues/890",
+   "created": "2026-11-13"
+  },
+  {
+   "id": "gh-code-corhuila-csp-booking-db-44",
+   "title": "chore(deploy): retry the connection of the migration executor while the instance starts",
+   "url": "https://github.com/code-corhuila/csp-booking-db/issues/44",
+   "created": "2026-11-03"
+  },
+  {
+   "id": "gh-bucketeer-io-bucketeer-2944",
+   "title": "Connected SSE streams keep the old flag value when Redis refuses a write of the cache refresher, because it acknowledges and drops the event",
+   "url": "https://github.com/bucketeer-io/bucketeer/issues/2944",
+   "created": "2026-11-02"
+  },
+  {
+   "id": "gh-AlexKovalko-time-tracking-demo-1",
+   "title": "Time tracking web app (from TZ)",
+   "url": "https://github.com/AlexKovalko/time-tracking-demo/issues/1",
+   "created": "2026-11-03"
+  },
+  {
+   "id": "gh-sirloinbh-dev-career-portfolio-95",
+   "title": "Apply the central pg_isready host fix (#430)",
+   "url": "https://github.com/sirloinbh/dev-career-portfolio/issues/95",
+   "created": "2026-11-13"
+  },
+  {
+   "id": "gh-Hackathon-IA-2026-solucoes-grupo-15-32",
+   "title": "Corrigir queda do backend no primeiro \"docker compose up\" (corrida com o Postgres)",
+   "url": "https://github.com/Hackathon-IA-2026/solucoes-grupo-15/issues/32",
+   "created": "2026-09-26"
+  },
+  {
+   "id": "gh-karthik0419-scanner-dashboard-1",
+   "title": "Fix: phone/LAN login returned 500 (Next.js rewrites baked at build time, API_URL missing from builder stage)",
+   "url": "https://github.com/karthik0419/scanner-dashboard/issues/1",
+   "created": "2026-08-09"
+  },
+  {
+   "id": "gh-grokability-snipe-it-19807",
+   "title": "[Bug]: after Update to 8.8.0 -> no assets visible anymore",
+   "url": "https://github.com/grokability/snipe-it/issues/19807",
+   "created": "2026-10-12"
+  },
+  {
+   "id": "gh-roostorg-coop-915",
+   "title": "Docker Compose setup fails in Podman",
+   "url": "https://github.com/roostorg/coop/issues/915",
+   "created": "2026-07-15"
+  },
+  {
+   "id": "gh-cancinoray-stockroom-56",
+   "title": "T6.2 — local observability stack (OTel collector, Prometheus, Loki, Tempo, Grafana), OTLP wiring, and the order-journey dashboard",
+   "url": "https://github.com/cancinoray/stockroom/issues/56",
+   "created": "2026-11-06"
+  },
+  {
+   "id": "gh-dylanaut-konfplan-280",
+   "title": "Docker-Compose: App startet ohne auf Keycloak-Readiness zu warten (Race Condition)",
+   "url": "https://github.com/dylanaut/konfplan/issues/280",
+   "created": "2026-08-27"
+  },
+  {
+   "id": "gh-plexsphere-plexd-166",
+   "title": "Forward DNS queries to configured resolvers, per zone and as a catch-all",
+   "url": "https://github.com/plexsphere/plexd/issues/166",
+   "created": "2026-11-09"
+  },
+  {
+   "id": "gh-Aegis-AI-Organizations-Aegis-AI-Api-Gateway-94",
+   "title": "Gateway reste bloqué en mode dégradé si Brain n'est pas prêt au démarrage, ne récupère jamais",
+   "url": "https://github.com/Aegis-AI-Organizations/Aegis-AI-Api-Gateway/issues/94",
+   "created": "2026-10-27"
+  },
+  {
+   "id": "gh-DeRusto-puppypad-29",
+   "title": "[Low] install.sh has no network timeouts — one stalled download wedges the whole upgrade subsystem indefinitely",
+   "url": "https://github.com/DeRusto/puppypad/issues/29",
+   "created": "2026-10-12"
+  },
+  {
+   "id": "gh-gibtang-form-like-17",
+   "title": "Restore production auth environment for Google sign-in",
+   "url": "https://github.com/gibtang/form-like/issues/17",
+   "created": "2026-11-08"
+  },
+  {
+   "id": "gh-myrlet-myrlet-447",
+   "title": "fix(worker): correlate result refusals with the exact reported result",
+   "url": "https://github.com/myrlet/myrlet/issues/447",
+   "created": "2026-11-23"
+  },
+  {
+   "id": "gh-matchdayy-matchday-29",
+   "title": "Настроить тесты и покрыть health-ручки — Александр",
+   "url": "https://github.com/matchdayy/matchday/issues/29",
+   "created": "2026-11-05"
+  },
+  {
+   "id": "gh-vdesabou-kafka-docker-playground-9063",
+   "title": "🐛 Podman 4.x makes docker compose recreate running containers (kdc, oracle, ibmdb2 lose their setup)",
+   "url": "https://github.com/vdesabou/kafka-docker-playground/issues/9063",
+   "created": "2026-10-09"
+  },
+  {
+   "id": "gh-prefect421-mvidarr-632",
+   "title": "Playlist \"Auto-download\" posts to MeTube at localhost:8081, which isn't part of the stack (every new playlist video logs a connection error)",
+   "url": "https://github.com/prefect421/mvidarr/issues/632",
+   "created": "2026-11-23"
+  },
+  {
+   "id": "gh-Se-joong-Kim-NetRunner-33",
+   "title": "실험망: D2에 다른 호스트 IP를 넣으면 주입이 거부됨",
+   "url": "https://github.com/Se-joong-Kim/NetRunner/issues/33",
+   "created": "2026-11-19"
+  },
+  {
+   "id": "gh-sirloinbh-money-ledger-130",
+   "title": "Apply the central pg_isready host fix (#430)",
+   "url": "https://github.com/sirloinbh/money-ledger/issues/130",
+   "created": "2026-11-13"
+  },
+  {
+   "id": "gh-alexandervazquez98-ZeroRadius-78",
+   "title": "docs: quickstart and deployment docs curl localhost:8000, but the backend port is never published",
+   "url": "https://github.com/alexandervazquez98/ZeroRadius/issues/78",
+   "created": "2026-10-08"
+  },
+  {
+   "id": "gh-perArdua-hoppingmall-832",
+   "title": "fix(infra): 상대 컨테이너 IP가 바뀐 뒤 gRPC 재연결에 약 39초가 걸리는 문제",
+   "url": "https://github.com/perArdua/hoppingmall/issues/832",
+   "created": "2026-11-13"
+  },
+  {
+   "id": "gh-AhmedMahmoud2222-DCIM-345",
+   "title": "Give Celery worker and beat role-specific Docker health checks",
+   "url": "https://github.com/AhmedMahmoud2222/DCIM/issues/345",
+   "created": "2026-11-13"
+  },
+  {
+   "id": "gh-medmahmoudi26-warden-14",
+   "title": "vmagent ships to nothing: stand up the metrics backend it already targets",
+   "url": "https://github.com/medmahmoudi26/warden/issues/14",
+   "created": "2026-09-17"
+  },
+  {
+   "id": "gh-mkolakowski-WalletWeather-254",
+   "title": "[bank-providers] Phase 1: Teller and Plaid connect and sync",
+   "url": "https://github.com/mkolakowski/WalletWeather/issues/254",
+   "created": "2026-11-21"
+  },
+  {
+   "id": "gh-LucaNerlich-lucanerlich.com-650",
+   "title": "Bind the Docker deployment examples to loopback",
+   "url": "https://github.com/LucaNerlich/lucanerlich.com/issues/650",
+   "created": "2026-10-22"
+  },
+  {
+   "id": "gh-code-corhuila-csp-catalog-portal-64",
+   "title": "fix(deploy): the container healthcheck resolves localhost to ::1, so the portal shows unhealthy while it serves traffic",
+   "url": "https://github.com/code-corhuila/csp-catalog-portal/issues/64",
+   "created": "2026-10-13"
+  },
+  {
+   "id": "gh-namastack-namastack-outbox-572",
+   "title": "Backport MongoDB example image update to 1.11.1",
+   "url": "https://github.com/namastack/namastack-outbox/issues/572",
+   "created": "2026-11-10"
+  },
+  {
+   "id": "gh-WXYC-Backend-Service-2395",
+   "title": "dev_env Compose stack is unnamespaced: db:stop in one checkout deletes another checkout's database",
+   "url": "https://github.com/WXYC/Backend-Service/issues/2395",
+   "created": "2026-09-08"
+  },
+  {
+   "id": "gh-chase-sets-chase-sets-9230",
+   "title": "Remove anonymous Docker Hub pulls from required CI with digest-pinned public mirrors",
+   "url": "https://github.com/chase-sets/chase-sets/issues/9230",
+   "created": "2026-10-09"
+  },
+  {
+   "id": "gh-mickael-kerjean-filestash-1028",
+   "title": "Wopi server not reachable since update (last 3 days)",
+   "url": "https://github.com/mickael-kerjean/filestash/issues/1028",
+   "created": "2026-11-06"
+  },
+  {
+   "id": "gh-wekan-wekan-6509",
+   "title": "Please test FerretDB1 with MySQL, MariaDB and SAP Hana? (was: SQLite, PostgreSQL)",
+   "url": "https://github.com/wekan/wekan/issues/6509",
+   "created": "2026-07-23"
+  },
+  {
+   "id": "gh-ca-mrc-loom-2834",
+   "title": "Local Compose stack can't run hosted-agent trials end to end (rootless Docker, non-root task images, gateway-only tasks)",
+   "url": "https://github.com/ca-mrc/loom/issues/2834",
+   "created": "2026-11-11"
+  },
+  {
+   "id": "gh-Phantasmagoria-HELF-PenTester-40",
+   "title": "fix(tests): curl -s in test_container.py suppresses stderr and breaks offline skip condition",
+   "url": "https://github.com/Phantasmagoria-HELF/PenTester/issues/40",
+   "created": "2026-11-11"
+  },
+  {
+   "id": "gh-riffado-riffado-307",
+   "title": "[Bug]: Compose healthcheck cannot fail: app never binds localhost, and the probe exits 0 on connection error",
+   "url": "https://github.com/riffado/riffado/issues/307",
+   "created": "2026-09-24"
+  },
+  {
+   "id": "gh-Fidonis-papaia-20",
+   "title": "librechat: Healthcheck \"Connection refused\" caused by IPv6/IPv4 resolver",
+   "url": "https://github.com/Fidonis/papaia/issues/20",
+   "created": "2026-05-09"
+  },
+  {
+   "id": "gh-CherokeeLanguage-cherokeedictionary-153",
+   "title": "Spec — dict-app switchover SoP: zero-connection-loss image replacement behind Caddy",
+   "url": "https://github.com/CherokeeLanguage/cherokeedictionary/issues/153",
+   "created": "2026-11-09"
+  },
+  {
+   "id": "gh-shirubasoft-aspire-extensions-17",
+   "title": "CloudflareTunnels: Compose deploy routes to port 80 instead of the container's target port (502)",
+   "url": "https://github.com/shirubasoft/aspire-extensions/issues/17",
+   "created": "2026-10-08"
+  },
+  {
+   "id": "gh-autonomio-poise-501",
+   "title": "fix: avoid connection-refused 502s while the gateway is replaced",
+   "url": "https://github.com/autonomio/poise/issues/501",
+   "created": "2026-10-22"
+  },
+  {
+   "id": "gh-zlxlabs-VideoTranscriptAPI-169",
+   "title": "SDK pin 升级到含 PR #70/#71 的主干，并补直播录制输入的真实验证",
+   "url": "https://github.com/zlxlabs/VideoTranscriptAPI/issues/169",
+   "created": "2026-10-05"
+  },
+  {
+   "id": "gh-TFM-MIS-MEM-docs-95",
+   "title": "auth: el compose de desarrollo publica el puerto en 0.0.0.0 y con ello validate-key queda alcanzable saltándose la pasarela",
+   "url": "https://github.com/TFM-MIS-MEM/docs/issues/95",
+   "created": "2026-09-09"
+  },
+  {
+   "id": "gh-adamzki99-booking-system-61",
+   "title": "Move booking method/rules into the sauna sidecar (single-day time-period booking)",
+   "url": "https://github.com/adamzki99/booking-system/issues/61",
+   "created": "2026-11-07"
+  },
+  {
+   "id": "gh-Countly-countly-server-5777",
+   "title": "docker compose；no connect Mongodb；ERROR：2024-11-19T02:20:17.982Z: INFO [jobs:manager] Cancelling 0 jobs { MongoNetworkError: failed to connect to server [localhost:27017] on first connect [MongoNetworkError: connect ECONNREFUSED 127.0.0.1:27017]",
+   "url": "https://github.com/Countly/countly-server/issues/5777",
+   "created": "2024-11-19"
+  },
+  {
+   "id": "gh-inabagumi-shinju-date-7110",
+   "title": "Copilot のセットアップのワークフローが、存在しない Supabase のコンテナを前提にしている",
+   "url": "https://github.com/inabagumi/shinju-date/issues/7110",
+   "created": "2026-11-16"
+  },
+  {
+   "id": "gh-leodip-goiabada-551",
+   "title": "Setup wizard: PostgreSQL healthcheck passes against the init server, so the first docker compose up -d fails",
+   "url": "https://github.com/leodip/goiabada/issues/551",
+   "created": "2026-10-11"
+  },
+  {
+   "id": "gh-microrealestate-microrealestate-225",
+   "title": "Unable to create first user \"Something went wrong\"",
+   "url": "https://github.com/microrealestate/microrealestate/issues/225",
+   "created": "2025-01-13"
+  },
+  {
+   "id": "gh-mkolakowski-WalletWeather-264",
+   "title": "[sync-access] Phase 1: Who may connect, per person and provider",
+   "url": "https://github.com/mkolakowski/WalletWeather/issues/264",
+   "created": "2026-11-21"
+  },
+  {
+   "id": "gh-jleavers-codervis-37",
+   "title": "The inside network's bridge gateway is a second way off codervis, and the documented check cannot see it",
+   "url": "https://github.com/jleavers/codervis/issues/37",
+   "created": "2026-09-25"
+  },
+  {
+   "id": "gh-lifekit-hq-lifekit-stack-452",
+   "title": "google-workspace-mcp: download links point at localhost, unreachable from the gateway",
+   "url": "https://github.com/lifekit-hq/lifekit-stack/issues/452",
+   "created": "2026-10-31"
+  },
+  {
+   "id": "gh-NguyenHungCuongg-smart-ats-122",
+   "title": "Bug: Flower crash khi khởi động (mher/flower:2.2.0 thiếu packaging cho kombu[redis])",
+   "url": "https://github.com/NguyenHungCuongg/smart-ats/issues/122",
+   "created": "2026-11-11"
+  },
+  {
+   "id": "gh-Silo-Server-silo-server-2496",
+   "title": "[bug] Web player pauses at the first failed HLS segment and stays paused after reconnecting",
+   "url": "https://github.com/Silo-Server/silo-server/issues/2496",
+   "created": "2026-10-14"
+  },
+  {
+   "id": "gh-smk762-argus-curator-156",
+   "title": "Point NudeNet at the shared 640m server (argus-cortex#79)",
+   "url": "https://github.com/smk762/argus-curator/issues/156",
+   "created": "2026-11-16"
+  },
+  {
+   "id": "gh-byte5ai-omadia-1704",
+   "title": "Conductor outbound webhooks: failed deliveries show only `fetch failed`, with no cause and no log line per attempt",
+   "url": "https://github.com/byte5ai/omadia/issues/1704",
+   "created": "2026-11-09"
+  },
+  {
+   "id": "gh-g10101k-Oip-378",
+   "title": "Oip.UiTest fail on the test container (.oip-testcontainer)",
+   "url": "https://github.com/g10101k/Oip/issues/378",
+   "created": "2026-10-03"
+  },
+  {
+   "id": "gh-egovernments-Citizen-Complaint-Resolution-System-2529",
+   "title": "[Sherlog · Bomet] egov-user: calls filestore at localhost:8083, connection refused",
+   "url": "https://github.com/egovernments/Citizen-Complaint-Resolution-System/issues/2529",
+   "created": "2026-10-16"
+  },
+  {
+   "id": "gh-HenriGrimm-Minnow-359",
+   "title": "Phase 2 — Failure detection + infra auto-provisioning + resilient verification",
+   "url": "https://github.com/HenriGrimm/Minnow/issues/359",
+   "created": "2026-06-23"
+  },
+  {
+   "id": "gh-agigante80-VPNSentinel-131",
+   "title": "README Quick Start: wrong Telegram env var names and unmapped health port 18081",
+   "url": "https://github.com/agigante80/VPNSentinel/issues/131",
+   "created": "2026-11-11"
+  },
+  {
+   "id": "gh-obot-platform-obot-8126",
+   "title": "vMCP: remote component behind ingress-nginx fails with redirect to https://localhost (forwarded loopback headers)",
+   "url": "https://github.com/obot-platform/obot/issues/8126",
+   "created": "2026-10-04"
+  },
+  {
+   "id": "gh-withcoral-coral-3321",
+   "title": "Prototype the Docker Compose, Kubernetes and upgrade pages for a split",
+   "url": "https://github.com/withcoral/coral/issues/3321",
+   "created": "2026-11-18"
+  },
+  {
+   "id": "gh-dotCMS-core-37262",
+   "title": "create-app: local Docker run never starts dotCMS, then a transient UVE 403 aborts the CLI and discards the project",
+   "url": "https://github.com/dotCMS/core/issues/37262",
+   "created": "2026-08-28"
+  },
+  {
+   "id": "gh-naskek-FlowStock-173",
+   "title": "fix(deploy): обновлять nginx upstream после recreate FlowStock API",
+   "url": "https://github.com/naskek/FlowStock/issues/173",
+   "created": "2026-10-29"
+  },
+  {
+   "id": "gh-paipiange-nvzhuang-2",
+   "title": "Docker 部署后不监听 8000：镜像内缺少 config.yaml（config.example.yaml 不会被加载）",
+   "url": "https://github.com/paipiange/nvzhuang/issues/2",
+   "created": "2026-10-30"
+  },
+  {
+   "id": "gh-docker-mailserver-docker-mailserver-4815",
+   "title": "bug report: disabling postgrey gives errors",
+   "url": "https://github.com/docker-mailserver/docker-mailserver/issues/4815",
+   "created": "2026-10-03"
+  },
+  {
+   "id": "gh-LanternOps-breeze-6177",
+   "title": "Login MFA branch dereferences getRedis() without a null guard, crashing when Redis blips",
+   "url": "https://github.com/LanternOps/breeze/issues/6177",
+   "created": "2026-09-17"
+  },
+  {
+   "id": "gh-MaciejZiel-Reroute-12",
+   "title": "API exits on first start when PostGIS is still initialising",
+   "url": "https://github.com/MaciejZiel/Reroute/issues/12",
+   "created": "2026-10-13"
+  },
+  {
+   "id": "gh-henrygd-beszel-2544",
+   "title": "[Bug]: Agent silently stops reconnecting via unix socket after working normally for ~2 days, doesn't recover even after restarting both hub and agent",
+   "url": "https://github.com/henrygd/beszel/issues/2544",
+   "created": "2026-10-05"
+  },
+  {
+   "id": "gh-dexRand-rottingAi-studio-58",
+   "title": "Implement SearXNG web-search (per SPEC #14)",
+   "url": "https://github.com/dexRand/rottingAi-studio/issues/58",
+   "created": "2026-11-24"
+  },
+  {
+   "id": "gh-rafsaw-ai_techleaders-13",
+   "title": "Implement: idempotent `npm run setup` installer for local development",
+   "url": "https://github.com/rafsaw/ai_techleaders/issues/13",
+   "created": "2026-10-15"
+  },
+  {
+   "id": "gh-go-live-cms-go-live-cms-377",
+   "title": "Caddy error log writes client IP, user agent and query string on upstream errors",
+   "url": "https://github.com/go-live-cms/go-live-cms/issues/377",
+   "created": "2026-10-30"
+  },
+  {
+   "id": "gh-unitropico-sistemas-tecnologias-web-2026b-1",
+   "title": "[BLOQUEO] La API en contenedor no conecta a PostgreSQL: connection refused",
+   "url": "https://github.com/unitropico-sistemas/tecnologias-web-2026b/issues/1",
+   "created": "2026-09-09"
+  },
+  {
+   "id": "gh-co-rtex-hindsight-263",
+   "title": "P2: Playwright defaults to the main checkout's :3000 from a linked worktree",
+   "url": "https://github.com/co-rtex/hindsight/issues/263",
+   "created": "2026-11-01"
+  },
+  {
+   "id": "gh-ithtelab-workbuddy-manager-30",
+   "title": "[Bug] docker compose 部署，DB路径报错。",
+   "url": "https://github.com/ithtelab/workbuddy-manager/issues/30",
+   "created": "2026-09-17"
+  },
+  {
+   "id": "gh-OpenCTI-Platform-opencti-19402",
+   "title": "fix(telemetry): Prometheus exporter listens on localhost only since 7.261026.0",
+   "url": "https://github.com/OpenCTI-Platform/opencti/issues/19402",
+   "created": "2026-10-30"
+  },
+  {
+   "id": "gh-different-ai-studio-teamclu-1890",
+   "title": "FC 发 MQTT 推送和客户端共用 MQTT_BROKER_URL：本机 self-host 推送全部失败",
+   "url": "https://github.com/different-ai-studio/teamclu/issues/1890",
+   "created": "2026-11-16"
+  },
+  {
+   "id": "gh-EmreYK1-DocManager-55",
+   "title": "Task 5.1.2 [S3] - Backend | Spring AMQP Dependency und RabbitMQ-Konfiguration",
+   "url": "https://github.com/EmreYK1/DocManager/issues/55",
+   "created": "2026-10-15"
+  },
+  {
+   "id": "gh-grantFoxin-SentientFi-1",
+   "title": "bug: PostgreSQL service missing from docker-compose.yml — Docker deployment fails on database connection",
+   "url": "https://github.com/grantFoxin/SentientFi/issues/1",
+   "created": "2026-06-16"
+  },
+  {
+   "id": "gh-mqucifer-sprint-metrics-888",
+   "title": "Deploy sprint-metrics 4.2.1 on the Mac",
+   "url": "https://github.com/mqucifer/sprint-metrics/issues/888",
+   "created": "2026-10-31"
+  },
+  {
+   "id": "gh-pietheinstrengholt-rssmonster-303",
+   "title": "Cannot login using web interface behind a reverse proxy",
+   "url": "https://github.com/pietheinstrengholt/rssmonster/issues/303",
+   "created": "2026-10-13"
+  },
+  {
+   "id": "gh-wppconnect-team-wppconnect-server-2237",
+   "title": "Feature Request: Add a Retry Mechanism for Webhooks on Connection Errors (ECONNREFUSED)",
+   "url": "https://github.com/wppconnect-team/wppconnect-server/issues/2237",
+   "created": "2025-06-21"
+  },
+  {
+   "id": "gh-Phantasmagoria-HELF-PenTester-90",
+   "title": "bug(docker): missing .dockerignore transfers secrets and test_container fails on fresh clone without compose file",
+   "url": "https://github.com/Phantasmagoria-HELF/PenTester/issues/90",
+   "created": "2026-11-13"
+  },
+  {
+   "id": "gh-DomeNinchen-ts6forkmanager-282",
+   "title": "[Bug] TS6 WebUI v2.63.8 - \"invalid apikey\" on native TS6 Server via WebQuery despite correct credentials",
+   "url": "https://github.com/DomeNinchen/ts6forkmanager/issues/282",
+   "created": "2026-10-14"
+  },
+  {
+   "id": "gh-SakethThogarucheeti-trading-platform-9",
+   "title": "Worker containers can start before ingestor's instrument sync commits, silently dropping every tick",
+   "url": "https://github.com/SakethThogarucheeti/trading-platform/issues/9",
+   "created": "2026-08-21"
+  },
+  {
+   "id": "gh-dev-zapi-weekly-reporter-112",
+   "title": "施工 B6：真实模型集成测试（待 ai-subscriptions 代理恢复）",
+   "url": "https://github.com/dev-zapi/weekly-reporter/issues/112",
+   "created": "2026-11-05"
+  },
+  {
+   "id": "gh-fusumivietnam-student-perks-laravel-2",
+   "title": "[M2] Public directory and discovery",
+   "url": "https://github.com/fusumivietnam/student-perks-laravel/issues/2",
+   "created": "2026-11-03"
+  },
+  {
+   "id": "gh-keyorixhq-keyorix-3026",
+   "title": "compose web container is permanently unhealthy: healthcheck resolves localhost to ::1, nginx listens on IPv4 only",
+   "url": "https://github.com/keyorixhq/keyorix/issues/3026",
+   "created": "2026-10-10"
+  },
+  {
+   "id": "gh-atlantiqshq-vexlyx-150",
+   "title": "Custom domains return 502 for no-build PHP and WordPress projects: the route targets the PHP-FPM container instead of nginx",
+   "url": "https://github.com/atlantiqshq/vexlyx/issues/150",
+   "created": "2026-10-21"
+  },
+  {
+   "id": "gh-bakhytuly07-source-gradematch-113",
+   "title": "E2E: Save a look to the Library",
+   "url": "https://github.com/bakhytuly07-source/gradematch/issues/113",
+   "created": "2026-11-02"
+  },
+  {
+   "id": "gh-Kaliki-Labs-kaliki-template-43",
+   "title": "Generated ci.yml has no Redis service, so v2.0.0 auth tests fail in CI",
+   "url": "https://github.com/Kaliki-Labs/kaliki-template/issues/43",
+   "created": "2026-10-24"
+  },
+  {
+   "id": "gh-geeeze-chopshop-22",
+   "title": "ops: flux service unreachable at :8795 - /engine.json reports flux healthy:false (Connection refused)",
+   "url": "https://github.com/geeeze/chopshop/issues/22",
+   "created": "2026-10-20"
+  },
+  {
+   "id": "gh-KarvinNanda-watchtower-83",
+   "title": "fix: web app returns 502 after a reboot (nginx caches the api container IP)",
+   "url": "https://github.com/KarvinNanda/watchtower/issues/83",
+   "created": "2026-10-18"
+  },
+  {
+   "id": "gh-aistomin-andy.grails-106",
+   "title": "Backend may start before Postgres is ready on a cold volume",
+   "url": "https://github.com/aistomin/andy.grails/issues/106",
+   "created": "2026-10-15"
+  },
+  {
+   "id": "gh-discobox-ai-discobox-1636",
+   "title": "Docs: discobox tools vscode doesn't mention that ports must be forwarded to reach the app from the host",
+   "url": "https://github.com/discobox-ai/discobox/issues/1636",
+   "created": "2026-11-24"
+  },
+  {
+   "id": "gh-veogeo-geonoxt-25",
+   "title": "[GNX-GS-002] Nginx apunta al GeoServer legacy y las capas mezclan URLs OGC",
+   "url": "https://github.com/veogeo/geonoxt/issues/25",
+   "created": "2026-11-14"
+  },
+  {
+   "id": "gh-daniel-ospina-tortoise-8124",
+   "title": "bug(infra): falkordb/falkordb:latest panics the server (reply.rs:655 reply_compact) and exits under a shipped docker-lane test — the pinned image passes",
+   "url": "https://github.com/daniel-ospina/tortoise/issues/8124",
+   "created": "2026-10-11"
+  },
+  {
+   "id": "gh-gidvantus-factory-dormitory-management-146",
+   "title": "Сборка образов: зависимости Python отдельным слоем, чтобы правка кода не тянула PyPI заново",
+   "url": "https://github.com/gidvantus/factory-dormitory-management/issues/146",
+   "created": "2026-11-03"
+  },
+  {
+   "id": "gh-blogminhquy-javis-os-855",
+   "title": "[Bug] Google Workspace OAuth callback localhost:8000 bị từ chối khi chạy Javis trên Docker Desktop Windows",
+   "url": "https://github.com/blogminhquy/javis-os/issues/855",
+   "created": "2026-10-27"
+  },
+  {
+   "id": "gh-DuongDevv-Note-Vault-10",
+   "title": "feat(infra): configure and verify local postgres and redis infrastructure",
+   "url": "https://github.com/DuongDevv/Note-Vault/issues/10",
+   "created": "2026-09-25"
+  },
+  {
+   "id": "gh-MBombeck-HealthLog-961",
+   "title": "[Bug] Docker compose postgres url incorrect",
+   "url": "https://github.com/MBombeck/HealthLog/issues/961",
+   "created": "2026-09-12"
+  },
+  {
+   "id": "gh-kagura-ai-memory-cloud-1980",
+   "title": "fix(db,compose): make the DB pool, uvicorn workers and Postgres max_connections configurable; tell pool exhaustion apart from connection refusal",
+   "url": "https://github.com/kagura-ai/memory-cloud/issues/1980",
+   "created": "2026-10-14"
+  },
+  {
+   "id": "gh-SteeperMold-bees-in-kube-14",
+   "title": "Исследовать ошибку запуска Rancher",
+   "url": "https://github.com/SteeperMold/bees-in-kube/issues/14",
+   "created": "2026-11-22"
+  },
+  {
+   "id": "gh-beenuar-AiSOC-1929",
+   "title": "Agents context bundle never receives UEBA baselines (wrong port, no service auth, schema/entity-type mismatch)",
+   "url": "https://github.com/beenuar/AiSOC/issues/1929",
+   "created": "2026-11-16"
+  },
+  {
+   "id": "gh-dryad-naiad-software-sethlans_reborn-296",
+   "title": "Docker: manager images serve only on container loopback, so port 8080 and the healthcheck find nothing",
+   "url": "https://github.com/dryad-naiad-software/sethlans_reborn/issues/296",
+   "created": "2026-11-23"
+  },
+  {
+   "id": "gh-mmiura-2351-mc-server-dashboard-v2-2626",
+   "title": "The SeaweedFS admin surface stays unauthenticated to every mcsd peer after segmentation, including internet-facing relay and cloudflared",
+   "url": "https://github.com/mmiura-2351/mc-server-dashboard-v2/issues/2626",
+   "created": "2026-08-02"
+  },
+  {
+   "id": "gh-Facabore-Hearth-7",
+   "title": "HU-E0-07 — Deploy to the VPS with Docker Compose and Caddy",
+   "url": "https://github.com/Facabore/Hearth/issues/7",
+   "created": "2026-10-11"
+  },
+  {
+   "id": "gh-TablePlus-VMPal-issue-tracker-139",
+   "title": "Published ports are not reachable via `host.docker.internal` (forwarder listens on localhost only)",
+   "url": "https://github.com/TablePlus/VMPal-issue-tracker/issues/139",
+   "created": "2026-11-17"
+  },
+  {
+   "id": "gh-StrGm-AI-Ltd-agentic-coding-evaluation-674",
+   "title": "Agent-started compose stacks and a blind port-pre-flight check both let INFRA failures through - found live again on svc-20261031-012905",
+   "url": "https://github.com/StrGm-AI-Ltd/agentic-coding-evaluation/issues/674",
+   "created": "2026-10-31"
+  },
+  {
+   "id": "gh-code-corhuila-csp-auth-portal-40",
+   "title": "fix(deploy): the container healthcheck resolves localhost to ::1, so the portal shows unhealthy while it serves traffic",
+   "url": "https://github.com/code-corhuila/csp-auth-portal/issues/40",
+   "created": "2026-10-13"
+  },
+  {
+   "id": "gh-co-rtex-hindsight-207",
+   "title": "P2: rate-limiter circuit breaker: a hung Redis costs every limiter call a full timeout (a login waits 3)",
+   "url": "https://github.com/co-rtex/hindsight/issues/207",
+   "created": "2026-11-01"
+  },
+  {
+   "id": "gh-Phantasmagoria-HELF-PenTester-55",
+   "title": "OP-M1-01 · Fix the container reachability test's skip when the testbed is down",
+   "url": "https://github.com/Phantasmagoria-HELF/PenTester/issues/55",
+   "created": "2026-11-12"
+  },
+  {
+   "id": "gh-canatac-reimagined-guide-698",
+   "title": "[testeur] P0 OUTAGE: MongoDB unhealthy cascaded to production DOWN (MW-2026-103)",
+   "url": "https://github.com/canatac/reimagined-guide/issues/698",
+   "created": "2026-09-24"
+  },
+  {
+   "id": "gh-Kyu-seok-two-birds-one-rope-9",
+   "title": "Deploy to the mini PC at twobirds.kyuships.com",
+   "url": "https://github.com/Kyu-seok/two-birds-one-rope/issues/9",
+   "created": "2026-11-22"
+  },
+  {
+   "id": "gh-zammad-zammad-docker-compose-645",
+   "title": "Title: Unable to connect Zammad containers to services in external Docker Compose stacks on the same host.",
+   "url": "https://github.com/zammad/zammad-docker-compose/issues/645",
+   "created": "2026-11-20"
+  },
+  {
+   "id": "gh-coccinella-labs-agentware-31",
+   "title": "Health check fails for NGINX containers in Docker Compose",
+   "url": "https://github.com/coccinella-labs/agentware/issues/31",
+   "created": "2025-09-23"
+  },
+  {
+   "id": "gh-Anasshouran-amanak-11",
+   "title": "fix(ci): stabilize frontend web e2e (docker container + flaky timeouts)",
+   "url": "https://github.com/Anasshouran/amanak/issues/11",
+   "created": "2026-11-04"
+  },
+  {
+   "id": "gh-yapit-tts-yapit-99",
+   "title": "dependency failed to start: container yapit-gateway-1 is unhealthy",
+   "url": "https://github.com/yapit-tts/yapit/issues/99",
+   "created": "2026-11-06"
+  },
+  {
+   "id": "gh-cinatra-ai-cinatra-2654",
+   "title": "Agent runs fail on a fresh dev install: WayFlow runtime (:3010) is profile-gated and never started by default (ECONNREFUSED); no `cinatra instance wayflow start`",
+   "url": "https://github.com/cinatra-ai/cinatra/issues/2654",
+   "created": "2026-08-10"
+  },
+  {
+   "id": "gh-UNIZAR-30248-2026-HabitSquad-HabitSquad-105",
+   "title": "Incidencia Despliegue en Producción",
+   "url": "https://github.com/UNIZAR-30248-2026-HabitSquad/HabitSquad/issues/105",
+   "created": "2026-11-09"
+  },
+  {
+   "id": "gh-elugardo-catalog-import-watchtower-1",
+   "title": "[CIW-01] Scaffold app + Docker Compose + passing smoke test",
+   "url": "https://github.com/elugardo/catalog-import-watchtower/issues/1",
+   "created": "2026-10-24"
+  },
+  {
+   "id": "gh-DK-2013-ai-for-developers-project-386-37",
+   "title": "fix(docker): make the production image start its own PostgreSQL",
+   "url": "https://github.com/DK-2013/ai-for-developers-project-386/issues/37",
+   "created": "2026-11-09"
+  },
+  {
+   "id": "gh-slealq-cura-ai-57",
+   "title": "[Workbench] Local Celery workers inherit an HTTP healthcheck they cannot serve",
+   "url": "https://github.com/slealq/cura-ai/issues/57",
+   "created": "2026-10-31"
+  },
+  {
+   "id": "gh-RocketChat-Rocket.Chat-30672",
+   "title": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+   "url": "https://github.com/RocketChat/Rocket.Chat/issues/30672",
+   "created": "2023-10-18"
+  },
+  {
+   "id": "gh-docker-mailserver-docker-mailserver-4864",
+   "title": "bug report: postsrsd stuck closing files",
+   "url": "https://github.com/docker-mailserver/docker-mailserver/issues/4864",
+   "created": "2026-11-19"
+  },
+  {
+   "id": "gh-gidorah-PharmacyOnDuty-96",
+   "title": "Celery worker cannot connect to Redis broker (Sentry ECZANEREDE-J)",
+   "url": "https://github.com/gidorah/PharmacyOnDuty/issues/96",
+   "created": "2026-04-12"
+  },
+  {
+   "id": "gh-bakhytuly07-source-gradematch-114",
+   "title": "E2E: Library list and open a look",
+   "url": "https://github.com/bakhytuly07-source/gradematch/issues/114",
+   "created": "2026-11-02"
+  },
+  {
+   "id": "gh-coolstartnow-isms-builder-42",
+   "title": "Crash on startup after UI initializes: SqliteError: no such table: templates (.filter is not a function)",
+   "url": "https://github.com/coolstartnow/isms-builder/issues/42",
+   "created": "2026-06-09"
+  },
+  {
+   "id": "gh-brianfiszman-cocos-challenge-30",
+   "title": "chore(dev): database_test may not exist on an existing volume",
+   "url": "https://github.com/brianfiszman/cocos-challenge/issues/30",
+   "created": "2026-11-12"
+  },
+  {
+   "id": "gh-trebizondoculpepper-agent-inbox-27",
+   "title": "Compose service rename (agent-mailbox -> agent-inbox) leaves an orphan container fighting for the published port",
+   "url": "https://github.com/trebizondoculpepper/agent-inbox/issues/27",
+   "created": "2026-10-10"
+  },
+  {
+   "id": "gh-marcpope-cortendesk-172",
+   "title": "no RustDesk clients are connecting anymore",
+   "url": "https://github.com/marcpope/cortendesk/issues/172",
+   "created": "2026-11-09"
+  },
+  {
+   "id": "gh-elabftw-elabftw-7467",
+   "title": "Docker: Restart docker causes web container to fail: SQLSTATE[HY000] [2002] Connection refused",
+   "url": "https://github.com/elabftw/elabftw/issues/7467",
+   "created": "2026-09-22"
+  },
+  {
+   "id": "gh-oszuidwest-zw-xposter-2",
+   "title": "fix(orchestrator): first poll after start fails before the poster listens",
+   "url": "https://github.com/oszuidwest/zw-xposter/issues/2",
+   "created": "2026-10-04"
+  },
+  {
+   "id": "gh-voravitl-888router-515",
+   "title": "fix(deploy): headroom unreachable from the gateway in docker-compose (binds 127.0.0.1) — compression silently skipped",
+   "url": "https://github.com/voravitl/888router/issues/515",
+   "created": "2026-10-02"
+  },
+  {
+   "id": "gh-KittyNiuNiu-winlog-37",
+   "title": "42. Add an end-to-end smoke test",
+   "url": "https://github.com/KittyNiuNiu/winlog/issues/37",
+   "created": "2026-11-01"
+  },
+  {
+   "id": "gh-docteur-turboss-trading-model-433",
+   "title": ":wrench:(k8s): Pin the SPIRE, spiffe-helper and CSI images by digest",
+   "url": "https://github.com/docteur-turboss/trading-model/issues/433",
+   "created": "2026-11-05"
+  },
+  {
+   "id": "gh-bmazurme-pipe-546",
+   "title": "Fix bridge's documented dev ports: docs say backend 3002 and Postgres 5432, the shipped config uses 3000 and 5445",
+   "url": "https://github.com/bmazurme/pipe/issues/546",
+   "created": "2026-10-18"
+  },
+  {
+   "id": "gh-umputun-remark42-1675",
+   "title": "Connection refused when running `backup` manually",
+   "url": "https://github.com/umputun/remark42/issues/1675",
+   "created": "2023-09-18"
+  },
+  {
+   "id": "gh-wekan-wekan-6582",
+   "title": "Fresh Start with Docker",
+   "url": "https://github.com/wekan/wekan/issues/6582",
+   "created": "2026-08-10"
+  },
+  {
+   "id": "gh-PhilippMundhenk-tallygate-214",
+   "title": "Remote session lost after connectivity issue",
+   "url": "https://github.com/PhilippMundhenk/tallygate/issues/214",
+   "created": "2026-11-16"
+  },
+  {
+   "id": "gh-DigiBanks99-menlo-536",
+   "title": "Spec: AI infrastructure on llama.cpp (OpenAI-compatible) baseline",
+   "url": "https://github.com/DigiBanks99/menlo/issues/536",
+   "created": "2026-10-31"
+  },
+  {
+   "id": "gh-javakishore-veleti-Consumer-Complaints-Agentic-App-274",
+   "title": "M22-0001 [Story] Document CCA_CHROMA_URL host.docker.internal for Airflow",
+   "url": "https://github.com/javakishore-veleti/Consumer-Complaints-Agentic-App/issues/274",
+   "created": "2026-11-18"
+  },
+  {
+   "id": "gh-docteur-turboss-trading-model-2312",
+   "title": ":construction_worker:(docker): déployer le stack compose depuis l'hôte en tirant une version signée, sans runner avec la socket Docker",
+   "url": "https://github.com/docteur-turboss/trading-model/issues/2312",
+   "created": "2026-11-22"
+  },
+  {
+   "id": "gh-Frank-Tech-Org-Lingua-Mentor-v2-63",
+   "title": "Add a fake LLM provider and the first end-to-end journey",
+   "url": "https://github.com/Frank-Tech-Org/Lingua-Mentor-v2/issues/63",
+   "created": "2026-09-29"
+  },
+  {
+   "id": "gh-jefrykurniaone-sistem-informasi-manajemen-keuangan-59",
+   "title": "bun run dev tidak membaca .env, jadi setiap halaman 500",
+   "url": "https://github.com/jefrykurniaone/sistem-informasi-manajemen-keuangan/issues/59",
+   "created": "2026-09-17"
+  },
+  {
+   "id": "gh-anahelenasilva-meridiano-nestjs-353",
+   "title": "ci: run pnpm test:e2e on every PR against a disposable Postgres service container",
+   "url": "https://github.com/anahelenasilva/meridiano-nestjs/issues/353",
+   "created": "2026-11-02"
+  },
+  {
+   "id": "gh-dfpc-coe-CloudTAK-1993",
+   "title": "v13.117.0: Docker Compose tiles service missing API_URL — all /tiles/basemap/* requests return 500 (ECONNREFUSED to localhost:5001)",
+   "url": "https://github.com/dfpc-coe/CloudTAK/issues/1993",
+   "created": "2026-10-31"
+  },
+  {
+   "id": "gh-Neunerlei-docker-images-5",
+   "title": "Hard-coded Nginx resolver conflicts with DNS lookups in Kubernets",
+   "url": "https://github.com/Neunerlei/docker-images/issues/5",
+   "created": "2026-11-11"
+  },
+  {
+   "id": "gh-louking-tm-csv-connector-163",
+   "title": "clients drop a scan or result when the backend post fails",
+   "url": "https://github.com/louking/tm-csv-connector/issues/163",
+   "created": "2026-10-29"
+  },
+  {
+   "id": "gh-alexander-shamray-blueprint-frontend-566",
+   "title": "Bug sweep at 0f18e4b: the e2e job's compose retry and gateway readiness poll bound no single attempt, so one hang holds the job to its 45-minute limit",
+   "url": "https://github.com/alexander-shamray/blueprint-frontend/issues/566",
+   "created": "2026-11-14"
+  },
+  {
+   "id": "gh-future-agi-future-agi-1058",
+   "title": "bug: docker-compose.yml uses wrong internal port for AGENTCC_GATEWAY_INTERNAL_URL (8090 instead of 8080)",
+   "url": "https://github.com/future-agi/future-agi/issues/1058",
+   "created": "2026-06-26"
+  },
+  {
+   "id": "gh-Afro666-2Brothers-660",
+   "title": "deploy: every merge restarts the site; restart only what changed, and hold deploys for the demo",
+   "url": "https://github.com/Afro666/2Brothers/issues/660",
+   "created": "2026-11-14"
+  },
+  {
+   "id": "gh-Mutiur03-CSE3220_Connecta-150",
+   "title": "[FE-FIX] Frontend container cannot reach the backend (server-side API URL)",
+   "url": "https://github.com/Mutiur03/CSE3220_Connecta/issues/150",
+   "created": "2026-11-15"
+  },
+  {
+   "id": "gh-PowerDNS-AuthAdmin-powerdns-authadmin-221",
+   "title": "Test stack: MariaDB healthcheck passes before it accepts TCP, so cluster peers sometimes fail to start",
+   "url": "https://github.com/PowerDNS-AuthAdmin/powerdns-authadmin/issues/221",
+   "created": "2026-10-23"
+  },
+  {
+   "id": "gh-smart-mcp-proxy-mcpproxy-go-1707",
+   "title": "[Feature]: Spec 111 compose example with stdio servers in sidecar containers on an internal network",
+   "url": "https://github.com/smart-mcp-proxy/mcpproxy-go/issues/1707",
+   "created": "2026-10-20"
+  },
+  {
+   "id": "gh-Popoboxxo-ReqogniLoom-1404",
+   "title": "[QA][LOW][MISC] Sammel: 2 Low-Befunde der Rolle R10-ops_engineer (R10-07, R10-08)",
+   "url": "https://github.com/Popoboxxo/ReqogniLoom/issues/1404",
+   "created": "2026-10-16"
+  },
+  {
+   "id": "gh-code-corhuila-csp-booking-portal-54",
+   "title": "fix(deploy): the container healthcheck resolves localhost to ::1, so the portal shows unhealthy while it serves traffic",
+   "url": "https://github.com/code-corhuila/csp-booking-portal/issues/54",
+   "created": "2026-10-13"
+  },
+  {
+   "id": "gh-bohdanmatveiev15-devops-sim-12",
+   "title": "Verify that FinSim ports are not exposed on the VPS public IP",
+   "url": "https://github.com/bohdanmatveiev15/devops-sim/issues/12",
+   "created": "2026-11-23"
+  },
+  {
+   "id": "gh-JaimeSolisS-classora-660",
+   "title": "make dev/make start: worker health check gives up before a slow machine finishes starting",
+   "url": "https://github.com/JaimeSolisS/classora/issues/660",
+   "created": "2026-11-13"
+  },
+  {
+   "id": "gh-dkritarth-scopewatch-107",
+   "title": "Deploy runbook health check targets a port compose never publishes",
+   "url": "https://github.com/dkritarth/scopewatch/issues/107",
+   "created": "2026-10-01"
+  },
+  {
+   "id": "gh-sameeralam3127-llm-dev-kit-7",
+   "title": "Dev environment: local-network defaults and stale Docker state cause confusing startup failures",
+   "url": "https://github.com/sameeralam3127/llm-dev-kit/issues/7",
+   "created": "2026-07-17"
+  },
+  {
+   "id": "gh-Lemoncode-demo-memora-1",
+   "title": "Infraestructura base: monorepo pnpm + TanStack Start + MongoDB en Docker + console-runner",
+   "url": "https://github.com/Lemoncode/demo-memora/issues/1",
+   "created": "2026-10-17"
+  },
+  {
+   "id": "gh-PatchMon-PatchMon-1182",
+   "title": "guacd (2.1.4 compose) stays stopped after a host reboot when the server restarts during startup (namespace path: no such file or directory)",
+   "url": "https://github.com/PatchMon/PatchMon/issues/1182",
+   "created": "2026-10-17"
+  },
+  {
+   "id": "gh-Parse-Documents-Fast-pdf-extractor-41",
+   "title": "fix(docker): Los microservicios no terminan de levantarse",
+   "url": "https://github.com/Parse-Documents-Fast/pdf-extractor/issues/41",
+   "created": "2026-10-05"
+  },
+  {
+   "id": "gh-oss-apps-split-pro-773",
+   "title": "split healthcheck docker",
+   "url": "https://github.com/oss-apps/split-pro/issues/773",
+   "created": "2026-10-14"
+  },
+  {
+   "id": "gh-dji-sdk-Cloud-API-2-208",
+   "title": "[问题] 获取激活码报错",
+   "url": "https://github.com/dji-sdk/Cloud-API-2/issues/208",
+   "created": "2026-10-26"
+  },
+  {
+   "id": "gh-Nadas64-Projektas-13",
+   "title": "Container fault",
+   "url": "https://github.com/Nadas64/Projektas/issues/13",
+   "created": "2026-10-04"
+  },
+  {
+   "id": "gh-nbs-bond-nbs-bond-protocol-56",
+   "title": "[BUG]  `docker-compose.yml` has no health checks for PostgreSQL or Redis — the API container starts before the DB is ready and crashes on first request",
+   "url": "https://github.com/nbs-bond/nbs-bond-protocol/issues/56",
+   "created": "2026-08-16"
+  },
+  {
+   "id": "gh-staskut-ration-48",
+   "title": "Docker Compose with Postgres",
+   "url": "https://github.com/staskut/ration/issues/48",
+   "created": "2026-10-10"
+  },
+  {
+   "id": "gh-snapotter-hq-SnapOtter-592",
+   "title": "[Bug] Reference Postgres compose/docs hardening: fragile pg_isready healthcheck, opaque startup log, missing CHANGE-ME on default password",
+   "url": "https://github.com/snapotter-hq/SnapOtter/issues/592",
+   "created": "2026-07-21"
+  },
+  {
+   "id": "gh-infinitepush-intelliview-orchestrator-4",
+   "title": "Docker Compose worker fails to connect to Redis because .env.example uses localhost  ",
+   "url": "https://github.com/infinitepush/intelliview-orchestrator/issues/4",
+   "created": "2026-09-18"
+  },
+  {
+   "id": "gh-hieplam-horus-262",
+   "title": "Goal row stack-starts-together: the function passes a horus ready that runs no check",
+   "url": "https://github.com/hieplam/horus/issues/262",
+   "created": "2026-11-20"
+  },
+  {
+   "id": "gh-dolusoft-gecko-setup-53",
+   "title": "Temiz kurulumdan sonra `hotspotapi` açılışta bir kez çöküp yeniden başlıyor (çıkış 139)",
+   "url": "https://github.com/dolusoft/gecko-setup/issues/53",
+   "created": "2026-11-17"
+  },
+  {
+   "id": "gh-wallabag-docker-454",
+   "title": "Docker container stuck in restart loop on first-time docker-compose up",
+   "url": "https://github.com/wallabag/docker/issues/454",
+   "created": "2025-07-28"
+  },
+  {
+   "id": "gh-liketrek-TREK-3135",
+   "title": "[BUG] Container on 5.1.4 hangs at startup under Podman (rootful) unless run as uid 1000 (gosu path), no logs produced",
+   "url": "https://github.com/liketrek/TREK/issues/3135",
+   "created": "2026-11-19"
+  },
+  {
+   "id": "gh-Wikid82-Charon-1998",
+   "title": "Latest v0.51.0 breaks my setup",
+   "url": "https://github.com/Wikid82/Charon/issues/1998",
+   "created": "2026-11-17"
+  },
+  {
+   "id": "gh-rucorp-mock-services-158",
+   "title": "infra: поднять дефолтный пин образа в compose-файлах с 0.7.0 до актуального 0.9.1",
+   "url": "https://github.com/rucorp/mock-services/issues/158",
+   "created": "2026-10-22"
+  },
+  {
+   "id": "gh-sirloinbh-cert-manager-105",
+   "title": "Apply the central pg_isready host fix (#430)",
+   "url": "https://github.com/sirloinbh/cert-manager/issues/105",
+   "created": "2026-11-13"
+  },
+  {
+   "id": "gh-ls1intum-edutelligence-1301",
+   "title": "`Logos`: Killing one of two webservice replicas under load causes 502/504 for clients",
+   "url": "https://github.com/ls1intum/edutelligence/issues/1301",
+   "created": "2026-10-20"
+  },
+  {
+   "id": "gh-OctoPrint-octoprint-docker-295",
+   "title": "[BUG]  Docker Compose Octoprint only runs on Port 5000 cant change it to another one",
+   "url": "https://github.com/OctoPrint/octoprint-docker/issues/295",
+   "created": "2026-11-04"
+  },
+  {
+   "id": "gh-Public-Vinyl-Radio-groovenet-1084",
+   "title": "feat(dev): compose profiles so worktrees run only the services a task needs",
+   "url": "https://github.com/Public-Vinyl-Radio/groovenet/issues/1084",
+   "created": "2026-11-07"
+  },
+  {
+   "id": "gh-tapstate-tapstate-929",
+   "title": "Orderly restart witness can fail with boot.node-id-in-use after a CONFIG outage",
+   "url": "https://github.com/tapstate/tapstate/issues/929",
+   "created": "2026-10-30"
+  },
+  {
+   "id": "gh-vocdoni-vocdoni-integrator-sdk-121",
+   "title": "Integration stack fails: voconed now binds to 127.0.0.1, api cannot reach it",
+   "url": "https://github.com/vocdoni/vocdoni-integrator-sdk/issues/121",
+   "created": "2026-11-24"
+  },
+  {
+   "id": "gh-BianchiLuca28-lodestar-4",
+   "title": "chore: Docker Compose dev stack reaching Ollama on the Windows host",
+   "url": "https://github.com/BianchiLuca28/lodestar/issues/4",
+   "created": "2026-10-31"
+  },
+  {
+   "id": "gh-asari194617-taskly-236",
+   "title": "本番コンテナから Datadog Agent に接続できず APM トレースが欠落している",
+   "url": "https://github.com/asari194617/taskly/issues/236",
+   "created": "2026-09-21"
+  },
+  {
+   "id": "gh-peterrichards-lr-liferay-docker-manager-2370",
+   "title": "ldm snapshot captures LDM's own rendered LIFERAY_* env (virtual host, display node) into custom_env, and on import it overrides the consumer's",
+   "url": "https://github.com/peterrichards-lr/liferay-docker-manager/issues/2370",
+   "created": "2026-11-13"
+  },
+  {
+   "id": "gh-dangpham-work-whybi-hackathon-sgu-83",
+   "title": "[P2][infra] nginx trả 502 sau khi container api được tạo lại (giữ IP cũ của upstream api:8000)",
+   "url": "https://github.com/dangpham-work/whybi-hackathon-sgu/issues/83",
+   "created": "2026-11-07"
+  },
+  {
+   "id": "gh-david2069-franklinwh-modbus-bridge-175",
+   "title": "Docker: .env.example sets MQTT_HOST=localhost, so MQTT never connects under the shipped compose",
+   "url": "https://github.com/david2069/franklinwh-modbus-bridge/issues/175",
+   "created": "2026-10-16"
+  },
+  {
+   "id": "gh-picli3-sugar-31",
+   "title": "[P2] Re-resolver la API desde nginx tras reinicios parciales",
+   "url": "https://github.com/picli3/sugar/issues/31",
+   "created": "2026-11-05"
+  },
+  {
+   "id": "gh-epittman23-local-llm-422",
+   "title": "[Medium] A backend that is starting, reloading or busy is taken for \"nothing running\", and the second make backend the app starts stops its services",
+   "url": "https://github.com/epittman23/local-llm/issues/422",
+   "created": "2026-10-28"
+  },
+  {
+   "id": "gh-libracoder-kiri-319",
+   "title": "Mac: containers can't reach hosts behind a split-tunnel VPN",
+   "url": "https://github.com/libracoder/kiri/issues/319",
+   "created": "2026-11-15"
+  },
+  {
+   "id": "gh-seathatflowsinourveins-tier0-quant-20",
+   "title": "[Mac M5 Max Handoff] Sync ~/Documents/tier0-quant & dot-github to b96d62ff / b16a13a4, 46/46 skills, 4/4 user hooks, 6/6 portals & MAC_BROKER_PORTS=0",
+   "url": "https://github.com/seathatflowsinourveins/tier0-quant/issues/20",
+   "created": "2026-11-22"
+  },
+  {
+   "id": "gh-uditt490-pixel-YuvaHub-178",
+   "title": "[Feature]: Make Docker & Redis Optional with Graceful In-Memory Fallbacks for Local Development",
+   "url": "https://github.com/uditt490-pixel/YuvaHub/issues/178",
+   "created": "2026-07-19"
+  },
+  {
+   "id": "gh-mehdi-rochereau-taskflow-deploy-53",
+   "title": "[DEPLOY] Declare a healthcheck on the taskflow-ui service",
+   "url": "https://github.com/mehdi-rochereau/taskflow-deploy/issues/53",
+   "created": "2026-10-24"
+  },
+  {
+   "id": "gh-alams154-music-assistant-alexa-skill-prototype-85",
+   "title": "Hardcoded port 5000 throws errors when running on a different port.",
+   "url": "https://github.com/alams154/music-assistant-alexa-skill-prototype/issues/85",
+   "created": "2026-10-09"
+  },
+  {
+   "id": "gh-Popoboxxo-ReqogniLoom-1823",
+   "title": "[BUG][HIGH][memory] Honcho-Schreibpfad liefert 500 statt graceful 503, wenn der Embedding-Endpunkt fehlt",
+   "url": "https://github.com/Popoboxxo/ReqogniLoom/issues/1823",
+   "created": "2026-11-14"
+  },
+  {
+   "id": "gh-kohonda-make-shared-gpu-server-21",
+   "title": "[BUG] 再起動後に Grafana と Prometheus のポートが公開されないまま成功扱いになる",
+   "url": "https://github.com/kohonda/make-shared-gpu-server/issues/21",
+   "created": "2026-11-04"
+  },
+  {
+   "id": "gh-immich-app-immich-33173",
+   "title": "[Bug] Prometheus metrics broken on v3.4.0",
+   "url": "https://github.com/immich-app/immich/issues/33173",
+   "created": "2026-11-10"
+  },
+  {
+   "id": "gh-bakhytuly07-source-gradematch-115",
+   "title": "E2E: Rename a look",
+   "url": "https://github.com/bakhytuly07-source/gradematch/issues/115",
+   "created": "2026-11-02"
+  },
+  {
+   "id": "gh-iurykrieger-lastro-51",
+   "title": "run-dev core sensor can't provision the full environment (backing services like Postgres aren't started)",
+   "url": "https://github.com/iurykrieger/lastro/issues/51",
+   "created": "2026-06-14"
+  },
+  {
+   "id": "gh-OneBusAway-watchdog-305",
+   "title": "docker-compose: postgres healthcheck should probe TCP (pg_isready -h localhost)",
+   "url": "https://github.com/OneBusAway/watchdog/issues/305",
+   "created": "2026-11-14"
+  },
+  {
+   "id": "gh-fiztoz-uptime-phoenix-163",
+   "title": "Phoenix exits instead of retrying when MariaDB isn't ready at boot",
+   "url": "https://github.com/fiztoz/uptime-phoenix/issues/163",
+   "created": "2026-11-01"
+  },
+  {
+   "id": "gh-DanielH2018-server-2411",
+   "title": "janitorr's CLAUDE.md explains its restarts with Docker Compose restart and depends_on mechanics",
+   "url": "https://github.com/DanielH2018/server/issues/2411",
+   "created": "2026-09-24"
+  },
+  {
+   "id": "gh-epittman23-local-llm-148",
+   "title": "[Low] make backend does not wait for Postgres before the app runs migrations at import",
+   "url": "https://github.com/epittman23/local-llm/issues/148",
+   "created": "2026-10-19"
+  },
+  {
+   "id": "gh-ThinkLikeAFounder-pulsartrack-1103",
+   "title": "backend/.env.example sets PORT=4000, but docker-compose.yml, README, and frontend's .env.example all expect the backend on port 3001",
+   "url": "https://github.com/ThinkLikeAFounder/pulsartrack/issues/1103",
+   "created": "2026-10-17"
+  },
+  {
+   "id": "gh-Montelingo-montelingo-25",
+   "title": "Web container never becomes healthy under Docker Compose",
+   "url": "https://github.com/Montelingo/montelingo/issues/25",
+   "created": "2026-09-30"
+  },
+  {
+   "id": "gh-ferblanco75-predictaX-261",
+   "title": "MEDIUM: Harden docker-compose and the observability stack",
+   "url": "https://github.com/ferblanco75/predictaX/issues/261",
+   "created": "2026-09-07"
+  },
+  {
+   "id": "gh-ZenithGeeks-SecretSource-prototype-596",
+   "title": "The worker's metrics port is not published, so Prometheus outside the compose network cannot scrape it",
+   "url": "https://github.com/ZenithGeeks/SecretSource-prototype/issues/596",
+   "created": "2026-10-20"
+  },
+  {
+   "id": "gh-dk2la-inception-of-context-75",
+   "title": "API: a clear 503 when Ollama is not reachable",
+   "url": "https://github.com/dk2la/inception-of-context/issues/75",
+   "created": "2026-11-08"
+  },
+  {
+   "id": "gh-crazy-goat-rabbit-stream-472",
+   "title": "Bug: run-e2e.sh healthcheck loop can hang forever with no diagnostics; healthcheck probes 5672 not 5552",
+   "url": "https://github.com/crazy-goat/rabbit-stream/issues/472",
+   "created": "2026-08-18"
+  },
+  {
+   "id": "gh-Osmantic-ODS-7909",
+   "title": "Docs send Linux, WSL2 and Windows Docker owners to localhost:8080 for the model API; ODS publishes it on 11434",
+   "url": "https://github.com/Osmantic/ODS/issues/7909",
+   "created": "2026-10-21"
+  },
+  {
+   "id": "gh-Perihelion-Protocol-Perihelion-893",
+   "title": "docker-compose: `anvil` command is passed to the Foundry image's `sh -c` entrypoint as separate words, so `--host 0.0.0.0` is dropped",
+   "url": "https://github.com/Perihelion-Protocol/Perihelion/issues/893",
+   "created": "2026-10-15"
+  },
+  {
+   "id": "gh-anomalyco-opencode-57228",
+   "title": "Opencode image for docker does not exist",
+   "url": "https://github.com/anomalyco/opencode/issues/57228",
+   "created": "2026-10-19"
+  },
+  {
+   "id": "gh-alfredo1996-neoboard-2432",
+   "title": "fix(docker): the app container reports unhealthy on Docker 29 while it serves, because the health check probes localhost and gets ::1",
+   "url": "https://github.com/alfredo1996/neoboard/issues/2432",
+   "created": "2026-11-10"
+  },
+  {
+   "id": "gh-ashlesh-t-Distributed-Log-System-10",
+   "title": "log_pipeline: logs are permanently lost when Elasticsearch is unavailable (offset committed before flush)",
+   "url": "https://github.com/ashlesh-t/Distributed-Log-System/issues/10",
+   "created": "2026-11-02"
+  },
+  {
+   "id": "gh-JinY0ung-Shin-UniBridge-106",
+   "title": "Bifrost v2.6.0: 3-minute startup stall when egress to getbifrost.ai is blocked",
+   "url": "https://github.com/JinY0ung-Shin/UniBridge/issues/106",
+   "created": "2026-11-20"
+  },
+  {
+   "id": "gh-parcelis-parcelis-370",
+   "title": "[Bug]: Audit and correct Docker health checks across Compose deployments",
+   "url": "https://github.com/parcelis/parcelis/issues/370",
+   "created": "2026-10-11"
+  },
+  {
+   "id": "gh-hieplam-horus-257",
+   "title": "The health check of horus-db passes before the database accepts TCP: a start of the stack can fail",
+   "url": "https://github.com/hieplam/horus/issues/257",
+   "created": "2026-11-20"
+  },
+  {
+   "id": "gh-NecturaLabs-Jarvis-20",
+   "title": "Run SearXNG locally for Jarvis search",
+   "url": "https://github.com/NecturaLabs/Jarvis/issues/20",
+   "created": "2026-11-21"
+  },
+  {
+   "id": "gh-iLoveCmajor-application-tracker-9",
+   "title": "Integration tests and make test",
+   "url": "https://github.com/iLoveCmajor/application-tracker/issues/9",
+   "created": "2026-11-14"
+  },
+  {
+   "id": "gh-eko-pihole-exporter-249",
+   "title": "Pihole connection refused",
+   "url": "https://github.com/eko/pihole-exporter/issues/249",
+   "created": "2024-11-27"
+  },
+  {
+   "id": "gh-rodgallert-Elysium-73",
+   "title": "fix(proxy): re-resolve upstreams and move nginx images off 1.27",
+   "url": "https://github.com/rodgallert/Elysium/issues/73",
+   "created": "2026-11-17"
+  },
+  {
+   "id": "gh-oblien-openship-1744",
+   "title": "[Bug] Host-channel diagnostics require Bun in Node-based API images",
+   "url": "https://github.com/oblien/openship/issues/1744",
+   "created": "2026-11-13"
+  },
+  {
+   "id": "gh-RedaEkengren-FreeSMS-245",
+   "title": "[P1] Browser tests fail from scene 12 onwards on main, and the test stack sometimes never starts",
+   "url": "https://github.com/RedaEkengren/FreeSMS/issues/245",
+   "created": "2026-11-01"
+  },
+  {
+   "id": "gh-business-os-systems-business-os-365",
+   "title": "fix(website-builder): release-one QA findings — media upload, studio routing and dev schema drift",
+   "url": "https://github.com/business-os-systems/business-os/issues/365",
+   "created": "2026-11-11"
+  },
+  {
+   "id": "gh-Parse-Documents-Fast-pdf-extractor-39",
+   "title": "POST /extract responde 503: el client apunta a pdf-extractor:8000/extract, que no existe",
+   "url": "https://github.com/Parse-Documents-Fast/pdf-extractor/issues/39",
+   "created": "2026-10-05"
+  },
+  {
+   "id": "gh-flixermedia-flixer-11",
+   "title": "Install issue",
+   "url": "https://github.com/flixermedia/flixer/issues/11",
+   "created": "2026-11-07"
+  },
+  {
+   "id": "gh-bennybrau-agentic-software-factory-26",
+   "title": "M11 WP7 — Networking, asf doctor, and docs/OLLAMA.md",
+   "url": "https://github.com/bennybrau/agentic-software-factory/issues/26",
+   "created": "2026-10-14"
+  },
+  {
+   "id": "gh-SufZen-Dreamward-64",
+   "title": "web: nginx upstream uses bare 'api' hostname, collides on shared proxy networks",
+   "url": "https://github.com/SufZen/Dreamward/issues/64",
+   "created": "2026-10-14"
+  },
+  {
+   "id": "gh-aritako-dcc-sms-gateway-23",
+   "title": "23: Bonus: second carrier, prefix routing and failover",
+   "url": "https://github.com/aritako/dcc-sms-gateway/issues/23",
+   "created": "2026-11-18"
+  },
+  {
+   "id": "gh-artifact-keeper-artifact-keeper-5921",
+   "title": "Configurable shutdown drain: fail readiness first, keep serving for N seconds after SIGTERM",
+   "url": "https://github.com/artifact-keeper/artifact-keeper/issues/5921",
+   "created": "2026-11-12"
+  },
+  {
+   "id": "gh-frederikemmer-MediaLyze-193",
+   "title": "[bug] Cannot connect to Jellyfin Instance",
+   "url": "https://github.com/frederikemmer/MediaLyze/issues/193",
+   "created": "2026-10-11"
+  },
+  {
+   "id": "gh-moby-moby-54136",
+   "title": "Resolve DNS to localhost when host /etc/resolv.conf is missing",
+   "url": "https://github.com/moby/moby/issues/54136",
+   "created": "2026-11-05"
+  },
+  {
+   "id": "gh-Netcracker-qubership-integration-platform-1129",
+   "title": "[Bug]: The testing-service image fails to build because Alpine dropped the pinned curl revision",
+   "url": "https://github.com/Netcracker/qubership-integration-platform/issues/1129",
+   "created": "2026-10-19"
+  },
+  {
+   "id": "gh-vcongggggg-pbl6-113",
+   "title": "[P0-Fix-2] Secrets rotation (.env) + restrict vulnerable-api port 5000 (A2+A7)",
+   "url": "https://github.com/vcongggggg/pbl6/issues/113",
+   "created": "2026-10-06"
+  },
+  {
+   "id": "gh-wazuh-wazuh-dashboard-plugins-9296",
+   "title": "saved-objects:dashboards: one failed write at startup skips every remaining Wazuh dashboard, and the failure is never retried",
+   "url": "https://github.com/wazuh/wazuh-dashboard-plugins/issues/9296",
+   "created": "2026-10-02"
+  },
+  {
+   "id": "gh-huangjunsen0406-xiaozhi-mcphub-34",
+   "title": "Unable to migrate from v1.0.3 to newer, All exist servers, & endpoint lost",
+   "url": "https://github.com/huangjunsen0406/xiaozhi-mcphub/issues/34",
+   "created": "2026-07-27"
+  },
+  {
+   "id": "gh-b3ll3o-projeto-base-138",
+   "title": "P1 — Imagem prod do web não define `ENV HOSTNAME`: o Next.js standalone faz bind no hostname do container e o healthcheck em `localhost` nunca conecta",
+   "url": "https://github.com/b3ll3o/projeto-base/issues/138",
+   "created": "2026-11-02"
+  },
+  {
+   "id": "gh-slimatic-zakapp-404",
+   "title": "Frontend healthcheck always fails: probes IPv6 localhost while nginx binds IPv4 only",
+   "url": "https://github.com/slimatic/zakapp/issues/404",
+   "created": "2026-09-18"
+  },
+  {
+   "id": "gh-BryanSmee-deckhand-507",
+   "title": "Runs survive a listener restart: the proxy waits for the listener, and the listener drains on SIGTERM",
+   "url": "https://github.com/BryanSmee/deckhand/issues/507",
+   "created": "2026-10-30"
+  },
+  {
+   "id": "gh-elm1nst3r-GHOST-osint-crm-103",
+   "title": "Bug: Opening Integrated Tools settings causes a 502 Bad Gateway error",
+   "url": "https://github.com/elm1nst3r/GHOST-osint-crm/issues/103",
+   "created": "2026-11-04"
+  },
+  {
+   "id": "gh-Yeraze-meshmonitor-6319",
+   "title": "[BUG] Virtual node isn't working with meshcore",
+   "url": "https://github.com/Yeraze/meshmonitor/issues/6319",
+   "created": "2026-11-10"
+  },
+  {
+   "id": "gh-poweradmin-poweradmin-1653",
+   "title": "Env DB_PORT not work in docker compose",
+   "url": "https://github.com/poweradmin/poweradmin/issues/1653",
+   "created": "2026-10-07"
+  },
+  {
+   "id": "gh-ashlesh-t-Distributed-Log-System-17",
+   "title": "docker-compose: zookeeper has no volume, so a persisted kafka_data volume makes Kafka crash-loop (InconsistentClusterIdException); README health URL doesn't work",
+   "url": "https://github.com/ashlesh-t/Distributed-Log-System/issues/17",
+   "created": "2026-11-02"
+  },
+  {
+   "id": "gh-NginxProxyManager-nginx-proxy-manager-4456",
+   "title": "Pulling `latest` through docker compose results in a different image than `2.12.3`",
+   "url": "https://github.com/NginxProxyManager/nginx-proxy-manager/issues/4456",
+   "created": "2025-03-27"
+  },
+  {
+   "id": "gh-langgenius-dify-36296",
+   "title": "After deploying dify on mac, a blank error was prompted upon login, but there was no error message",
+   "url": "https://github.com/langgenius/dify/issues/36296",
+   "created": "2026-05-18"
+  },
+  {
+   "id": "gh-immich-app-immich-33194",
+   "title": "v3.4.0: Prometheus metrics ports 8081/8082 only listen on localhost inside the container, so scraping from another container no longer works",
+   "url": "https://github.com/immich-app/immich/issues/33194",
+   "created": "2026-11-11"
+  },
+  {
+   "id": "gh-lex00-neo4j-backup-245",
+   "title": "Docs: prepare your Neo4j servers (backup listener, seed credentials)",
+   "url": "https://github.com/lex00/neo4j-backup/issues/245",
+   "created": "2026-11-16"
+  },
+  {
+   "id": "gh-Tejada-ProgramacionII-catalogo-sincronizacion-service-57",
+   "title": "Conectar el compose a la red de la cátedra con un contenedor de ZeroTier",
+   "url": "https://github.com/Tejada-ProgramacionII/catalogo-sincronizacion-service/issues/57",
+   "created": "2026-11-03"
+  },
+  {
+   "id": "gh-shiliu153-chatapp-445",
+   "title": "[工单] deploy: 从零 up 一次整套栈，排查还有哪些服务因 cap_drop ALL + 镜像 entrypoint 起不来",
+   "url": "https://github.com/shiliu153/chatapp/issues/445",
+   "created": "2026-11-17"
+  },
+  {
+   "id": "gh-Vigil-SOC-vigil-2064",
+   "title": "[SW D6-2] Medic sensor: container and pod state (Docker proxy, Kubernetes API)",
+   "url": "https://github.com/Vigil-SOC/vigil/issues/2064",
+   "created": "2026-10-10"
+  },
+  {
+   "id": "gh-SoftFx-Hierarchical-Sensor-Monitoring-1696",
+   "title": "Remove the deprecated port aliases 44330/44333: one port, 443 (phase 2 of #1590)",
+   "url": "https://github.com/SoftFx/Hierarchical-Sensor-Monitoring/issues/1696",
+   "created": "2026-11-11"
+  },
+  {
+   "id": "gh-krucx-Mortgage-Management-App-108",
+   "title": "Decide the lessons for onboarding chapter 014: How it runs on the Lender's laptop",
+   "url": "https://github.com/krucx/Mortgage-Management-App/issues/108",
+   "created": "2026-11-03"
+  },
+  {
+   "id": "gh-fossasia-eventyay-veditor-61",
+   "title": "Allow host.docker.internal as local loopback in VEditor Service URL validation",
+   "url": "https://github.com/fossasia/eventyay-veditor/issues/61",
+   "created": "2026-11-16"
+  },
+  {
+   "id": "gh-40858559-NayChiCh0-DevOpsGroup21-63",
+   "title": "[Bug]: Integration Tests Cannot Connect to MySQL Database in GitHub Actions",
+   "url": "https://github.com/40858559-NayChiCh0/DevOpsGroup21/issues/63",
+   "created": "2026-11-19"
+  },
+  {
+   "id": "gh-corbitsdev-corbits-triage-799",
+   "title": "fix(docker): sidecar containers cannot reach hub API — compose.docker.yml missing HUB_API_ORIGIN",
+   "url": "https://github.com/corbitsdev/corbits-triage/issues/799",
+   "created": "2026-11-02"
+  },
+  {
+   "id": "gh-rodgallert-Elysium-68",
+   "title": "chore: spike nested *.localhost names on IPv4 and IPv6 loopback",
+   "url": "https://github.com/rodgallert/Elysium/issues/68",
+   "created": "2026-11-17"
+  },
+  {
+   "id": "gh-lightup-data-polaris-119",
+   "title": "Fresh `make dev` fails: PostgresError role \"polaris\" does not exist (28000)",
+   "url": "https://github.com/lightup-data/polaris/issues/119",
+   "created": "2026-06-18"
+  },
+  {
+   "id": "gh-Quartio-Studio-yulius-1160",
+   "title": "Docker smoke fails \"a sandbox without Docker answers why\" on the first `host setup` of a fresh host: a live engine answers the Docker-off run",
+   "url": "https://github.com/Quartio-Studio/yulius/issues/1160",
+   "created": "2026-11-11"
+  },
+  {
+   "id": "gh-Gergo019-blindspot-chess-30",
+   "title": "fix(backend): transient analysis-service failures must not mark games FAILED",
+   "url": "https://github.com/Gergo019/blindspot-chess/issues/30",
+   "created": "2026-11-16"
+  },
+  {
+   "id": "gh-PBSW-easv-ea-peter-Bizcord-21",
+   "title": "East/West security (uge 45 task 01): beskyt interne services og endpoints",
+   "url": "https://github.com/PBSW-easv-ea-peter/Bizcord/issues/21",
+   "created": "2026-11-24"
+  },
+  {
+   "id": "gh-mkyt-qwen3-27b-5090-7",
+   "title": "Windows: connection refused (llama-swap 502) on bursts of 6+ concurrent requests: listen backlog of 5",
+   "url": "https://github.com/mkyt/qwen3-27b-5090/issues/7",
+   "created": "2026-11-02"
+  },
+  {
+   "id": "gh-cory-johannsen-foundry-pf2e-dungeon-crawl-966",
+   "title": "Ops: point litellm 'reasoning' tier at OpenRouter nvidia/nemotron-3.5-lightning:free (for #909)",
+   "url": "https://github.com/cory-johannsen/foundry-pf2e-dungeon-crawl/issues/966",
+   "created": "2026-10-09"
+  },
+  {
+   "id": "gh-TinyPhi-OpenWind-450",
+   "title": "chore(dx): apps/api host-mode pnpm test fails on 14 tests — redis has no host port mapping",
+   "url": "https://github.com/TinyPhi/OpenWind/issues/450",
+   "created": "2026-08-21"
+  },
+  {
+   "id": "gh-nodeholic-multichannel-lakehouse-19",
+   "title": "Harden the S3 storage switch: tests can write to the real buckets",
+   "url": "https://github.com/nodeholic/multichannel-lakehouse/issues/19",
+   "created": "2026-11-12"
+  },
+  {
+   "id": "gh-TinyAssets-TinyAssets-5225",
+   "title": "P0 Public MCP outage — 2026-10-22T23:32:44.512Z",
+   "url": "https://github.com/TinyAssets/TinyAssets/issues/5225",
+   "created": "2026-10-22"
+  },
+  {
+   "id": "gh-OpenAEV-Platform-openaev-8970",
+   "title": "fix(saas): API down and collectors crash during platform upgrades",
+   "url": "https://github.com/OpenAEV-Platform/openaev/issues/8970",
+   "created": "2026-11-05"
+  },
+  {
+   "id": "gh-deskree-inc-tetrix-install-48",
+   "title": "Fresh compose install fails on first run: postgres-ensure-* race Postgres TCP readiness (pg_isready healthcheck passes during initdb temp server)",
+   "url": "https://github.com/deskree-inc/tetrix-install/issues/48",
+   "created": "2026-09-18"
+  },
+  {
+   "id": "gh-Slaker19-webkvm-5",
+   "title": "password after installation issues(port problem?)",
+   "url": "https://github.com/Slaker19/webkvm/issues/5",
+   "created": "2026-10-15"
+  },
+  {
+   "id": "gh-Michimono-michicast-222",
+   "title": "502 after deploy: nginx keeps the old app container IP",
+   "url": "https://github.com/Michimono/michicast/issues/222",
+   "created": "2026-10-27"
+  },
+  {
+   "id": "gh-MODSetter-SurfSense-587",
+   "title": "[BUG] Ollama, connection refused",
+   "url": "https://github.com/MODSetter/SurfSense/issues/587",
+   "created": "2025-12-16"
+  },
+  {
+   "id": "gh-mkolakowski-WalletWeather-276",
+   "title": "[own-bank-keys] Phase 1: Your own keys, server and web",
+   "url": "https://github.com/mkolakowski/WalletWeather/issues/276",
+   "created": "2026-11-23"
+  },
+  {
+   "id": "gh-gabriel-neutron-GAB-194",
+   "title": "AI-SERVICES - freellmapi and SearXNG are not in the local stack, so the back-end AI has no endpoint and web_search has no engine",
+   "url": "https://github.com/gabriel-neutron/GAB/issues/194",
+   "created": "2026-10-03"
+  },
+  {
+   "id": "gh-forjedio-yerd-253",
+   "title": "macOS: port 80/443 redirect silently stops working when another pf client sets `skip on lo0` (OrbStack / Internet Sharing)",
+   "url": "https://github.com/forjedio/yerd/issues/253",
+   "created": "2026-10-30"
+  },
+  {
+   "id": "gh-isopen-io-meeshy-11278",
+   "title": "Un appel passe derrière un pare-feu qui ne laisse sortir que le 443",
+   "url": "https://github.com/isopen-io/meeshy/issues/11278",
+   "created": "2026-10-20"
+  },
+  {
+   "id": "gh-astor-hospitality-Astor_Butler_MVP-122",
+   "title": "api-gateway: 502 после пересоздания контейнера бота (nginx кэширует старый upstream IP)",
+   "url": "https://github.com/astor-hospitality/Astor_Butler_MVP/issues/122",
+   "created": "2026-10-10"
+  },
+  {
+   "id": "gh-containers-podman-compose-912",
+   "title": "links: with dns name don't seem to work",
+   "url": "https://github.com/containers/podman-compose/issues/912",
+   "created": "2024-04-15"
+  },
+  {
+   "id": "gh-decadance-dance-rbench-37",
+   "title": "Trial images, allowlist proxy and docker compose project",
+   "url": "https://github.com/decadance-dance/rbench/issues/37",
+   "created": "2026-11-20"
+  },
+  {
+   "id": "gh-momokli-momos-music-manager-514",
+   "title": "infra: deemix-Stack auf dem neuen Host (Docker masked, DEEMIX_URL :6599 fehlt im Compose)",
+   "url": "https://github.com/momokli/momos-music-manager/issues/514",
+   "created": "2026-11-16"
+  }
+ ]
+}

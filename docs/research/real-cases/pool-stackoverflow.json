@@ -1,0 +1,3928 @@
+{
+ "source": "stackoverflow",
+ "fetched": "2026-11-25",
+ "seed": 20261125,
+ "queries": [
+  {
+   "tagged": "docker-compose",
+   "title": "connect"
+  },
+  {
+   "tagged": "docker-compose",
+   "title": "refused"
+  },
+  {
+   "tagged": "docker-compose",
+   "title": "resolve"
+  },
+  {
+   "tagged": "docker-compose",
+   "title": "reach"
+  },
+  {
+   "tagged": "docker",
+   "title": "connection refused"
+  },
+  {
+   "tagged": "docker-compose",
+   "q": "services ECONNREFUSED"
+  }
+ ],
+ "size": 649,
+ "order": [
+  {
+   "id": "so-73415151",
+   "title": "Multiple Mongo Container",
+   "url": "https://stackoverflow.com/questions/73415151",
+   "created": "2022-08-19"
+  },
+  {
+   "id": "so-69437475",
+   "title": "Can&#39;t connect to SSH from docker container ECONNREFUSED 127.0.0.1:22 - NodeJS",
+   "url": "https://stackoverflow.com/questions/69437475",
+   "created": "2021-10-04"
+  },
+  {
+   "id": "so-71877179",
+   "title": "How to connect Node express server-docker-image to mysql docker image via digitalOcean droplet?",
+   "url": "https://stackoverflow.com/questions/71877179",
+   "created": "2022-04-14"
+  },
+  {
+   "id": "so-75237114",
+   "title": "Max retries exceeded with url: Failed to establish a new connection: [Errno 111] Connection refused&#39;",
+   "url": "https://stackoverflow.com/questions/75237114",
+   "created": "2023-01-25"
+  },
+  {
+   "id": "so-75500996",
+   "title": "Connect celery-flower and prometheus in separate docker-compose files",
+   "url": "https://stackoverflow.com/questions/75500996",
+   "created": "2023-02-19"
+  },
+  {
+   "id": "so-78901825",
+   "title": "(111: Connection refused) while connecting to upstream - NGINX/Docker multi-container app",
+   "url": "https://stackoverflow.com/questions/78901825",
+   "created": "2024-08-22"
+  },
+  {
+   "id": "so-65766633",
+   "title": "Call to API from Angular in Nginx does not resolve Docker service name",
+   "url": "https://stackoverflow.com/questions/65766633",
+   "created": "2021-01-17"
+  },
+  {
+   "id": "so-78371447",
+   "title": "AWS: Can&#39;t connect my Docker container hosted in EC2 to my RDS",
+   "url": "https://stackoverflow.com/questions/78371447",
+   "created": "2024-04-23"
+  },
+  {
+   "id": "so-65596446",
+   "title": "Not able to connect with MySQL server to Spring Application in Docker?",
+   "url": "https://stackoverflow.com/questions/65596446",
+   "created": "2021-01-06"
+  },
+  {
+   "id": "so-78230180",
+   "title": "Docker RUN: failed to resolve process when trying to build a Dockerfile",
+   "url": "https://stackoverflow.com/questions/78230180",
+   "created": "2024-03-27"
+  },
+  {
+   "id": "so-73146566",
+   "title": "Dockercompose to connect wordpress SQL and nginx",
+   "url": "https://stackoverflow.com/questions/73146566",
+   "created": "2022-07-28"
+  },
+  {
+   "id": "so-78873209",
+   "title": "I/O error on GET request for &quot;https://localhost/application/o/{name}/.well-known/openid-configuration&quot;: Connection refused",
+   "url": "https://stackoverflow.com/questions/78873209",
+   "created": "2024-08-14"
+  },
+  {
+   "id": "so-69061621",
+   "title": "Postgres isn&#39;t accepting any connection from other containers using docker-compose",
+   "url": "https://stackoverflow.com/questions/69061621",
+   "created": "2021-09-05"
+  },
+  {
+   "id": "so-70088535",
+   "title": "Nestcloud with docker-compose consul micro-service connection refused",
+   "url": "https://stackoverflow.com/questions/70088535",
+   "created": "2021-11-23"
+  },
+  {
+   "id": "so-78151189",
+   "title": "In PhpRedisConnector.php line 161 Connection refused redis laravel",
+   "url": "https://stackoverflow.com/questions/78151189",
+   "created": "2024-03-13"
+  },
+  {
+   "id": "so-71090070",
+   "title": "lettuce can&#39;t connect to docker redis",
+   "url": "https://stackoverflow.com/questions/71090070",
+   "created": "2022-02-12"
+  },
+  {
+   "id": "so-65710881",
+   "title": "SQLSTATE[HY000] [2002] Connection refused Laravel 8",
+   "url": "https://stackoverflow.com/questions/65710881",
+   "created": "2021-01-13"
+  },
+  {
+   "id": "so-66725899",
+   "title": "Connect PySpark to Kafka from Docker container",
+   "url": "https://stackoverflow.com/questions/66725899",
+   "created": "2021-03-20"
+  },
+  {
+   "id": "so-69356818",
+   "title": "Connect to Apache Kafka brokers running in Docker Container",
+   "url": "https://stackoverflow.com/questions/69356818",
+   "created": "2021-09-28"
+  },
+  {
+   "id": "so-69679111",
+   "title": "Container can&#39;t connect to microsoft sql server in docker-compose",
+   "url": "https://stackoverflow.com/questions/69679111",
+   "created": "2021-10-22"
+  },
+  {
+   "id": "so-72266315",
+   "title": "jenkins : Cannot connect to the Docker daemo",
+   "url": "https://stackoverflow.com/questions/72266315",
+   "created": "2022-05-16"
+  },
+  {
+   "id": "so-69016182",
+   "title": "nodejs container won&#39;t connect to redis container docker-compose",
+   "url": "https://stackoverflow.com/questions/69016182",
+   "created": "2021-09-01"
+  },
+  {
+   "id": "so-73663143",
+   "title": ".NET 6 Docker container running on CentOS host throws a &quot;Resource temporarily unavailable&quot; when trying to connect to a dockerized postgres container",
+   "url": "https://stackoverflow.com/questions/73663143",
+   "created": "2022-09-09"
+  },
+  {
+   "id": "so-71039178",
+   "title": "how to connect Flask app to MongoDB with Docker-compose?",
+   "url": "https://stackoverflow.com/questions/71039178",
+   "created": "2022-02-08"
+  },
+  {
+   "id": "so-65747583",
+   "title": "SQLSTATE[HY000] [2002] Connection refused (SQL: select * from information_schema.tables where table_schema = ms_api_shop",
+   "url": "https://stackoverflow.com/questions/65747583",
+   "created": "2021-01-16"
+  },
+  {
+   "id": "so-79050342",
+   "title": "Dockerize Duende Identity Server: &quot;Unable to obtain configuration from: &#39;https://localhost:44384/.well-known/openid-configuration&#39;.Connection refused&quot;",
+   "url": "https://stackoverflow.com/questions/79050342",
+   "created": "2024-10-03"
+  },
+  {
+   "id": "so-65688042",
+   "title": "SQLState[HY000] Connection refused Laravel with docker",
+   "url": "https://stackoverflow.com/questions/65688042",
+   "created": "2021-01-12"
+  },
+  {
+   "id": "so-72703146",
+   "title": "HTTP connection refused between two docker containers, whereas from outside both connectable",
+   "url": "https://stackoverflow.com/questions/72703146",
+   "created": "2022-06-21"
+  },
+  {
+   "id": "so-76967079",
+   "title": "Connecting Docker image for debezium/connect:1.7 with a Kafka cluster that has SSL/SASL security",
+   "url": "https://stackoverflow.com/questions/76967079",
+   "created": "2023-08-24"
+  },
+  {
+   "id": "so-65668537",
+   "title": "PHP Connection refused",
+   "url": "https://stackoverflow.com/questions/65668537",
+   "created": "2021-01-11"
+  },
+  {
+   "id": "so-77928609",
+   "title": "Updated: SpringBoot inside docker container fails to connect to database",
+   "url": "https://stackoverflow.com/questions/77928609",
+   "created": "2024-02-02"
+  },
+  {
+   "id": "so-67343014",
+   "title": "Docker containers unable to reach each other. Getting CONNECTION_REFUSED",
+   "url": "https://stackoverflow.com/questions/67343014",
+   "created": "2021-05-01"
+  },
+  {
+   "id": "so-77797039",
+   "title": "Docker: NestJS and MySQL ECONNREFUSED 127.0.0.1:3306",
+   "url": "https://stackoverflow.com/questions/77797039",
+   "created": "2024-01-11"
+  },
+  {
+   "id": "so-72035654",
+   "title": "Unable to connect to Elasticsearch using images in Docker-Compose",
+   "url": "https://stackoverflow.com/questions/72035654",
+   "created": "2022-04-27"
+  },
+  {
+   "id": "so-78650440",
+   "title": "Unable to connect to the Unix socket for GVMD interactions : &quot;Connection Refused&quot;",
+   "url": "https://stackoverflow.com/questions/78650440",
+   "created": "2024-06-21"
+  },
+  {
+   "id": "so-67844352",
+   "title": "Can&#39;t connect MariaDB from Docker using Python",
+   "url": "https://stackoverflow.com/questions/67844352",
+   "created": "2021-06-04"
+  },
+  {
+   "id": "so-76973441",
+   "title": "Connect pyroscope to grafana datasource using .yaml config files and docker-compose",
+   "url": "https://stackoverflow.com/questions/76973441",
+   "created": "2023-08-24"
+  },
+  {
+   "id": "so-69395795",
+   "title": "docker-compose up is failing to start one of the container service",
+   "url": "https://stackoverflow.com/questions/69395795",
+   "created": "2021-09-30"
+  },
+  {
+   "id": "so-75646445",
+   "title": "Spring Boot + MySQL Docker Compose: port exposure refused connection",
+   "url": "https://stackoverflow.com/questions/75646445",
+   "created": "2023-03-06"
+  },
+  {
+   "id": "so-66402888",
+   "title": "Can&#39;t connect to MongoDB running from docker-compose",
+   "url": "https://stackoverflow.com/questions/66402888",
+   "created": "2021-02-27"
+  },
+  {
+   "id": "so-79286621",
+   "title": "Unable to Connect to Milvus Database Using PyMilvus with Standalone Deployment via Docker Compose",
+   "url": "https://stackoverflow.com/questions/79286621",
+   "created": "2024-12-17"
+  },
+  {
+   "id": "so-74124250",
+   "title": "Node.js service is unable to connect with Mysql using docker composer",
+   "url": "https://stackoverflow.com/questions/74124250",
+   "created": "2022-10-19"
+  },
+  {
+   "id": "so-68202024",
+   "title": "docker containers in different named networks: curl: (7) Failed to connect to localhost port 9080: Connection refused",
+   "url": "https://stackoverflow.com/questions/68202024",
+   "created": "2021-06-30"
+  },
+  {
+   "id": "so-67765749",
+   "title": "How to run Sequelize migrations inside Docker",
+   "url": "https://stackoverflow.com/questions/67765749",
+   "created": "2021-05-30"
+  },
+  {
+   "id": "so-72701066",
+   "title": "Docker cannot connect to daemon set after running docker restart",
+   "url": "https://stackoverflow.com/questions/72701066",
+   "created": "2022-06-21"
+  },
+  {
+   "id": "so-71021119",
+   "title": "Can&#39;t connect RabbitMQ to my app from docker",
+   "url": "https://stackoverflow.com/questions/71021119",
+   "created": "2022-02-07"
+  },
+  {
+   "id": "so-66721020",
+   "title": "curl: (7) Failed to connect to my-boot-system port 8079: Connection refused",
+   "url": "https://stackoverflow.com/questions/66721020",
+   "created": "2021-03-20"
+  },
+  {
+   "id": "so-72997780",
+   "title": "Gitlab runner connection refused. Proxy not working",
+   "url": "https://stackoverflow.com/questions/72997780",
+   "created": "2022-07-15"
+  },
+  {
+   "id": "so-75967671",
+   "title": "Python mysql-connector-python: how to connect to docker container from terminal for python application with mysql-connector-python",
+   "url": "https://stackoverflow.com/questions/75967671",
+   "created": "2023-04-08"
+  },
+  {
+   "id": "so-71008539",
+   "title": "Docker Connection Refused when joining Swarm on internal network",
+   "url": "https://stackoverflow.com/questions/71008539",
+   "created": "2022-02-06"
+  },
+  {
+   "id": "so-77567460",
+   "title": "Dockerized Django backend fails to connect to Postgress",
+   "url": "https://stackoverflow.com/questions/77567460",
+   "created": "2023-11-28"
+  },
+  {
+   "id": "so-68449508",
+   "title": "How to connect Eclipse ditto to mongodb cloud",
+   "url": "https://stackoverflow.com/questions/68449508",
+   "created": "2021-07-20"
+  },
+  {
+   "id": "so-66183785",
+   "title": "How to connect mg_client outside container in Docker?",
+   "url": "https://stackoverflow.com/questions/66183785",
+   "created": "2021-02-13"
+  },
+  {
+   "id": "so-75860011",
+   "title": "How do I resolve Module &#39;my_project&#39; has no attribute &#39;celery&#39; error with Docker Compose, Django, Celery?",
+   "url": "https://stackoverflow.com/questions/75860011",
+   "created": "2023-03-27"
+  },
+  {
+   "id": "so-75770560",
+   "title": "Can not connect MongoDB container from in the same container on AWS EC2",
+   "url": "https://stackoverflow.com/questions/75770560",
+   "created": "2023-03-17"
+  },
+  {
+   "id": "so-67951731",
+   "title": "Go backend to redis connection refused after docker compose up",
+   "url": "https://stackoverflow.com/questions/67951731",
+   "created": "2021-06-12"
+  },
+  {
+   "id": "so-78597501",
+   "title": "Unable to connect redis/redis-stack with Node.js",
+   "url": "https://stackoverflow.com/questions/78597501",
+   "created": "2024-06-09"
+  },
+  {
+   "id": "so-73990966",
+   "title": "Django server running on a GCE instance cannot connect to postgres cloud SQL",
+   "url": "https://stackoverflow.com/questions/73990966",
+   "created": "2022-10-07"
+  },
+  {
+   "id": "so-71217552",
+   "title": "Open ssh port on Azure multi-container app",
+   "url": "https://stackoverflow.com/questions/71217552",
+   "created": "2022-02-22"
+  },
+  {
+   "id": "so-72291643",
+   "title": "How to connect paths in Docker file",
+   "url": "https://stackoverflow.com/questions/72291643",
+   "created": "2022-05-18"
+  },
+  {
+   "id": "so-71091514",
+   "title": ".NET Core 5.0 Cant Connect ElasticSearch Via Docker",
+   "url": "https://stackoverflow.com/questions/71091514",
+   "created": "2022-02-12"
+  },
+  {
+   "id": "so-74994963",
+   "title": "connect azure functions to local signalr instance",
+   "url": "https://stackoverflow.com/questions/74994963",
+   "created": "2023-01-03"
+  },
+  {
+   "id": "so-68449947",
+   "title": "Certbot failing acme-challenge (connection refused)",
+   "url": "https://stackoverflow.com/questions/68449947",
+   "created": "2021-07-20"
+  },
+  {
+   "id": "so-74539608",
+   "title": "docker compose communication between two containers: Could not resolve hostname mysshserver: Name or service not known",
+   "url": "https://stackoverflow.com/questions/74539608",
+   "created": "2022-11-22"
+  },
+  {
+   "id": "so-65811607",
+   "title": "getting connection refused from docker containers in a same docker compose",
+   "url": "https://stackoverflow.com/questions/65811607",
+   "created": "2021-01-20"
+  },
+  {
+   "id": "so-65777774",
+   "title": "Docker Container - How to connect to outside database from a container (not bridge or overlay network)?",
+   "url": "https://stackoverflow.com/questions/65777774",
+   "created": "2021-01-18"
+  },
+  {
+   "id": "so-69539708",
+   "title": "PostgreSQL + metabase connection refused",
+   "url": "https://stackoverflow.com/questions/69539708",
+   "created": "2021-10-12"
+  },
+  {
+   "id": "so-75266654",
+   "title": "How to connect an ASP.NET backend to a postgres database inside a docker container",
+   "url": "https://stackoverflow.com/questions/75266654",
+   "created": "2023-01-28"
+  },
+  {
+   "id": "so-66731770",
+   "title": "docker-compose rails mysql connection refused",
+   "url": "https://stackoverflow.com/questions/66731770",
+   "created": "2021-03-21"
+  },
+  {
+   "id": "so-77636824",
+   "title": "How to connect Django project to containerized PostgreSQL database?",
+   "url": "https://stackoverflow.com/questions/77636824",
+   "created": "2023-12-10"
+  },
+  {
+   "id": "so-74694325",
+   "title": "Docker compose - App container not able to connect to postgresSQL container",
+   "url": "https://stackoverflow.com/questions/74694325",
+   "created": "2022-12-05"
+  },
+  {
+   "id": "so-73168693",
+   "title": "docker-compose up --build hang at chown in entrypoint without error. How to resolve?",
+   "url": "https://stackoverflow.com/questions/73168693",
+   "created": "2022-07-29"
+  },
+  {
+   "id": "so-69460405",
+   "title": "Docker image cannot connect on localhost",
+   "url": "https://stackoverflow.com/questions/69460405",
+   "created": "2021-10-06"
+  },
+  {
+   "id": "so-65608537",
+   "title": "Serverless Offline - ECONNREFUSED Elasticmq with Docker-Compose",
+   "url": "https://stackoverflow.com/questions/65608537",
+   "created": "2021-01-07"
+  },
+  {
+   "id": "so-71398835",
+   "title": "Golang with Cassandra db using docker-compose : cannot connect (gocql)",
+   "url": "https://stackoverflow.com/questions/71398835",
+   "created": "2022-03-08"
+  },
+  {
+   "id": "so-75798125",
+   "title": "Docker: 502 Connection refused Error when connecting to Perl container from nginx",
+   "url": "https://stackoverflow.com/questions/75798125",
+   "created": "2023-03-21"
+  },
+  {
+   "id": "so-72998836",
+   "title": "Python WebSocket connection refused in Docker",
+   "url": "https://stackoverflow.com/questions/72998836",
+   "created": "2022-07-15"
+  },
+  {
+   "id": "so-74190737",
+   "title": "&quot;connection refused&quot; error when java application and elasticsearch are on the same docker network",
+   "url": "https://stackoverflow.com/questions/74190737",
+   "created": "2022-10-25"
+  },
+  {
+   "id": "so-68927838",
+   "title": "Connection refused when pulling docker image on windows server",
+   "url": "https://stackoverflow.com/questions/68927838",
+   "created": "2021-08-25"
+  },
+  {
+   "id": "so-70304944",
+   "title": "macOS - Dockerize MySQL service connection refused, crashes upon use",
+   "url": "https://stackoverflow.com/questions/70304944",
+   "created": "2021-12-10"
+  },
+  {
+   "id": "so-71258374",
+   "title": "Running ELK on docker, Kibana says: Unable to retrieve version information from Elasticsearch nodes",
+   "url": "https://stackoverflow.com/questions/71258374",
+   "created": "2022-02-24"
+  },
+  {
+   "id": "so-76730868",
+   "title": "How to resolve &quot;django.db.utils.OperationalError: could not translate host name &quot;db&quot; to address: Name or service not known&quot;",
+   "url": "https://stackoverflow.com/questions/76730868",
+   "created": "2023-07-20"
+  },
+  {
+   "id": "so-77325571",
+   "title": "Unable to connect to docker mysql unix socket",
+   "url": "https://stackoverflow.com/questions/77325571",
+   "created": "2023-10-19"
+  },
+  {
+   "id": "so-77249911",
+   "title": "Cannot connect to the Docker daemon at unix:/var/run/docker.sock. Is the docker daemon running? (Details: [13] Permission denied) in IntelliJ",
+   "url": "https://stackoverflow.com/questions/77249911",
+   "created": "2023-10-07"
+  },
+  {
+   "id": "so-72863274",
+   "title": "Can&#39;t connect to my Docker Postgres from python suddenly",
+   "url": "https://stackoverflow.com/questions/72863274",
+   "created": "2022-07-05"
+  },
+  {
+   "id": "so-71330457",
+   "title": "How do I connect the app running using Nodejs with the service dependencies running using docker-compose",
+   "url": "https://stackoverflow.com/questions/71330457",
+   "created": "2022-03-02"
+  },
+  {
+   "id": "so-66027500",
+   "title": "Docker: Can&#39;t scrape SonarQube with VictoriaMetrics &quot;vmagent&quot;, connection refused",
+   "url": "https://stackoverflow.com/questions/66027500",
+   "created": "2021-02-03"
+  },
+  {
+   "id": "so-72631459",
+   "title": "Celery connection refused with RabbitMQ running in Docker container",
+   "url": "https://stackoverflow.com/questions/72631459",
+   "created": "2022-06-15"
+  },
+  {
+   "id": "so-74418139",
+   "title": "Connect python app container, postgres container, and persistent database on external harddrive with docker compose",
+   "url": "https://stackoverflow.com/questions/74418139",
+   "created": "2022-11-13"
+  },
+  {
+   "id": "so-71877867",
+   "title": "How to connect docker db from dockerized spring boot app?",
+   "url": "https://stackoverflow.com/questions/71877867",
+   "created": "2022-04-14"
+  },
+  {
+   "id": "so-68041621",
+   "title": "how to connect with a mongodb running in a container on aws ec2 from my home?",
+   "url": "https://stackoverflow.com/questions/68041621",
+   "created": "2021-06-18"
+  },
+  {
+   "id": "so-70978410",
+   "title": "How to properly connect a custom PHP file with Drupal 8 within Docker, all through docker-compose",
+   "url": "https://stackoverflow.com/questions/70978410",
+   "created": "2022-02-03"
+  },
+  {
+   "id": "so-65600211",
+   "title": "Error occured with redis HMSEET, dial tcp :6379: connect: connection refused",
+   "url": "https://stackoverflow.com/questions/65600211",
+   "created": "2021-01-06"
+  },
+  {
+   "id": "so-71283395",
+   "title": "Why Cannot i connect to Docker postgres, running in my machine?",
+   "url": "https://stackoverflow.com/questions/71283395",
+   "created": "2022-02-27"
+  },
+  {
+   "id": "so-77413387",
+   "title": "PgBouncer unable to connect to Postgres Docker Compose Service",
+   "url": "https://stackoverflow.com/questions/77413387",
+   "created": "2023-11-02"
+  },
+  {
+   "id": "so-76844113",
+   "title": "How to connect docker-compose kafka from localhost?",
+   "url": "https://stackoverflow.com/questions/76844113",
+   "created": "2023-08-06"
+  },
+  {
+   "id": "so-79585599",
+   "title": "Connection refused error (127.0.0.1:4566) for Localstack S3 in NestJS",
+   "url": "https://stackoverflow.com/questions/79585599",
+   "created": "2025-04-22"
+  },
+  {
+   "id": "so-75388650",
+   "title": "Testcontainers SchemaRegistry can&#39;t connect to Kafka container",
+   "url": "https://stackoverflow.com/questions/75388650",
+   "created": "2023-02-08"
+  },
+  {
+   "id": "so-77767996",
+   "title": "Grafana+Clickhouse+Docker. Can&#39;t connect to data source",
+   "url": "https://stackoverflow.com/questions/77767996",
+   "created": "2024-01-06"
+  },
+  {
+   "id": "so-72132223",
+   "title": "Connection refused trying to connect spring boot application in docker",
+   "url": "https://stackoverflow.com/questions/72132223",
+   "created": "2022-05-05"
+  },
+  {
+   "id": "so-69797504",
+   "title": "Unable to connect to mongodb as docker compose service from another service",
+   "url": "https://stackoverflow.com/questions/69797504",
+   "created": "2021-11-01"
+  },
+  {
+   "id": "so-75879554",
+   "title": "Connect to MariaDB in Docker container from dbeaver",
+   "url": "https://stackoverflow.com/questions/75879554",
+   "created": "2023-03-29"
+  },
+  {
+   "id": "so-77545218",
+   "title": "Can&#39;t connect to phpmyadmin mariadb windows 10 laravel sail",
+   "url": "https://stackoverflow.com/questions/77545218",
+   "created": "2023-11-24"
+  },
+  {
+   "id": "so-76590936",
+   "title": "I Can not connect to my mongoDb container with traefik docker",
+   "url": "https://stackoverflow.com/questions/76590936",
+   "created": "2023-06-30"
+  },
+  {
+   "id": "so-78974338",
+   "title": "Springboot application cannot connect to zeebe when starting everything from docker compose",
+   "url": "https://stackoverflow.com/questions/78974338",
+   "created": "2024-09-11"
+  },
+  {
+   "id": "so-77910569",
+   "title": "Prisma Postgresql URL connection - Error: P1001: Can&#39;t reach database",
+   "url": "https://stackoverflow.com/questions/77910569",
+   "created": "2024-01-31"
+  },
+  {
+   "id": "so-68573869",
+   "title": "Symfony 5: Why am I getting this error? SQLSTATE[HY000] [2002] Connection refused",
+   "url": "https://stackoverflow.com/questions/68573869",
+   "created": "2021-07-29"
+  },
+  {
+   "id": "so-75747818",
+   "title": "Gorm application fails to connect to PostgreSQL in docker container on Mac, ignores DSN",
+   "url": "https://stackoverflow.com/questions/75747818",
+   "created": "2023-03-15"
+  },
+  {
+   "id": "so-69239428",
+   "title": "How to resolve dockerfile, and docker-compose when main go files are in nested directory?",
+   "url": "https://stackoverflow.com/questions/69239428",
+   "created": "2021-09-19"
+  },
+  {
+   "id": "so-74946363",
+   "title": "connection refused with go&amp;mysql&amp;docker",
+   "url": "https://stackoverflow.com/questions/74946363",
+   "created": "2022-12-29"
+  },
+  {
+   "id": "so-77923310",
+   "title": "psycopg2.OperationalError: connection to server at &quot;db&quot; (172.20.0.3), port 5432 failed: Connection refused",
+   "url": "https://stackoverflow.com/questions/77923310",
+   "created": "2024-02-01"
+  },
+  {
+   "id": "so-75353367",
+   "title": "psycopg.OperationalError: connection failed: Connection refused in Docker",
+   "url": "https://stackoverflow.com/questions/75353367",
+   "created": "2023-02-05"
+  },
+  {
+   "id": "so-72108789",
+   "title": "How do I connect REST services (inside containers) together, in Spring Boot?",
+   "url": "https://stackoverflow.com/questions/72108789",
+   "created": "2022-05-04"
+  },
+  {
+   "id": "so-74368441",
+   "title": "502 Bad gateway Nginx reversy proxy, connect() failed (111: Connection refused) while connecting to upstream",
+   "url": "https://stackoverflow.com/questions/74368441",
+   "created": "2022-11-08"
+  },
+  {
+   "id": "so-67126688",
+   "title": "docker-compose: Why does my webapp fail to connect to mysql?",
+   "url": "https://stackoverflow.com/questions/67126688",
+   "created": "2021-04-16"
+  },
+  {
+   "id": "so-71812232",
+   "title": "why Connection Refused error on simple Docker + nginx configuration?",
+   "url": "https://stackoverflow.com/questions/71812232",
+   "created": "2022-04-09"
+  },
+  {
+   "id": "so-78018985",
+   "title": "Connection refused error (127.0.0.1:4566) for Localstack S3",
+   "url": "https://stackoverflow.com/questions/78018985",
+   "created": "2024-02-19"
+  },
+  {
+   "id": "so-78335904",
+   "title": "Connect Nginx container with a custom PHP-FPM container",
+   "url": "https://stackoverflow.com/questions/78335904",
+   "created": "2024-04-16"
+  },
+  {
+   "id": "so-73883948",
+   "title": "spring boot eureka with docker gets connection refused",
+   "url": "https://stackoverflow.com/questions/73883948",
+   "created": "2022-09-28"
+  },
+  {
+   "id": "so-75305340",
+   "title": "I can not connect to mongodb container with mongodb compass",
+   "url": "https://stackoverflow.com/questions/75305340",
+   "created": "2023-02-01"
+  },
+  {
+   "id": "so-76638676",
+   "title": "Postgres unable connect to server: connection failed: FATAL: password Authentication docker container",
+   "url": "https://stackoverflow.com/questions/76638676",
+   "created": "2023-07-07"
+  },
+  {
+   "id": "so-69900773",
+   "title": "ERROR :docker Spring boot container : java.lang.IllegalArgumentException: Could not resolve placeholder &#39;CASSANDRA_HOST&#39; in value &quot;${CASSANDRA_HOST}&quot;",
+   "url": "https://stackoverflow.com/questions/69900773",
+   "created": "2021-11-09"
+  },
+  {
+   "id": "so-68088210",
+   "title": "Connection refused when running flyway in docker",
+   "url": "https://stackoverflow.com/questions/68088210",
+   "created": "2021-06-22"
+  },
+  {
+   "id": "so-71846256",
+   "title": "Docker: Cannot connect to other container",
+   "url": "https://stackoverflow.com/questions/71846256",
+   "created": "2022-04-12"
+  },
+  {
+   "id": "so-77452498",
+   "title": "connection to server at &quot;localhost&quot; (127.0.0.1), port 5432 failed: Connection refused",
+   "url": "https://stackoverflow.com/questions/77452498",
+   "created": "2023-11-09"
+  },
+  {
+   "id": "so-65569147",
+   "title": "Laravel Sail + Dusk + Selenium: Connection refused",
+   "url": "https://stackoverflow.com/questions/65569147",
+   "created": "2021-01-04"
+  },
+  {
+   "id": "so-65947436",
+   "title": "Can&#39;t Connect to Airflow Running in Docker Container When Started in Detached Mode",
+   "url": "https://stackoverflow.com/questions/65947436",
+   "created": "2021-01-29"
+  },
+  {
+   "id": "so-78464240",
+   "title": "Connect refused between docker containers",
+   "url": "https://stackoverflow.com/questions/78464240",
+   "created": "2024-05-11"
+  },
+  {
+   "id": "so-79012204",
+   "title": "SQLSTATE[HY000] [2002] Connection refused when I execute make:migrations",
+   "url": "https://stackoverflow.com/questions/79012204",
+   "created": "2024-09-22"
+  },
+  {
+   "id": "so-75493734",
+   "title": "Docker Compose with Django and Postgres Fails with &quot;django.db.utils.OperationalError: could not connect to server:&quot;",
+   "url": "https://stackoverflow.com/questions/75493734",
+   "created": "2023-02-18"
+  },
+  {
+   "id": "so-76080626",
+   "title": "Connect to MySQL Container and create database",
+   "url": "https://stackoverflow.com/questions/76080626",
+   "created": "2023-04-22"
+  },
+  {
+   "id": "so-68517250",
+   "title": "sqlalchemy cannot connect to MYSQL server on &#39;127.0.0.1&#39;",
+   "url": "https://stackoverflow.com/questions/68517250",
+   "created": "2021-07-25"
+  },
+  {
+   "id": "so-78887822",
+   "title": "connection to server at &quot;localhost&quot; (::1), port 5432 failed: Connection refused Is the server running on that host and accepting TCP/IP connections?",
+   "url": "https://stackoverflow.com/questions/78887822",
+   "created": "2024-08-19"
+  },
+  {
+   "id": "so-70729957",
+   "title": "Docker compose build/Docker build connection refused to nuget at macos",
+   "url": "https://stackoverflow.com/questions/70729957",
+   "created": "2022-01-16"
+  },
+  {
+   "id": "so-72569113",
+   "title": "Can&#39;t connect with docker-compose to Postgres database",
+   "url": "https://stackoverflow.com/questions/72569113",
+   "created": "2022-06-10"
+  },
+  {
+   "id": "so-67079347",
+   "title": "Django can&#39;t connect to MariaDB instance with Docker",
+   "url": "https://stackoverflow.com/questions/67079347",
+   "created": "2021-04-13"
+  },
+  {
+   "id": "so-70247037",
+   "title": "docker-compose with nginx can&#39;t connect to localhost app",
+   "url": "https://stackoverflow.com/questions/70247037",
+   "created": "2021-12-06"
+  },
+  {
+   "id": "so-73054213",
+   "title": "how to connect one of my mongo container to another?",
+   "url": "https://stackoverflow.com/questions/73054213",
+   "created": "2022-07-20"
+  },
+  {
+   "id": "so-74916318",
+   "title": "Docker and Postgres - Cannot connect to container",
+   "url": "https://stackoverflow.com/questions/74916318",
+   "created": "2022-12-25"
+  },
+  {
+   "id": "so-72222070",
+   "title": "Postgres and Docker Compose; password authentication fails and role &#39;postgres&#39; does not exist. Cannot connect from pgAdmin4",
+   "url": "https://stackoverflow.com/questions/72222070",
+   "created": "2022-05-12"
+  },
+  {
+   "id": "so-76374605",
+   "title": "Kafka running in container - cannot connect from another container",
+   "url": "https://stackoverflow.com/questions/76374605",
+   "created": "2023-05-31"
+  },
+  {
+   "id": "so-76846203",
+   "title": "Connection refused creating s3 bucket AWS Localstack with Terraform using docker compose",
+   "url": "https://stackoverflow.com/questions/76846203",
+   "created": "2023-08-06"
+  },
+  {
+   "id": "so-77366093",
+   "title": "How to fix Docker connection reset by peer, Docker Status is UP but cannot connect to sever?",
+   "url": "https://stackoverflow.com/questions/77366093",
+   "created": "2023-10-26"
+  },
+  {
+   "id": "so-75025427",
+   "title": "SQLSTATE[HY000] [2002] Connection refused error with laravel in docker",
+   "url": "https://stackoverflow.com/questions/75025427",
+   "created": "2023-01-05"
+  },
+  {
+   "id": "so-77602476",
+   "title": "Visual Studio, docker container-&gt;container call: Connection Refused",
+   "url": "https://stackoverflow.com/questions/77602476",
+   "created": "2023-12-04"
+  },
+  {
+   "id": "so-75060636",
+   "title": "How to connect Database in Laravel with Docker",
+   "url": "https://stackoverflow.com/questions/75060636",
+   "created": "2023-01-09"
+  },
+  {
+   "id": "so-70119407",
+   "title": "How to connect from VSCode to a mysql docker container?",
+   "url": "https://stackoverflow.com/questions/70119407",
+   "created": "2021-11-26"
+  },
+  {
+   "id": "so-77279630",
+   "title": "Docker container connection refused",
+   "url": "https://stackoverflow.com/questions/77279630",
+   "created": "2023-10-12"
+  },
+  {
+   "id": "so-69615829",
+   "title": "Docker compose: can not connect to external port",
+   "url": "https://stackoverflow.com/questions/69615829",
+   "created": "2021-10-18"
+  },
+  {
+   "id": "so-75246354",
+   "title": "Cannot connect to websocket server app inside docker-compose",
+   "url": "https://stackoverflow.com/questions/75246354",
+   "created": "2023-01-26"
+  },
+  {
+   "id": "so-77834397",
+   "title": "Cannot connect to Cassandra in Docker with SSL enabled, getting &quot;Database handshake error: RemoteCertificateNameMismatch&quot;",
+   "url": "https://stackoverflow.com/questions/77834397",
+   "created": "2024-01-17"
+  },
+  {
+   "id": "so-78627714",
+   "title": "How do I connect Nginx to a Docker container?",
+   "url": "https://stackoverflow.com/questions/78627714",
+   "created": "2024-06-15"
+  },
+  {
+   "id": "so-72385060",
+   "title": "How to connect to dockerized mysql database with flyway -",
+   "url": "https://stackoverflow.com/questions/72385060",
+   "created": "2022-05-25"
+  },
+  {
+   "id": "so-77047277",
+   "title": "Connection refused Docker, Laravel &amp; MariaDB",
+   "url": "https://stackoverflow.com/questions/77047277",
+   "created": "2023-09-05"
+  },
+  {
+   "id": "so-73905656",
+   "title": "Error dial tcp 127.0.0.1:6379: connect: connection refused when starting Redis container without Docker Compose",
+   "url": "https://stackoverflow.com/questions/73905656",
+   "created": "2022-09-30"
+  },
+  {
+   "id": "so-74282751",
+   "title": "docker client and server containers connection refused",
+   "url": "https://stackoverflow.com/questions/74282751",
+   "created": "2022-11-01"
+  },
+  {
+   "id": "so-71230710",
+   "title": "Can&#39;t connect to local MariaDB running with Docker with PHP PDO",
+   "url": "https://stackoverflow.com/questions/71230710",
+   "created": "2022-02-23"
+  },
+  {
+   "id": "so-73510583",
+   "title": "How to connect the services inside docker-compose",
+   "url": "https://stackoverflow.com/questions/73510583",
+   "created": "2022-08-27"
+  },
+  {
+   "id": "so-67322309",
+   "title": "Docker compose - Check if mongodb port is available and only then start NodeJS container",
+   "url": "https://stackoverflow.com/questions/67322309",
+   "created": "2021-04-29"
+  },
+  {
+   "id": "so-74985731",
+   "title": "error 111 connection refused, topology type :unknown",
+   "url": "https://stackoverflow.com/questions/74985731",
+   "created": "2023-01-02"
+  },
+  {
+   "id": "so-78638374",
+   "title": "Docker image with Spring Boot connect to external Postgres",
+   "url": "https://stackoverflow.com/questions/78638374",
+   "created": "2024-06-18"
+  },
+  {
+   "id": "so-76932405",
+   "title": "Can&#39;t connect to MySQL server on &#39;localhost:3306&#39; in dockerised Django app using docker-compose",
+   "url": "https://stackoverflow.com/questions/76932405",
+   "created": "2023-08-18"
+  },
+  {
+   "id": "so-72047795",
+   "title": "Unable to connect to the Postgres database in Docker Compose",
+   "url": "https://stackoverflow.com/questions/72047795",
+   "created": "2022-04-28"
+  },
+  {
+   "id": "so-70863507",
+   "title": "Dockerizing Spring Boot db error : connection refused",
+   "url": "https://stackoverflow.com/questions/70863507",
+   "created": "2022-01-26"
+  },
+  {
+   "id": "so-76418037",
+   "title": "Docker nginx reverse proxy can&#39;t resolve hostname",
+   "url": "https://stackoverflow.com/questions/76418037",
+   "created": "2023-06-06"
+  },
+  {
+   "id": "so-77943090",
+   "title": "Connect localhost from mongo docker container , docker-compose",
+   "url": "https://stackoverflow.com/questions/77943090",
+   "created": "2024-02-05"
+  },
+  {
+   "id": "so-78057875",
+   "title": "API app cannot connect to Firebase Auth Emulator inside of Docker container on the default network",
+   "url": "https://stackoverflow.com/questions/78057875",
+   "created": "2024-02-25"
+  },
+  {
+   "id": "so-65605692",
+   "title": "Postgres container connection refused",
+   "url": "https://stackoverflow.com/questions/65605692",
+   "created": "2021-01-07"
+  },
+  {
+   "id": "so-75337126",
+   "title": "Why can&#39;t celery worker connect to rabbitmq using docker compose",
+   "url": "https://stackoverflow.com/questions/75337126",
+   "created": "2023-02-03"
+  },
+  {
+   "id": "so-78915322",
+   "title": "Kubernetes 502 Bad Gateway error: connect() failed (111: Connection refused) while connecting to upstream",
+   "url": "https://stackoverflow.com/questions/78915322",
+   "created": "2024-08-26"
+  },
+  {
+   "id": "so-73797595",
+   "title": "Connection refused listing fluentd plugins via in_monitor_agent",
+   "url": "https://stackoverflow.com/questions/73797595",
+   "created": "2022-09-21"
+  },
+  {
+   "id": "so-70698602",
+   "title": "Cannot connect to an ASP.NET Core 6 application running inside a docker container",
+   "url": "https://stackoverflow.com/questions/70698602",
+   "created": "2022-01-13"
+  },
+  {
+   "id": "so-67694995",
+   "title": "Why docker container on specific port return connection refused?",
+   "url": "https://stackoverflow.com/questions/67694995",
+   "created": "2021-05-25"
+  },
+  {
+   "id": "so-65811608",
+   "title": "How to connect Flask app to SQLite DB running in Docker?",
+   "url": "https://stackoverflow.com/questions/65811608",
+   "created": "2021-01-20"
+  },
+  {
+   "id": "so-75586932",
+   "title": "Cannot connect to docker compose containers on Mac",
+   "url": "https://stackoverflow.com/questions/75586932",
+   "created": "2023-02-28"
+  },
+  {
+   "id": "so-67458157",
+   "title": "How to connect VSCode to xdebug 3 inside Docker container?",
+   "url": "https://stackoverflow.com/questions/67458157",
+   "created": "2021-05-09"
+  },
+  {
+   "id": "so-76418894",
+   "title": "Spring Boot Docker -&gt; Cannot run docker-compose up -d (RUN ./mvnw dependency:resolve issue)",
+   "url": "https://stackoverflow.com/questions/76418894",
+   "created": "2023-06-06"
+  },
+  {
+   "id": "so-73926309",
+   "title": "How to connect Prisma ORM running inside a container to a PostgreSQL database inside another container using docker-compose",
+   "url": "https://stackoverflow.com/questions/73926309",
+   "created": "2022-10-02"
+  },
+  {
+   "id": "so-78505901",
+   "title": "Docker &amp; Nextjs - ECONNREFUSED 127.0.0.1:&lt;random port&gt; after Docker Desktop update",
+   "url": "https://stackoverflow.com/questions/78505901",
+   "created": "2024-05-20"
+  },
+  {
+   "id": "so-74621910",
+   "title": "connect to a postgres database inside of a docker container from django running on host machine",
+   "url": "https://stackoverflow.com/questions/74621910",
+   "created": "2022-11-30"
+  },
+  {
+   "id": "so-77133722",
+   "title": "unable to connect to postgresql when deployed with docker compose",
+   "url": "https://stackoverflow.com/questions/77133722",
+   "created": "2023-09-19"
+  },
+  {
+   "id": "so-77107898",
+   "title": "Why is liquibase unable to connect on a Spring Boot app running in bootRun with Docker Compose?",
+   "url": "https://stackoverflow.com/questions/77107898",
+   "created": "2023-09-14"
+  },
+  {
+   "id": "so-73819790",
+   "title": "Docker server refuses to connect to localhost",
+   "url": "https://stackoverflow.com/questions/73819790",
+   "created": "2022-09-22"
+  },
+  {
+   "id": "so-78259617",
+   "title": "&quot;Can&#39;t connect to MySQL server on &#39;mysql&#39; ([Errno 111] Connection refused)&quot;, but can be started manually",
+   "url": "https://stackoverflow.com/questions/78259617",
+   "created": "2024-04-02"
+  },
+  {
+   "id": "so-78803793",
+   "title": "docker-compose service cannot connect to other services in docker-compose",
+   "url": "https://stackoverflow.com/questions/78803793",
+   "created": "2024-07-28"
+  },
+  {
+   "id": "so-74152794",
+   "title": "Need docker host ip in order to resolve url to my microservice",
+   "url": "https://stackoverflow.com/questions/74152794",
+   "created": "2022-10-21"
+  },
+  {
+   "id": "so-67738515",
+   "title": "Docker Compose with RabbitMQ - Connection Refused when connecting from other service internally",
+   "url": "https://stackoverflow.com/questions/67738515",
+   "created": "2021-05-28"
+  },
+  {
+   "id": "so-68014528",
+   "title": "Unable to reach tomcat, war file not deployed while integrating with docker",
+   "url": "https://stackoverflow.com/questions/68014528",
+   "created": "2021-06-17"
+  },
+  {
+   "id": "so-76387496",
+   "title": "ASP.Net Core can&#39;t connect to MySql database in docker",
+   "url": "https://stackoverflow.com/questions/76387496",
+   "created": "2023-06-02"
+  },
+  {
+   "id": "so-68586356",
+   "title": "Log4j2 socket appender inside a docker container throw connection refused",
+   "url": "https://stackoverflow.com/questions/68586356",
+   "created": "2021-07-30"
+  },
+  {
+   "id": "so-75832755",
+   "title": "docker-compose can&#39;t connect to postgres using conduit with flutter",
+   "url": "https://stackoverflow.com/questions/75832755",
+   "created": "2023-03-24"
+  },
+  {
+   "id": "so-73566843",
+   "title": "Can not resolve postgres hostname from other service on docker-compose",
+   "url": "https://stackoverflow.com/questions/73566843",
+   "created": "2022-09-01"
+  },
+  {
+   "id": "so-75225570",
+   "title": "Cannot connect postgres to pgadmin using docker-compose",
+   "url": "https://stackoverflow.com/questions/75225570",
+   "created": "2023-01-24"
+  },
+  {
+   "id": "so-66256188",
+   "title": "Hyperledger Blockchain Explorer-Fail to connect before the deadline on Endorser, fail to connect to remote gRPC server",
+   "url": "https://stackoverflow.com/questions/66256188",
+   "created": "2021-02-18"
+  },
+  {
+   "id": "so-72062876",
+   "title": "can&#39;t connect to selenium/standalone-chrome docker container running on app service for containers",
+   "url": "https://stackoverflow.com/questions/72062876",
+   "created": "2022-04-29"
+  },
+  {
+   "id": "so-65996347",
+   "title": "Couldn&#39;t connect to Docker daemon at http+docker://localhost - is it running? (special use case)",
+   "url": "https://stackoverflow.com/questions/65996347",
+   "created": "2021-02-01"
+  },
+  {
+   "id": "so-69417596",
+   "title": "Connection refused when HornetQ runs in Docker",
+   "url": "https://stackoverflow.com/questions/69417596",
+   "created": "2021-10-02"
+  },
+  {
+   "id": "so-76257298",
+   "title": "Why can&#39;t my react app connect to my express app when I dockerize both of them?",
+   "url": "https://stackoverflow.com/questions/76257298",
+   "created": "2023-05-15"
+  },
+  {
+   "id": "so-68973138",
+   "title": "How to connect to docker-compose port from docker and locally?",
+   "url": "https://stackoverflow.com/questions/68973138",
+   "created": "2021-08-29"
+  },
+  {
+   "id": "so-75201492",
+   "title": "Expose port to docker container (Connection refused)",
+   "url": "https://stackoverflow.com/questions/75201492",
+   "created": "2023-01-22"
+  },
+  {
+   "id": "so-78639075",
+   "title": "Cypress interactive GUI on host, connect to Docker app",
+   "url": "https://stackoverflow.com/questions/78639075",
+   "created": "2024-06-18"
+  },
+  {
+   "id": "so-78463776",
+   "title": "Unable to connect Gitlab from a spring boot application running locally in Docker desktop",
+   "url": "https://stackoverflow.com/questions/78463776",
+   "created": "2024-05-11"
+  },
+  {
+   "id": "so-65743757",
+   "title": "Unable to connect my postgres database using Docker",
+   "url": "https://stackoverflow.com/questions/65743757",
+   "created": "2021-01-15"
+  },
+  {
+   "id": "so-70405638",
+   "title": "How can i connect to the oracle database between docker containers?",
+   "url": "https://stackoverflow.com/questions/70405638",
+   "created": "2021-12-18"
+  },
+  {
+   "id": "so-76953342",
+   "title": "https://registry-1.docker.io/v2/&quot;: dial tcp: lookup registry-1.docker.io on [::1]:53: read udp [::1]:38297-&gt;[::1]:53: read: connection refused",
+   "url": "https://stackoverflow.com/questions/76953342",
+   "created": "2023-08-22"
+  },
+  {
+   "id": "so-69976328",
+   "title": "Second node.js can&#39;t connect to mysql in docker compose",
+   "url": "https://stackoverflow.com/questions/69976328",
+   "created": "2021-11-15"
+  },
+  {
+   "id": "so-71516074",
+   "title": "How do I reach a container through the host&#39;s hostname from another container?",
+   "url": "https://stackoverflow.com/questions/71516074",
+   "created": "2022-03-17"
+  },
+  {
+   "id": "so-70305920",
+   "title": "Keycloak http-management returns Connection refused",
+   "url": "https://stackoverflow.com/questions/70305920",
+   "created": "2021-12-10"
+  },
+  {
+   "id": "so-71207253",
+   "title": "Calling one docker from another docker encountered connection refused",
+   "url": "https://stackoverflow.com/questions/71207253",
+   "created": "2022-02-21"
+  },
+  {
+   "id": "so-65738032",
+   "title": "How to connect mongodb in contanier",
+   "url": "https://stackoverflow.com/questions/65738032",
+   "created": "2021-01-15"
+  },
+  {
+   "id": "so-71569050",
+   "title": "Docker compose request between containers could not resolve host",
+   "url": "https://stackoverflow.com/questions/71569050",
+   "created": "2022-03-22"
+  },
+  {
+   "id": "so-75170351",
+   "title": "API cannot connect to postgres database using docker compose",
+   "url": "https://stackoverflow.com/questions/75170351",
+   "created": "2023-01-19"
+  },
+  {
+   "id": "so-68327513",
+   "title": "How to resolve Error response from docker daemon - executable file not found in $PATH: unknown",
+   "url": "https://stackoverflow.com/questions/68327513",
+   "created": "2021-07-10"
+  },
+  {
+   "id": "so-78863043",
+   "title": "Docker-compose: Sveltekit app not able to connect to redis",
+   "url": "https://stackoverflow.com/questions/78863043",
+   "created": "2024-08-12"
+  },
+  {
+   "id": "so-73226562",
+   "title": "Python requests cannot resolve Docker-Compose services",
+   "url": "https://stackoverflow.com/questions/73226562",
+   "created": "2022-08-03"
+  },
+  {
+   "id": "so-66779240",
+   "title": "Unable to connect kafka to zookeeper with different port using docker compose",
+   "url": "https://stackoverflow.com/questions/66779240",
+   "created": "2021-03-24"
+  },
+  {
+   "id": "so-76896477",
+   "title": "How to reach my Springboot docker container&#39;s endpoints from an Springboot api running on the local machine&#39;s localhost?",
+   "url": "https://stackoverflow.com/questions/76896477",
+   "created": "2023-08-14"
+  },
+  {
+   "id": "so-72782253",
+   "title": "Docker Compose Redis It was not possible to connect to the redis server(s). Error connecting right now",
+   "url": "https://stackoverflow.com/questions/72782253",
+   "created": "2022-06-28"
+  },
+  {
+   "id": "so-74524898",
+   "title": "NodeJS converting Docker Redis hostname to localhost",
+   "url": "https://stackoverflow.com/questions/74524898",
+   "created": "2022-11-21"
+  },
+  {
+   "id": "so-79414287",
+   "title": "jdbc fails to connect to a postgresql database in docker",
+   "url": "https://stackoverflow.com/questions/79414287",
+   "created": "2025-02-05"
+  },
+  {
+   "id": "so-70824860",
+   "title": "Cannot connect to Postgres database with Sequelize using docker-compose",
+   "url": "https://stackoverflow.com/questions/70824860",
+   "created": "2022-01-23"
+  },
+  {
+   "id": "so-72379789",
+   "title": "fluentd cannot connect to elasticsearch",
+   "url": "https://stackoverflow.com/questions/72379789",
+   "created": "2022-05-25"
+  },
+  {
+   "id": "so-71561336",
+   "title": "Connect two containers through docker network",
+   "url": "https://stackoverflow.com/questions/71561336",
+   "created": "2022-03-21"
+  },
+  {
+   "id": "so-75002859",
+   "title": "How to set the dsn of [inputs.sql] while using telegraf to connect MySQL?",
+   "url": "https://stackoverflow.com/questions/75002859",
+   "created": "2023-01-04"
+  },
+  {
+   "id": "so-71897777",
+   "title": "Combining Spring boot and redis with docker-compose: Connection refused",
+   "url": "https://stackoverflow.com/questions/71897777",
+   "created": "2022-04-16"
+  },
+  {
+   "id": "so-76111284",
+   "title": "Logstash cannot connect to Elasticsearch when using Docker",
+   "url": "https://stackoverflow.com/questions/76111284",
+   "created": "2023-04-26"
+  },
+  {
+   "id": "so-66273843",
+   "title": "Run tests with Karate-Chrome (Connection refused exception)",
+   "url": "https://stackoverflow.com/questions/66273843",
+   "created": "2021-02-19"
+  },
+  {
+   "id": "so-67855499",
+   "title": "MongooseModule: Unable to connect to the database. On a dockerized Nestjs app with Mongo",
+   "url": "https://stackoverflow.com/questions/67855499",
+   "created": "2021-06-06"
+  },
+  {
+   "id": "so-79943990",
+   "title": "Cannot connect to MySQL with docker compose",
+   "url": "https://stackoverflow.com/questions/79943990",
+   "created": "2026-05-20"
+  },
+  {
+   "id": "so-78449557",
+   "title": "Frontend docker container getting connection refused from backend container",
+   "url": "https://stackoverflow.com/questions/78449557",
+   "created": "2024-05-08"
+  },
+  {
+   "id": "so-75764316",
+   "title": "Unable to connect to Postgres database running in Docker container from Python app in another Docker container",
+   "url": "https://stackoverflow.com/questions/75764316",
+   "created": "2023-03-17"
+  },
+  {
+   "id": "so-66682409",
+   "title": "How can I connect to Postgres running in a Docker container on a non-default port from the command line?",
+   "url": "https://stackoverflow.com/questions/66682409",
+   "created": "2021-03-17"
+  },
+  {
+   "id": "so-74401676",
+   "title": "How to connect to a postgres database in a docker container?",
+   "url": "https://stackoverflow.com/questions/74401676",
+   "created": "2022-11-11"
+  },
+  {
+   "id": "so-72407747",
+   "title": "Connection Refused: cannot access RabbitMQ Docker container from NodeJS Docker container",
+   "url": "https://stackoverflow.com/questions/72407747",
+   "created": "2022-05-27"
+  },
+  {
+   "id": "so-68942300",
+   "title": "Two containers (node and redis) connected to the same network seem not to see each other",
+   "url": "https://stackoverflow.com/questions/68942300",
+   "created": "2021-08-26"
+  },
+  {
+   "id": "so-75281095",
+   "title": "Connect to local MS SQL Server from .NET 6 API running in docker",
+   "url": "https://stackoverflow.com/questions/75281095",
+   "created": "2023-01-30"
+  },
+  {
+   "id": "so-67086675",
+   "title": "Sidekiq + redis + docker-compose + rails",
+   "url": "https://stackoverflow.com/questions/67086675",
+   "created": "2021-04-14"
+  },
+  {
+   "id": "so-76908286",
+   "title": "Quarkus app isn&#39;t able to connect to keycloak realm with docker compose",
+   "url": "https://stackoverflow.com/questions/76908286",
+   "created": "2023-08-15"
+  },
+  {
+   "id": "so-78843459",
+   "title": "Python Kubernetes API, fails to list nodes with Connection refused",
+   "url": "https://stackoverflow.com/questions/78843459",
+   "created": "2024-08-07"
+  },
+  {
+   "id": "so-66847072",
+   "title": "RedisException Connection refused on http://localhost:80/",
+   "url": "https://stackoverflow.com/questions/66847072",
+   "created": "2021-03-28"
+  },
+  {
+   "id": "so-77383599",
+   "title": "502 Bad Gateway. Nginx cannot to connect using reverse proxy with docker-compose",
+   "url": "https://stackoverflow.com/questions/77383599",
+   "created": "2023-10-29"
+  },
+  {
+   "id": "so-73142260",
+   "title": "Docker-Compose Django can&#39;t connect to DB or Celery",
+   "url": "https://stackoverflow.com/questions/73142260",
+   "created": "2022-07-27"
+  },
+  {
+   "id": "so-76307681",
+   "title": "Mysql operational error (2003, &quot;Can&#39;t connect to MySQL server on &#39;127.0.0.1&#39; ([Errno 111] Connection refused)&quot;)",
+   "url": "https://stackoverflow.com/questions/76307681",
+   "created": "2023-05-22"
+  },
+  {
+   "id": "so-75693079",
+   "title": "No brokers available error when trying to connect from one docker container to a kafka container on the same network",
+   "url": "https://stackoverflow.com/questions/75693079",
+   "created": "2023-03-10"
+  },
+  {
+   "id": "so-75195559",
+   "title": "How to connect Spark to Kafka when both are running on Docker?",
+   "url": "https://stackoverflow.com/questions/75195559",
+   "created": "2023-01-21"
+  },
+  {
+   "id": "so-68845054",
+   "title": "Docker compose multi-container with zookeeper, kafka and python script on Azure container instances not able to connect to kafka",
+   "url": "https://stackoverflow.com/questions/68845054",
+   "created": "2021-08-19"
+  },
+  {
+   "id": "so-68328914",
+   "title": "Spring Boot Microservices are unable to connect to Axon Server",
+   "url": "https://stackoverflow.com/questions/68328914",
+   "created": "2021-07-10"
+  },
+  {
+   "id": "so-71107125",
+   "title": "Cannot reach service in docker container despite port mapping with docker-compose",
+   "url": "https://stackoverflow.com/questions/71107125",
+   "created": "2022-02-14"
+  },
+  {
+   "id": "so-76280916",
+   "title": "Recieving a directus webhook with a flask application (Connection Refused)",
+   "url": "https://stackoverflow.com/questions/76280916",
+   "created": "2023-05-18"
+  },
+  {
+   "id": "so-77046323",
+   "title": "Dockerized nginx and vue+nuxt cannot connect to frontend server 111: Connection refused",
+   "url": "https://stackoverflow.com/questions/77046323",
+   "created": "2023-09-05"
+  },
+  {
+   "id": "so-74618606",
+   "title": "How to connect to concrete database in docker-compose",
+   "url": "https://stackoverflow.com/questions/74618606",
+   "created": "2022-11-29"
+  },
+  {
+   "id": "so-77857482",
+   "title": "Docker Compose Connection Refused For Keycloak and Spring Boot Application",
+   "url": "https://stackoverflow.com/questions/77857482",
+   "created": "2024-01-22"
+  },
+  {
+   "id": "so-78099350",
+   "title": "Docker-compose with Golang and Postgres connection is refused",
+   "url": "https://stackoverflow.com/questions/78099350",
+   "created": "2024-03-04"
+  },
+  {
+   "id": "so-76909258",
+   "title": "Dockerized .NET 6 API cannot connect to SQL Server container",
+   "url": "https://stackoverflow.com/questions/76909258",
+   "created": "2023-08-15"
+  },
+  {
+   "id": "so-71033283",
+   "title": "Using pika, how to connect to rabbitmq running in docker, started with docker-compose with external network?",
+   "url": "https://stackoverflow.com/questions/71033283",
+   "created": "2022-02-08"
+  },
+  {
+   "id": "so-78985181",
+   "title": "Connection Refused Between SSR Next.js and Laravel API",
+   "url": "https://stackoverflow.com/questions/78985181",
+   "created": "2024-09-14"
+  },
+  {
+   "id": "so-72781639",
+   "title": "Elasticsearch Unreachable: [http://kafka:9200/][Manticore::SocketException] Connection refused",
+   "url": "https://stackoverflow.com/questions/72781639",
+   "created": "2022-06-28"
+  },
+  {
+   "id": "so-70626882",
+   "title": "How to connect into firebird&#39;s docker image, using a docker filepath?",
+   "url": "https://stackoverflow.com/questions/70626882",
+   "created": "2022-01-07"
+  },
+  {
+   "id": "so-75211377",
+   "title": "Access a web service in kubernetes pod from local browser using NodePort yields Connection refused",
+   "url": "https://stackoverflow.com/questions/75211377",
+   "created": "2023-01-23"
+  },
+  {
+   "id": "so-69163777",
+   "title": "&quot;Connection closed&quot; accessing neo4j in Docker from node.js in Docker on Mac",
+   "url": "https://stackoverflow.com/questions/69163777",
+   "created": "2021-09-13"
+  },
+  {
+   "id": "so-77214800",
+   "title": "Can&#39;t connect to ScyllaDB containers from host",
+   "url": "https://stackoverflow.com/questions/77214800",
+   "created": "2023-10-02"
+  },
+  {
+   "id": "so-66085615",
+   "title": "How to fix Kafka Docker container from throwing 0.0.0.0/0.0.0.0:2181: Connection refused?",
+   "url": "https://stackoverflow.com/questions/66085615",
+   "created": "2021-02-07"
+  },
+  {
+   "id": "so-68157490",
+   "title": "php container can&#39;t connect to mongo container",
+   "url": "https://stackoverflow.com/questions/68157490",
+   "created": "2021-06-28"
+  },
+  {
+   "id": "so-72005367",
+   "title": "Using local SSH tunneling with Docker (PhpMyAdmin) - Connection refused",
+   "url": "https://stackoverflow.com/questions/72005367",
+   "created": "2022-04-25"
+  },
+  {
+   "id": "so-78939193",
+   "title": "when connecting docker container mongo from mongo-express, error: name does not resolve",
+   "url": "https://stackoverflow.com/questions/78939193",
+   "created": "2024-09-02"
+  },
+  {
+   "id": "so-78931000",
+   "title": "Azure AppService and SQL Server in Docker compose can&#39;t connect",
+   "url": "https://stackoverflow.com/questions/78931000",
+   "created": "2024-08-30"
+  },
+  {
+   "id": "so-67506530",
+   "title": "RabbitMQ Java client: Connection refused",
+   "url": "https://stackoverflow.com/questions/67506530",
+   "created": "2021-05-12"
+  },
+  {
+   "id": "so-73388637",
+   "title": "Spring Microservices Docker Issues (Connection Refused and Database Connection)",
+   "url": "https://stackoverflow.com/questions/73388637",
+   "created": "2022-08-17"
+  },
+  {
+   "id": "so-70121617",
+   "title": "Docker compose - can&#39;t connect to SQL Server database in SQL Server Management Studio",
+   "url": "https://stackoverflow.com/questions/70121617",
+   "created": "2021-11-26"
+  },
+  {
+   "id": "so-65676886",
+   "title": "docker-compose: Connect to mongodb using node",
+   "url": "https://stackoverflow.com/questions/65676886",
+   "created": "2021-01-12"
+  },
+  {
+   "id": "so-72424264",
+   "title": "WSL2 Nginx + PHP FPM failed (111: Connection refused) while connecting to upstream, client: 172.23.0.1, upstream: &quot;fastcgi://172.23.0.3:9001&quot;",
+   "url": "https://stackoverflow.com/questions/72424264",
+   "created": "2022-05-29"
+  },
+  {
+   "id": "so-67015388",
+   "title": "Docker NGINX container cannot resolve host",
+   "url": "https://stackoverflow.com/questions/67015388",
+   "created": "2021-04-09"
+  },
+  {
+   "id": "so-71550962",
+   "title": "docker-compose connection refused 5432",
+   "url": "https://stackoverflow.com/questions/71550962",
+   "created": "2022-03-20"
+  },
+  {
+   "id": "so-67867188",
+   "title": "how to resolve the error when bind mount using docker-compose.yml?",
+   "url": "https://stackoverflow.com/questions/67867188",
+   "created": "2021-06-07"
+  },
+  {
+   "id": "so-71647584",
+   "title": "Connection Refused to Rabbitmq container from Spring boot app Container",
+   "url": "https://stackoverflow.com/questions/71647584",
+   "created": "2022-03-28"
+  },
+  {
+   "id": "so-77391208",
+   "title": "web socket url with domain name of backend container but doesnot resolve into ip of backend container",
+   "url": "https://stackoverflow.com/questions/77391208",
+   "created": "2023-10-30"
+  },
+  {
+   "id": "so-70595985",
+   "title": "Access local services from firebase cloud functions emulator (ECONNREFUSED connecting to localhost)",
+   "url": "https://stackoverflow.com/questions/70595985",
+   "created": "2022-01-05"
+  },
+  {
+   "id": "so-73927708",
+   "title": "Docker Composer: unable to connect to a MySQL container from a Net Core Web API container",
+   "url": "https://stackoverflow.com/questions/73927708",
+   "created": "2022-10-02"
+  },
+  {
+   "id": "so-72489729",
+   "title": "How to connect external MS SQL server database from container",
+   "url": "https://stackoverflow.com/questions/72489729",
+   "created": "2022-06-03"
+  },
+  {
+   "id": "so-68975015",
+   "title": "Connection refused: when uwsgi and nginx in different containers",
+   "url": "https://stackoverflow.com/questions/68975015",
+   "created": "2021-08-29"
+  },
+  {
+   "id": "so-75772086",
+   "title": "Can&#39;t connect to MongoDB using docker compose",
+   "url": "https://stackoverflow.com/questions/75772086",
+   "created": "2023-03-17"
+  },
+  {
+   "id": "so-75599833",
+   "title": "Authenticate nextjs with keycloak using next-auth and docker",
+   "url": "https://stackoverflow.com/questions/75599833",
+   "created": "2023-03-01"
+  },
+  {
+   "id": "so-69542361",
+   "title": "Playwright error connection refused in docker",
+   "url": "https://stackoverflow.com/questions/69542361",
+   "created": "2021-10-12"
+  },
+  {
+   "id": "so-74527573",
+   "title": "Docker-Compose: connect to host when host.docker.internal doesn&#39;t work",
+   "url": "https://stackoverflow.com/questions/74527573",
+   "created": "2022-11-22"
+  },
+  {
+   "id": "so-72381109",
+   "title": "How to connect a spring-boot app to mariadb in docker-compose?",
+   "url": "https://stackoverflow.com/questions/72381109",
+   "created": "2022-05-25"
+  },
+  {
+   "id": "so-76121375",
+   "title": "redis-commander can&#39;t connect to redis service",
+   "url": "https://stackoverflow.com/questions/76121375",
+   "created": "2023-04-27"
+  },
+  {
+   "id": "so-77641472",
+   "title": "bitnami/rabbitmq docker compose: plain login refused",
+   "url": "https://stackoverflow.com/questions/77641472",
+   "created": "2023-12-11"
+  },
+  {
+   "id": "so-66830577",
+   "title": "XDebug cannot connect to client from docker container",
+   "url": "https://stackoverflow.com/questions/66830577",
+   "created": "2021-03-27"
+  },
+  {
+   "id": "so-70092318",
+   "title": "Request Library and Docker Container: [Errno 111] Connection refused",
+   "url": "https://stackoverflow.com/questions/70092318",
+   "created": "2021-11-24"
+  },
+  {
+   "id": "so-76042242",
+   "title": "prefect) Can&#39;t connect to Server API at http://0.0.0.0:4200/api in docker container",
+   "url": "https://stackoverflow.com/questions/76042242",
+   "created": "2023-04-18"
+  },
+  {
+   "id": "so-74296701",
+   "title": "AWS: two instances: On one ec2 instance, curl the webservices running using nginx doocker image on another ec2 instance: get Connection refused",
+   "url": "https://stackoverflow.com/questions/74296701",
+   "created": "2022-11-02"
+  },
+  {
+   "id": "so-74917684",
+   "title": "FastAPI server running inside Docker container: Failed to connect to localhost port 8383 after 0 ms: Connection refused",
+   "url": "https://stackoverflow.com/questions/74917684",
+   "created": "2022-12-26"
+  },
+  {
+   "id": "so-71630352",
+   "title": "Connect SQL Server and nodejs with docker-compose",
+   "url": "https://stackoverflow.com/questions/71630352",
+   "created": "2022-03-26"
+  },
+  {
+   "id": "so-74920816",
+   "title": "Local and docker development IP resolution for one container to reach another",
+   "url": "https://stackoverflow.com/questions/74920816",
+   "created": "2022-12-26"
+  },
+  {
+   "id": "so-73826473",
+   "title": "I am running zuul in a docker container, but I cant connect to it via postman on my local host (windows 10)",
+   "url": "https://stackoverflow.com/questions/73826473",
+   "created": "2022-09-23"
+  },
+  {
+   "id": "so-70921448",
+   "title": "Docker-compose cant reach second command",
+   "url": "https://stackoverflow.com/questions/70921448",
+   "created": "2022-01-31"
+  },
+  {
+   "id": "so-77366070",
+   "title": "docker-compose refused connection to other container in same network",
+   "url": "https://stackoverflow.com/questions/77366070",
+   "created": "2023-10-26"
+  },
+  {
+   "id": "so-69284530",
+   "title": "Node-container is unable to connect to MariaDB-container on Ubuntu 21.04",
+   "url": "https://stackoverflow.com/questions/69284530",
+   "created": "2021-09-22"
+  },
+  {
+   "id": "so-71194114",
+   "title": "Node.js app in a docker container not reachable over Internet &quot;Connection refused&quot;",
+   "url": "https://stackoverflow.com/questions/71194114",
+   "created": "2022-02-20"
+  },
+  {
+   "id": "so-70324864",
+   "title": "Unable to connect with docker container",
+   "url": "https://stackoverflow.com/questions/70324864",
+   "created": "2021-12-12"
+  },
+  {
+   "id": "so-76956413",
+   "title": "Elastic Search Connection Refused",
+   "url": "https://stackoverflow.com/questions/76956413",
+   "created": "2023-08-22"
+  },
+  {
+   "id": "so-79167233",
+   "title": "Traefik can&#39;t connect to ACME Server",
+   "url": "https://stackoverflow.com/questions/79167233",
+   "created": "2024-11-07"
+  },
+  {
+   "id": "so-72930777",
+   "title": "How i can to connect network between webserver and database in docker-compose?",
+   "url": "https://stackoverflow.com/questions/72930777",
+   "created": "2022-07-10"
+  },
+  {
+   "id": "so-77372308",
+   "title": "Apache reverse proxy to docker container doesnt work. cant resolve to container name",
+   "url": "https://stackoverflow.com/questions/77372308",
+   "created": "2023-10-27"
+  },
+  {
+   "id": "so-75002911",
+   "title": "Localstack SNS by http protocol cannot connect to API endpoint",
+   "url": "https://stackoverflow.com/questions/75002911",
+   "created": "2023-01-04"
+  },
+  {
+   "id": "so-66895304",
+   "title": "Unable to resolve hostname with docker-compose and podman",
+   "url": "https://stackoverflow.com/questions/66895304",
+   "created": "2021-03-31"
+  },
+  {
+   "id": "so-69345226",
+   "title": "java.rmi.ConnectException: Connection refused to host: localhost in docker containers",
+   "url": "https://stackoverflow.com/questions/69345226",
+   "created": "2021-09-27"
+  },
+  {
+   "id": "so-68701716",
+   "title": "Docker-compose Postgres connection refused",
+   "url": "https://stackoverflow.com/questions/68701716",
+   "created": "2021-08-08"
+  },
+  {
+   "id": "so-73872565",
+   "title": "ConnectionException trying to connect to mongoDB in docker from another docker container using docker-compose",
+   "url": "https://stackoverflow.com/questions/73872565",
+   "created": "2022-09-27"
+  },
+  {
+   "id": "so-69229589",
+   "title": "Cannot connect to mysql server (root) inside docker container executed with docker-compose: Access denied",
+   "url": "https://stackoverflow.com/questions/69229589",
+   "created": "2021-09-17"
+  },
+  {
+   "id": "so-75256968",
+   "title": "Mongo single node replicaset on Docker, MongooseServerSelectionError: connect ECONNREFUSED",
+   "url": "https://stackoverflow.com/questions/75256968",
+   "created": "2023-01-27"
+  },
+  {
+   "id": "so-67832769",
+   "title": "Connect to Kakfka broker with SASL_PLAINTEXT in docker-compose (binami/kafka)",
+   "url": "https://stackoverflow.com/questions/67832769",
+   "created": "2021-06-04"
+  },
+  {
+   "id": "so-73535656",
+   "title": "cant connect to local database using external IP:Port",
+   "url": "https://stackoverflow.com/questions/73535656",
+   "created": "2022-08-29"
+  },
+  {
+   "id": "so-76922400",
+   "title": "docker-compose: Unable to connect app service to mysql database, receive &quot;Error: Access denied for user &#39;root&#39;@&#39;localhost&#39; (using password: YES)",
+   "url": "https://stackoverflow.com/questions/76922400",
+   "created": "2023-08-17"
+  },
+  {
+   "id": "so-78233429",
+   "title": "Cannot connect to docker compose network from host",
+   "url": "https://stackoverflow.com/questions/78233429",
+   "created": "2024-03-27"
+  },
+  {
+   "id": "so-74246499",
+   "title": "How to connect to a MySQL container from a different docker container over a docker network",
+   "url": "https://stackoverflow.com/questions/74246499",
+   "created": "2022-10-29"
+  },
+  {
+   "id": "so-70152887",
+   "title": "Cannot connect to my containerized gRPC server",
+   "url": "https://stackoverflow.com/questions/70152887",
+   "created": "2021-11-29"
+  },
+  {
+   "id": "so-70486902",
+   "title": "Program in docker can&#39;t connect to PostgreSQL in docker",
+   "url": "https://stackoverflow.com/questions/70486902",
+   "created": "2021-12-26"
+  },
+  {
+   "id": "so-73312980",
+   "title": "can&#39;t connect to mysql docker-compose",
+   "url": "https://stackoverflow.com/questions/73312980",
+   "created": "2022-08-10"
+  },
+  {
+   "id": "so-77340332",
+   "title": "MySQL user has Host=%, still can&#39;t connect remotely",
+   "url": "https://stackoverflow.com/questions/77340332",
+   "created": "2023-10-22"
+  },
+  {
+   "id": "so-68401788",
+   "title": "Connect to Kafka on host from Docker (ksqlDB)",
+   "url": "https://stackoverflow.com/questions/68401788",
+   "created": "2021-07-15"
+  },
+  {
+   "id": "so-71571826",
+   "title": "How to connect to a MongoDb of a docker container",
+   "url": "https://stackoverflow.com/questions/71571826",
+   "created": "2022-03-22"
+  },
+  {
+   "id": "so-78669932",
+   "title": "Connection refused between Docker containers with SSL in .NET",
+   "url": "https://stackoverflow.com/questions/78669932",
+   "created": "2024-06-26"
+  },
+  {
+   "id": "so-75286398",
+   "title": "How can I resolve &quot;unexpected EOF&quot; error when pulling docker image",
+   "url": "https://stackoverflow.com/questions/75286398",
+   "created": "2023-01-30"
+  },
+  {
+   "id": "so-78875079",
+   "title": "How to connect alsa audio to docker",
+   "url": "https://stackoverflow.com/questions/78875079",
+   "created": "2024-08-15"
+  },
+  {
+   "id": "so-77210255",
+   "title": "Cannot connect to MongoDB: Exception authenticating MongoCredential",
+   "url": "https://stackoverflow.com/questions/77210255",
+   "created": "2023-10-01"
+  },
+  {
+   "id": "so-78246634",
+   "title": "Springboot Kafka Consumer unable to maintain connect to kafka cluster brokers",
+   "url": "https://stackoverflow.com/questions/78246634",
+   "created": "2024-03-30"
+  },
+  {
+   "id": "so-74717703",
+   "title": "docker with php, nginx, redis, memcached connection refused 111",
+   "url": "https://stackoverflow.com/questions/74717703",
+   "created": "2022-12-07"
+  },
+  {
+   "id": "so-74360635",
+   "title": "Postgres + Go + Docker-compose Can&#39;t ping database: dial tcp 127.0.0.1:5432: connect: connection refused",
+   "url": "https://stackoverflow.com/questions/74360635",
+   "created": "2022-11-08"
+  },
+  {
+   "id": "so-71069520",
+   "title": "Error database connect is not a function Nodejs with Mysql in docker",
+   "url": "https://stackoverflow.com/questions/71069520",
+   "created": "2022-02-10"
+  },
+  {
+   "id": "so-71863950",
+   "title": "Connection Refused from Request Inside Docker Compose",
+   "url": "https://stackoverflow.com/questions/71863950",
+   "created": "2022-04-13"
+  },
+  {
+   "id": "so-75074884",
+   "title": "DataGrip Cannot Connect to Local PostgreSQL Running in Docker Desktop for Windows with WSL2 Backend",
+   "url": "https://stackoverflow.com/questions/75074884",
+   "created": "2023-01-10"
+  },
+  {
+   "id": "so-70143382",
+   "title": "Cannot connect to db server to specified port",
+   "url": "https://stackoverflow.com/questions/70143382",
+   "created": "2021-11-28"
+  },
+  {
+   "id": "so-72053318",
+   "title": "Why is my connection refused while connecting to upstream? Nginx Error 502",
+   "url": "https://stackoverflow.com/questions/72053318",
+   "created": "2022-04-29"
+  },
+  {
+   "id": "so-65805022",
+   "title": "how to fix Connection refused [::ffff:127.0.0.1]:port on linux",
+   "url": "https://stackoverflow.com/questions/65805022",
+   "created": "2021-01-20"
+  },
+  {
+   "id": "so-72059893",
+   "title": "port issue for Kibana",
+   "url": "https://stackoverflow.com/questions/72059893",
+   "created": "2022-04-29"
+  },
+  {
+   "id": "so-66250005",
+   "title": "Docker (compose): connection refused without sudo",
+   "url": "https://stackoverflow.com/questions/66250005",
+   "created": "2021-02-17"
+  },
+  {
+   "id": "so-76667138",
+   "title": "How to make Postgres connect to Nodejs using docker-compose file? Getting Error: connect ECONNREFUSED 172.24.0.3:5432",
+   "url": "https://stackoverflow.com/questions/76667138",
+   "created": "2023-07-12"
+  },
+  {
+   "id": "so-75003720",
+   "title": "Docker compose with NestJS PostgreSQL not connecting",
+   "url": "https://stackoverflow.com/questions/75003720",
+   "created": "2023-01-04"
+  },
+  {
+   "id": "so-76557660",
+   "title": "How can I configure Spring Boot to connect a dockerized MySql database?",
+   "url": "https://stackoverflow.com/questions/76557660",
+   "created": "2023-06-26"
+  },
+  {
+   "id": "so-77026252",
+   "title": "How to connect .net docker compose to running database container",
+   "url": "https://stackoverflow.com/questions/77026252",
+   "created": "2023-09-01"
+  },
+  {
+   "id": "so-66427136",
+   "title": "Problems accessing Laravel api from Vue(Nuxt js) app in docker",
+   "url": "https://stackoverflow.com/questions/66427136",
+   "created": "2021-03-01"
+  },
+  {
+   "id": "so-79180572",
+   "title": "Spring Boot Application in Docker Unable to Connect to Redis Container (Connection Refused)",
+   "url": "https://stackoverflow.com/questions/79180572",
+   "created": "2024-11-12"
+  },
+  {
+   "id": "so-65982725",
+   "title": "Docker - Nginx, PHP, MySQL - Laravel artisan migrate connection refused",
+   "url": "https://stackoverflow.com/questions/65982725",
+   "created": "2021-01-31"
+  },
+  {
+   "id": "so-67318773",
+   "title": "How to connect postgresql with PGAdmin in docker-compse.yml file",
+   "url": "https://stackoverflow.com/questions/67318773",
+   "created": "2021-04-29"
+  },
+  {
+   "id": "so-76540267",
+   "title": "Failed to establish a new connection: [Errno 111] Connection refused Django_in_Docker + FastAPI_in_Docker",
+   "url": "https://stackoverflow.com/questions/76540267",
+   "created": "2023-06-23"
+  },
+  {
+   "id": "so-75567817",
+   "title": "Docker: Can&#39;t connect to MySQL Container on local machine",
+   "url": "https://stackoverflow.com/questions/75567817",
+   "created": "2023-02-25"
+  },
+  {
+   "id": "so-75613385",
+   "title": "Connection between Docker containers not possible",
+   "url": "https://stackoverflow.com/questions/75613385",
+   "created": "2023-03-02"
+  },
+  {
+   "id": "so-71749993",
+   "title": "Docker: How to connect to a kafka container which is not defined in docker-compose.yml file",
+   "url": "https://stackoverflow.com/questions/71749993",
+   "created": "2022-04-05"
+  },
+  {
+   "id": "so-78142475",
+   "title": "Impossible to connect to my SQL Server docker database",
+   "url": "https://stackoverflow.com/questions/78142475",
+   "created": "2024-03-11"
+  },
+  {
+   "id": "so-78113226",
+   "title": "MongoDB Compass can&#39;t connect to Docker hosted Mong-rs",
+   "url": "https://stackoverflow.com/questions/78113226",
+   "created": "2024-03-06"
+  },
+  {
+   "id": "so-69587307",
+   "title": "Connect the Cassandra container to application web container failed - Error: 202 Connecting to Node",
+   "url": "https://stackoverflow.com/questions/69587307",
+   "created": "2021-10-15"
+  },
+  {
+   "id": "so-77814611",
+   "title": "Connection refused on react docker container with vite",
+   "url": "https://stackoverflow.com/questions/77814611",
+   "created": "2024-01-14"
+  },
+  {
+   "id": "so-77373389",
+   "title": "&quot;Connection refused&quot; when using host network in Docker in GitHub Actions",
+   "url": "https://stackoverflow.com/questions/77373389",
+   "created": "2023-10-27"
+  },
+  {
+   "id": "so-68878523",
+   "title": "My nextjs docker-compose build fails to generate static pages. Can&#39;t get data from another hasura container while building.ECONNREFUSED 127.0.0.1:8080",
+   "url": "https://stackoverflow.com/questions/68878523",
+   "created": "2021-08-22"
+  },
+  {
+   "id": "so-73608451",
+   "title": "unable to run kibana with docker-compose",
+   "url": "https://stackoverflow.com/questions/73608451",
+   "created": "2022-09-05"
+  },
+  {
+   "id": "so-65958817",
+   "title": "Laravel Docker Container Cannot connect to remote AWS RDS Database",
+   "url": "https://stackoverflow.com/questions/65958817",
+   "created": "2021-01-29"
+  },
+  {
+   "id": "so-70296762",
+   "title": "cannot connect to MySQL from simple Springboot application",
+   "url": "https://stackoverflow.com/questions/70296762",
+   "created": "2021-12-09"
+  },
+  {
+   "id": "so-68537371",
+   "title": "Node.js container is unable to access postgres container automatically",
+   "url": "https://stackoverflow.com/questions/68537371",
+   "created": "2021-07-26"
+  },
+  {
+   "id": "so-75803095",
+   "title": "502 Bad Gateway with nginx connect() failed (111: Connection refused) while connecting to upstream with Blazor WASM and nginx reverse proxy with SSL",
+   "url": "https://stackoverflow.com/questions/75803095",
+   "created": "2023-03-21"
+  },
+  {
+   "id": "so-68352168",
+   "title": "Dockerizing springboot application(in container) not connecting to rabbitmq(in container): connection refused",
+   "url": "https://stackoverflow.com/questions/68352168",
+   "created": "2021-07-12"
+  },
+  {
+   "id": "so-72061210",
+   "title": "How to connect Azure Multi-Instance Container to Azure Virtual Network",
+   "url": "https://stackoverflow.com/questions/72061210",
+   "created": "2022-04-29"
+  },
+  {
+   "id": "so-79186749",
+   "title": "MongoServerSelectionError: connect ECONNREFUSED when connecting Node.js app with MongoDB running on Docker",
+   "url": "https://stackoverflow.com/questions/79186749",
+   "created": "2024-11-13"
+  },
+  {
+   "id": "so-70051611",
+   "title": "Connect to postgres container from another running container",
+   "url": "https://stackoverflow.com/questions/70051611",
+   "created": "2021-11-21"
+  },
+  {
+   "id": "so-79235659",
+   "title": "How to correctly configure NGINX for gRPC with SSL to connect to a .NET gRPC server?",
+   "url": "https://stackoverflow.com/questions/79235659",
+   "created": "2024-11-29"
+  },
+  {
+   "id": "so-77105856",
+   "title": "Cannot connect to MySQL in Docker from .NET app (in docker)",
+   "url": "https://stackoverflow.com/questions/77105856",
+   "created": "2023-09-14"
+  },
+  {
+   "id": "so-72465379",
+   "title": "django.db.utils.OperationalError: (2003, &quot;Can&#39;t connect to MySQL server on &#39;127.0.0.1:3307&#39; (111)&quot;)",
+   "url": "https://stackoverflow.com/questions/72465379",
+   "created": "2022-06-01"
+  },
+  {
+   "id": "so-66689703",
+   "title": "Cannot connect to container within compose but host connectivity works",
+   "url": "https://stackoverflow.com/questions/66689703",
+   "created": "2021-03-18"
+  },
+  {
+   "id": "so-72064822",
+   "title": "Trying to connect to Mongo-express with Docker compose",
+   "url": "https://stackoverflow.com/questions/72064822",
+   "created": "2022-04-30"
+  },
+  {
+   "id": "so-73459136",
+   "title": "Elegent way to get dockerized API to connect with dockerized Mysql Database and create schema automatically",
+   "url": "https://stackoverflow.com/questions/73459136",
+   "created": "2022-08-23"
+  },
+  {
+   "id": "so-67167114",
+   "title": "NodePort Error Connection Refused (Docker Desktop, Windows, Kubernetes)",
+   "url": "https://stackoverflow.com/questions/67167114",
+   "created": "2021-04-19"
+  },
+  {
+   "id": "so-71124488",
+   "title": "Connection refused: MariaDB in Docker",
+   "url": "https://stackoverflow.com/questions/71124488",
+   "created": "2022-02-15"
+  },
+  {
+   "id": "so-70248388",
+   "title": "Connect from Angular Docker container to Asp.Net container",
+   "url": "https://stackoverflow.com/questions/70248388",
+   "created": "2021-12-06"
+  },
+  {
+   "id": "so-71926501",
+   "title": "Docker error : MySQLdb._exceptions.OperationalError: (2002, &quot;Can&#39;t connect to local MySQL server through socket &#39;/var/run/mysqld/mysqld.sock&#39; (2)&quot;)",
+   "url": "https://stackoverflow.com/questions/71926501",
+   "created": "2022-04-19"
+  },
+  {
+   "id": "so-75713844",
+   "title": "How to resolve `Failed to create NAT chain DOCKER` as Reboot not working?",
+   "url": "https://stackoverflow.com/questions/75713844",
+   "created": "2023-03-12"
+  },
+  {
+   "id": "so-77310339",
+   "title": "Can&#39;t connect to mongodb for Unifi Network Application in Docker",
+   "url": "https://stackoverflow.com/questions/77310339",
+   "created": "2023-10-17"
+  },
+  {
+   "id": "so-69120262",
+   "title": "Connect to a python socket inside a docker-compose mediated docker from host",
+   "url": "https://stackoverflow.com/questions/69120262",
+   "created": "2021-09-09"
+  },
+  {
+   "id": "so-79239598",
+   "title": "RabbitMQ Connection Error: java.net.ConnectException: Connection refused",
+   "url": "https://stackoverflow.com/questions/79239598",
+   "created": "2024-11-30"
+  },
+  {
+   "id": "so-78838168",
+   "title": "Nextcloud unknown host when trying to connect to Postgres with Docker’s IP",
+   "url": "https://stackoverflow.com/questions/78838168",
+   "created": "2024-08-06"
+  },
+  {
+   "id": "so-79052100",
+   "title": "Cannot reach port of container running in host mode",
+   "url": "https://stackoverflow.com/questions/79052100",
+   "created": "2024-10-03"
+  },
+  {
+   "id": "so-70272171",
+   "title": "Connect two containers between them failed",
+   "url": "https://stackoverflow.com/questions/70272171",
+   "created": "2021-12-08"
+  },
+  {
+   "id": "so-74904993",
+   "title": "flask app service can&#39;t connect to postgres service within docker-compose",
+   "url": "https://stackoverflow.com/questions/74904993",
+   "created": "2022-12-24"
+  },
+  {
+   "id": "so-71543969",
+   "title": "WSO2: Connection refused or failed to Endpoint when micro-integrator project is deployed via docker",
+   "url": "https://stackoverflow.com/questions/71543969",
+   "created": "2022-03-20"
+  },
+  {
+   "id": "so-70914739",
+   "title": "Connect backend with database in docker",
+   "url": "https://stackoverflow.com/questions/70914739",
+   "created": "2022-01-30"
+  },
+  {
+   "id": "so-74778732",
+   "title": "Cant connect to postgresql with docker-compose",
+   "url": "https://stackoverflow.com/questions/74778732",
+   "created": "2022-12-13"
+  },
+  {
+   "id": "so-69442436",
+   "title": "Connect from LocalStack lambda function to a database container using docker-compose service name",
+   "url": "https://stackoverflow.com/questions/69442436",
+   "created": "2021-10-04"
+  },
+  {
+   "id": "so-66771444",
+   "title": "Docker compose : MySQL with NodeJS &quot;Error: connect ECONNREFUSED&quot;",
+   "url": "https://stackoverflow.com/questions/66771444",
+   "created": "2021-03-23"
+  },
+  {
+   "id": "so-78588025",
+   "title": "How to start my Mysql database to connect to my api",
+   "url": "https://stackoverflow.com/questions/78588025",
+   "created": "2024-06-06"
+  },
+  {
+   "id": "so-75637375",
+   "title": "Cannot connect to Eureka server - Spring Boot | Eureka | Docker",
+   "url": "https://stackoverflow.com/questions/75637375",
+   "created": "2023-03-04"
+  },
+  {
+   "id": "so-74779939",
+   "title": "How do I set up docker-compose.yml, Express and TypeORM to connect my Express server to a Postgres db inside the container?",
+   "url": "https://stackoverflow.com/questions/74779939",
+   "created": "2022-12-13"
+  },
+  {
+   "id": "so-74029504",
+   "title": "Spring + Prometheus + Grafana: Err reading Prometheus: Post &quot;http://localhost:9090/api/v1/query&quot;: dial tcp 127.0.0.1:9090: connect: connection refused",
+   "url": "https://stackoverflow.com/questions/74029504",
+   "created": "2022-10-11"
+  },
+  {
+   "id": "so-71833209",
+   "title": "Docker: TCP/IP connections on port 5342? connect to server: Connection refused Is the server running on host",
+   "url": "https://stackoverflow.com/questions/71833209",
+   "created": "2022-04-11"
+  },
+  {
+   "id": "so-69132849",
+   "title": "Airflow KubernetesExecutor and minikube: Scheduler can&#39;t connect to Minikube",
+   "url": "https://stackoverflow.com/questions/69132849",
+   "created": "2021-09-10"
+  },
+  {
+   "id": "so-78534606",
+   "title": "Docker Compose - container A &quot;could not resolve host&quot; of container B",
+   "url": "https://stackoverflow.com/questions/78534606",
+   "created": "2024-05-26"
+  },
+  {
+   "id": "so-70005277",
+   "title": "Flask with MongoDB Docker Image unable to connect",
+   "url": "https://stackoverflow.com/questions/70005277",
+   "created": "2021-11-17"
+  },
+  {
+   "id": "so-68242250",
+   "title": "Unable to run mongo express with docker compose",
+   "url": "https://stackoverflow.com/questions/68242250",
+   "created": "2021-07-04"
+  },
+  {
+   "id": "so-66393967",
+   "title": "Apollo Gateway not working inside docker-compose",
+   "url": "https://stackoverflow.com/questions/66393967",
+   "created": "2021-02-26"
+  },
+  {
+   "id": "so-78196358",
+   "title": "Unable to connect to MySQL server container from APS .NET app from container",
+   "url": "https://stackoverflow.com/questions/78196358",
+   "created": "2024-03-20"
+  },
+  {
+   "id": "so-67957969",
+   "title": "Docker Get http://localhost:8091/api/order: dial tcp 127.0.0.1:8091: connect: connection refused",
+   "url": "https://stackoverflow.com/questions/67957969",
+   "created": "2021-06-13"
+  },
+  {
+   "id": "so-69961176",
+   "title": "When running docker-compose Docker doesn&#39;t do as docker-entrypoint.sh script instructs",
+   "url": "https://stackoverflow.com/questions/69961176",
+   "created": "2021-11-14"
+  },
+  {
+   "id": "so-68413238",
+   "title": "SignalR can&#39;t connect using docker compose/container",
+   "url": "https://stackoverflow.com/questions/68413238",
+   "created": "2021-07-16"
+  },
+  {
+   "id": "so-68398035",
+   "title": "Unable to reach Vault server from Airflow application",
+   "url": "https://stackoverflow.com/questions/68398035",
+   "created": "2021-07-15"
+  },
+  {
+   "id": "so-67150133",
+   "title": "Windows - jboss on docker, connection refused to local oracle database",
+   "url": "https://stackoverflow.com/questions/67150133",
+   "created": "2021-04-18"
+  },
+  {
+   "id": "so-77385440",
+   "title": "Can&#39;t connect pgadmin to postgresql running inside docker container initialized from docker-compose",
+   "url": "https://stackoverflow.com/questions/77385440",
+   "created": "2023-10-29"
+  },
+  {
+   "id": "so-79515595",
+   "title": "Cannot connect to websocket",
+   "url": "https://stackoverflow.com/questions/79515595",
+   "created": "2025-03-17"
+  },
+  {
+   "id": "so-78526344",
+   "title": "Problem to connect container golang with container mysql",
+   "url": "https://stackoverflow.com/questions/78526344",
+   "created": "2024-05-24"
+  },
+  {
+   "id": "so-77847056",
+   "title": "Docker: c# webapp and MySql database. Could not connect to database from webapp",
+   "url": "https://stackoverflow.com/questions/77847056",
+   "created": "2024-01-19"
+  },
+  {
+   "id": "so-78095639",
+   "title": "Angular client application failing to resolve address for backend service from docker container",
+   "url": "https://stackoverflow.com/questions/78095639",
+   "created": "2024-03-03"
+  },
+  {
+   "id": "so-74911320",
+   "title": "Connection refused for spring boot application trying to reach Mysql server",
+   "url": "https://stackoverflow.com/questions/74911320",
+   "created": "2022-12-25"
+  },
+  {
+   "id": "so-73358679",
+   "title": "Can&#39;t connect wordpress to mariadb (docker)",
+   "url": "https://stackoverflow.com/questions/73358679",
+   "created": "2022-08-15"
+  },
+  {
+   "id": "so-77337283",
+   "title": "Can&#39;t connect to Clickhouse using docker compose",
+   "url": "https://stackoverflow.com/questions/77337283",
+   "created": "2023-10-21"
+  },
+  {
+   "id": "so-71647841",
+   "title": "Dockerized Zabbix: Server Can&#39;t Connect to the Agents by IP",
+   "url": "https://stackoverflow.com/questions/71647841",
+   "created": "2022-03-28"
+  },
+  {
+   "id": "so-79376931",
+   "title": "Connection Refused ([Errno 111]) When Using Ollama with AutoGPT",
+   "url": "https://stackoverflow.com/questions/79376931",
+   "created": "2025-01-22"
+  },
+  {
+   "id": "so-66894825",
+   "title": "Docker container is not able to connect to my java application listening on host but it is able to connect to others applications",
+   "url": "https://stackoverflow.com/questions/66894825",
+   "created": "2021-03-31"
+  },
+  {
+   "id": "so-77701483",
+   "title": "Docker-compose up / Connection aborted, Connection Refused Error",
+   "url": "https://stackoverflow.com/questions/77701483",
+   "created": "2023-12-22"
+  },
+  {
+   "id": "so-77643855",
+   "title": "cannot reach to my localstack S3 from my test container",
+   "url": "https://stackoverflow.com/questions/77643855",
+   "created": "2023-12-12"
+  },
+  {
+   "id": "so-78136501",
+   "title": ".Net 8 Container Unable to connect to MySql Container",
+   "url": "https://stackoverflow.com/questions/78136501",
+   "created": "2024-03-10"
+  },
+  {
+   "id": "so-77825308",
+   "title": "Cannot connect to Cassandra instance in Docker, getting ConnectionRefusedError",
+   "url": "https://stackoverflow.com/questions/77825308",
+   "created": "2024-01-16"
+  },
+  {
+   "id": "so-70958724",
+   "title": "Connect to Postgres as SystemD service from docker-compose",
+   "url": "https://stackoverflow.com/questions/70958724",
+   "created": "2022-02-02"
+  },
+  {
+   "id": "so-68142849",
+   "title": "Java.net.ConnectException: Connection refused on Docker + Keycloak",
+   "url": "https://stackoverflow.com/questions/68142849",
+   "created": "2021-06-26"
+  },
+  {
+   "id": "so-73787601",
+   "title": "ECONNREFUSED when attempting to access Docker service in GitLab CI",
+   "url": "https://stackoverflow.com/questions/73787601",
+   "created": "2022-09-20"
+  },
+  {
+   "id": "so-67065469",
+   "title": "Any idea how to nginx reverse proxy on host connect to container via container name?",
+   "url": "https://stackoverflow.com/questions/67065469",
+   "created": "2021-04-12"
+  },
+  {
+   "id": "so-78072241",
+   "title": "Can&#39;t connect python server and mysql with Docker compose",
+   "url": "https://stackoverflow.com/questions/78072241",
+   "created": "2024-02-28"
+  },
+  {
+   "id": "so-77065204",
+   "title": "Cannot connect to docker container (localhost) MAC m1 ARM",
+   "url": "https://stackoverflow.com/questions/77065204",
+   "created": "2023-09-08"
+  },
+  {
+   "id": "so-77678844",
+   "title": "How to make docker containerized api&#39;s connect to database in local host",
+   "url": "https://stackoverflow.com/questions/77678844",
+   "created": "2023-12-18"
+  },
+  {
+   "id": "so-77378679",
+   "title": "connect failed (111: Connection refused) reverse proxy using Nginx",
+   "url": "https://stackoverflow.com/questions/77378679",
+   "created": "2023-10-28"
+  },
+  {
+   "id": "so-74134840",
+   "title": "Cant connect apache mysql when using docker swarm",
+   "url": "https://stackoverflow.com/questions/74134840",
+   "created": "2022-10-20"
+  },
+  {
+   "id": "so-78149785",
+   "title": "Connect ASP.NET API to MySQL database",
+   "url": "https://stackoverflow.com/questions/78149785",
+   "created": "2024-03-12"
+  },
+  {
+   "id": "so-76511769",
+   "title": "Apache James TestContainers connection refused",
+   "url": "https://stackoverflow.com/questions/76511769",
+   "created": "2023-06-20"
+  },
+  {
+   "id": "so-73106452",
+   "title": "Xdebug 3 in Docker container: Could not connect to debugging client. - Address not available",
+   "url": "https://stackoverflow.com/questions/73106452",
+   "created": "2022-07-25"
+  },
+  {
+   "id": "so-79490738",
+   "title": "Can&#39;t connect Flask app to Mariadb in Docker container",
+   "url": "https://stackoverflow.com/questions/79490738",
+   "created": "2025-03-06"
+  },
+  {
+   "id": "so-66374495",
+   "title": "Docker nginx reverse proxy error - 502 bad gateway - connection refused",
+   "url": "https://stackoverflow.com/questions/66374495",
+   "created": "2021-02-25"
+  },
+  {
+   "id": "so-78702178",
+   "title": "Can&#39;t connect to remote PostgreSQL DB from docker-compose",
+   "url": "https://stackoverflow.com/questions/78702178",
+   "created": "2024-07-03"
+  },
+  {
+   "id": "so-72896416",
+   "title": "SQLSTATE[HY000] [2002] Connection refused when trying to Dockerize Laravel App",
+   "url": "https://stackoverflow.com/questions/72896416",
+   "created": "2022-07-07"
+  },
+  {
+   "id": "so-75837280",
+   "title": "docker build getting-started example fails",
+   "url": "https://stackoverflow.com/questions/75837280",
+   "created": "2023-03-24"
+  },
+  {
+   "id": "so-78028653",
+   "title": "Celery Beat cannot connect to Rabbitmq container",
+   "url": "https://stackoverflow.com/questions/78028653",
+   "created": "2024-02-20"
+  },
+  {
+   "id": "so-70097278",
+   "title": "kafka connection error: Failed to resolve, Connection refused",
+   "url": "https://stackoverflow.com/questions/70097278",
+   "created": "2021-11-24"
+  },
+  {
+   "id": "so-70319143",
+   "title": "Docker mysql container Unable to connect to any of the specified MySQL hosts",
+   "url": "https://stackoverflow.com/questions/70319143",
+   "created": "2021-12-11"
+  },
+  {
+   "id": "so-74609874",
+   "title": "Connection refused while connecting to upstream to a port other than 9000 in docker project",
+   "url": "https://stackoverflow.com/questions/74609874",
+   "created": "2022-11-29"
+  },
+  {
+   "id": "so-78319722",
+   "title": "Not able to connect to mysql server at port 3306 from docker containers of microservices",
+   "url": "https://stackoverflow.com/questions/78319722",
+   "created": "2024-04-13"
+  },
+  {
+   "id": "so-69561884",
+   "title": "Why won&#39;t my custom Dockerfile connect over the docker-compose network when other services will?",
+   "url": "https://stackoverflow.com/questions/69561884",
+   "created": "2021-10-13"
+  },
+  {
+   "id": "so-73238276",
+   "title": "Django docker container could not connect to redis server on port 6379",
+   "url": "https://stackoverflow.com/questions/73238276",
+   "created": "2022-08-04"
+  },
+  {
+   "id": "so-78101275",
+   "title": "Connect to Prometheus from PromLens in Docker Compose",
+   "url": "https://stackoverflow.com/questions/78101275",
+   "created": "2024-03-04"
+  },
+  {
+   "id": "so-67191116",
+   "title": "How to connect MariaDB and Python in docker",
+   "url": "https://stackoverflow.com/questions/67191116",
+   "created": "2021-04-21"
+  },
+  {
+   "id": "so-78511057",
+   "title": "Failed to initialize database, got error dial tcp 192.168.16.2:3306: connect: connection refused",
+   "url": "https://stackoverflow.com/questions/78511057",
+   "created": "2024-05-21"
+  },
+  {
+   "id": "so-71824070",
+   "title": "vernemq status page refuses to connect",
+   "url": "https://stackoverflow.com/questions/71824070",
+   "created": "2022-04-11"
+  },
+  {
+   "id": "so-70546175",
+   "title": "Unable to reach the host from a Tomcat Docker Container using docker-compose",
+   "url": "https://stackoverflow.com/questions/70546175",
+   "created": "2021-12-31"
+  },
+  {
+   "id": "so-66289342",
+   "title": "Mysql on docker gives &quot;Connection refused&quot; error",
+   "url": "https://stackoverflow.com/questions/66289342",
+   "created": "2021-02-20"
+  },
+  {
+   "id": "so-78256940",
+   "title": "Spring not able to connect to MongoDB on docker",
+   "url": "https://stackoverflow.com/questions/78256940",
+   "created": "2024-04-01"
+  },
+  {
+   "id": "so-69397423",
+   "title": "MongooseServerSelectionError ECONNREFUSED with a docker-compose using mongo container",
+   "url": "https://stackoverflow.com/questions/69397423",
+   "created": "2021-09-30"
+  },
+  {
+   "id": "so-73780679",
+   "title": "Nginx on Docker (Connection Refused while connecting to upstream)",
+   "url": "https://stackoverflow.com/questions/73780679",
+   "created": "2022-09-20"
+  },
+  {
+   "id": "so-76672140",
+   "title": "I&#39;m using Django and Postgres on Docker, but I can&#39;t connect to the database after reinitialising",
+   "url": "https://stackoverflow.com/questions/76672140",
+   "created": "2023-07-12"
+  },
+  {
+   "id": "so-71618574",
+   "title": "asp net 6 nginx docker connection refused",
+   "url": "https://stackoverflow.com/questions/71618574",
+   "created": "2022-03-25"
+  },
+  {
+   "id": "so-68932970",
+   "title": "How to resolve the variable substitution for volume mount issue in docker-compose file when deploying through azure pipeline?",
+   "url": "https://stackoverflow.com/questions/68932970",
+   "created": "2021-08-26"
+  },
+  {
+   "id": "so-73219503",
+   "title": "In docker-compose, why one service could reach another, but not the other way around?",
+   "url": "https://stackoverflow.com/questions/73219503",
+   "created": "2022-08-03"
+  },
+  {
+   "id": "so-67267569",
+   "title": "Calling API in a docker-compose container to another container",
+   "url": "https://stackoverflow.com/questions/67267569",
+   "created": "2021-04-26"
+  },
+  {
+   "id": "so-74456212",
+   "title": "Unable to reach Node service running inside of a docker container with exposed ports",
+   "url": "https://stackoverflow.com/questions/74456212",
+   "created": "2022-11-16"
+  },
+  {
+   "id": "so-72254600",
+   "title": "Can&#39;t connect to Docker Hosted Postgres",
+   "url": "https://stackoverflow.com/questions/72254600",
+   "created": "2022-05-16"
+  },
+  {
+   "id": "so-78737705",
+   "title": "Containerized Spring boot application is unable to connect to database within container",
+   "url": "https://stackoverflow.com/questions/78737705",
+   "created": "2024-07-11"
+  },
+  {
+   "id": "so-66793740",
+   "title": "Keycloak docker service cannot connect to database",
+   "url": "https://stackoverflow.com/questions/66793740",
+   "created": "2021-03-25"
+  },
+  {
+   "id": "so-65646462",
+   "title": "Cannot connect to Mysql using Docker",
+   "url": "https://stackoverflow.com/questions/65646462",
+   "created": "2021-01-09"
+  },
+  {
+   "id": "so-71455787",
+   "title": "Docker Kafka client to Docker Kafka broker connection refused",
+   "url": "https://stackoverflow.com/questions/71455787",
+   "created": "2022-03-13"
+  },
+  {
+   "id": "so-69795053",
+   "title": "Connect to Redis using java code if there is docker compose of Redis and Redis Commander",
+   "url": "https://stackoverflow.com/questions/69795053",
+   "created": "2021-11-01"
+  },
+  {
+   "id": "so-65658289",
+   "title": "Multi Container Docker app - Connection Refused between containers",
+   "url": "https://stackoverflow.com/questions/65658289",
+   "created": "2021-01-10"
+  },
+  {
+   "id": "so-69819055",
+   "title": "Hyperledger fabric - Cant connect peer to channel - endorser client failed to connect - connection refused",
+   "url": "https://stackoverflow.com/questions/69819055",
+   "created": "2021-11-03"
+  },
+  {
+   "id": "so-68217193",
+   "title": "Connection timeout using local kafka-connect cluster to connect on a remote database",
+   "url": "https://stackoverflow.com/questions/68217193",
+   "created": "2021-07-01"
+  },
+  {
+   "id": "so-74910501",
+   "title": "Getting php error related to MySQL server in docker: SQLSTATE[HY000] [2002] Connection refused",
+   "url": "https://stackoverflow.com/questions/74910501",
+   "created": "2022-12-24"
+  },
+  {
+   "id": "so-75214308",
+   "title": "Connection error: docker compose: Loopback4 + Mongo",
+   "url": "https://stackoverflow.com/questions/75214308",
+   "created": "2023-01-23"
+  },
+  {
+   "id": "so-72834263",
+   "title": "SvelteKit SSR fetch() when backend is in a Docker container",
+   "url": "https://stackoverflow.com/questions/72834263",
+   "created": "2022-07-01"
+  },
+  {
+   "id": "so-78129194",
+   "title": "How to connect from inside of the Docker container to host OS?",
+   "url": "https://stackoverflow.com/questions/78129194",
+   "created": "2024-03-08"
+  },
+  {
+   "id": "so-77276891",
+   "title": "nginx proxy_pass with nextcloud 27 docker - Your web server is not properly set up to resolve &quot;/ocm-provider/&quot;",
+   "url": "https://stackoverflow.com/questions/77276891",
+   "created": "2023-10-11"
+  },
+  {
+   "id": "so-69654251",
+   "title": "What should I put in REDASH_REDIS_URL for Redash connect to AWS Redis?",
+   "url": "https://stackoverflow.com/questions/69654251",
+   "created": "2021-10-20"
+  },
+  {
+   "id": "so-79645815",
+   "title": "How to connect to Postgres docker container via python",
+   "url": "https://stackoverflow.com/questions/79645815",
+   "created": "2025-05-30"
+  },
+  {
+   "id": "so-70440797",
+   "title": "dial tcp 127.0.0.1:8080: connect: connection refused. go docker app",
+   "url": "https://stackoverflow.com/questions/70440797",
+   "created": "2021-12-21"
+  },
+  {
+   "id": "so-77323506",
+   "title": "connect to postgres contsainer from another container",
+   "url": "https://stackoverflow.com/questions/77323506",
+   "created": "2023-10-19"
+  },
+  {
+   "id": "so-76914454",
+   "title": "Docker container fails to connect to psql. psql: could not connect to server. docker compose",
+   "url": "https://stackoverflow.com/questions/76914454",
+   "created": "2023-08-16"
+  },
+  {
+   "id": "so-71165628",
+   "title": "Docker Compose &amp; Postgres Connection Refused",
+   "url": "https://stackoverflow.com/questions/71165628",
+   "created": "2022-02-17"
+  },
+  {
+   "id": "so-78362698",
+   "title": "Docker-Compose: Vue UI does not connect to Node js Express CORS API",
+   "url": "https://stackoverflow.com/questions/78362698",
+   "created": "2024-04-21"
+  },
+  {
+   "id": "so-78313257",
+   "title": "What would be the issue if I received &quot;Socket fail to connect to host&quot; docker-compose",
+   "url": "https://stackoverflow.com/questions/78313257",
+   "created": "2024-04-11"
+  },
+  {
+   "id": "so-68663471",
+   "title": "How to connect the postgres database in docker",
+   "url": "https://stackoverflow.com/questions/68663471",
+   "created": "2021-08-05"
+  },
+  {
+   "id": "so-72775881",
+   "title": "Django channels unable to connect(find) websocket after docker-compose of project using redis",
+   "url": "https://stackoverflow.com/questions/72775881",
+   "created": "2022-06-27"
+  },
+  {
+   "id": "so-70653196",
+   "title": "Neo4j Docker Compose with Python FastAPI, Traefic on https, &quot;Connection refused&quot;",
+   "url": "https://stackoverflow.com/questions/70653196",
+   "created": "2022-01-10"
+  },
+  {
+   "id": "so-73379167",
+   "title": "How to connect a Dev Container to another Container?",
+   "url": "https://stackoverflow.com/questions/73379167",
+   "created": "2022-08-16"
+  },
+  {
+   "id": "so-74114540",
+   "title": "How to run FastAPI and connect to a MySQL database using a Docker compose file?",
+   "url": "https://stackoverflow.com/questions/74114540",
+   "created": "2022-10-18"
+  },
+  {
+   "id": "so-77701771",
+   "title": "Unable to connect to mysql container Unable to create tables due to 2003 (HY000): Can&#39;t connect to MySQL server on &#39;mysql:3307&#39;",
+   "url": "https://stackoverflow.com/questions/77701771",
+   "created": "2023-12-22"
+  },
+  {
+   "id": "so-65961492",
+   "title": "Kubernetes Ingress 502 Bad Gateway Connection Refused",
+   "url": "https://stackoverflow.com/questions/65961492",
+   "created": "2021-01-29"
+  },
+  {
+   "id": "so-69760331",
+   "title": "Nest.js TypeORM connect to local database (on docker container)",
+   "url": "https://stackoverflow.com/questions/69760331",
+   "created": "2021-10-28"
+  },
+  {
+   "id": "so-68923405",
+   "title": "Springboot app cannot connect to MongoDB container with docker-compose",
+   "url": "https://stackoverflow.com/questions/68923405",
+   "created": "2021-08-25"
+  },
+  {
+   "id": "so-71734021",
+   "title": "Dockerizing application with localhost leads to connection refused",
+   "url": "https://stackoverflow.com/questions/71734021",
+   "created": "2022-04-04"
+  },
+  {
+   "id": "so-67053266",
+   "title": "cant connect to mysql database while using laravel on docker(not found,pdo,connection refused)",
+   "url": "https://stackoverflow.com/questions/67053266",
+   "created": "2021-04-12"
+  },
+  {
+   "id": "so-78180538",
+   "title": "How to set up a MongoDB replica set with Docker Compose and connect to it from both another service and the host",
+   "url": "https://stackoverflow.com/questions/78180538",
+   "created": "2024-03-18"
+  },
+  {
+   "id": "so-78691213",
+   "title": "React nextjs app with next-auth in docker: connection refused 127.0.0.1",
+   "url": "https://stackoverflow.com/questions/78691213",
+   "created": "2024-07-01"
+  },
+  {
+   "id": "so-79445800",
+   "title": "Spark on Docker Fails to Connect to AWS RDS PostgreSQL via Bastion",
+   "url": "https://stackoverflow.com/questions/79445800",
+   "created": "2025-02-17"
+  },
+  {
+   "id": "so-67513076",
+   "title": "ElasticSearch, FarmHaystack, Django connection Refused",
+   "url": "https://stackoverflow.com/questions/67513076",
+   "created": "2021-05-13"
+  },
+  {
+   "id": "so-78515792",
+   "title": "asp.net Failed to connect to postgres in docker",
+   "url": "https://stackoverflow.com/questions/78515792",
+   "created": "2024-05-22"
+  },
+  {
+   "id": "so-73970620",
+   "title": "Prisma creates database but then says it can&#39;t connect to it",
+   "url": "https://stackoverflow.com/questions/73970620",
+   "created": "2022-10-06"
+  },
+  {
+   "id": "so-70145472",
+   "title": "Getting Connection refused while trying to access service from kubernetes pod",
+   "url": "https://stackoverflow.com/questions/70145472",
+   "created": "2021-11-28"
+  },
+  {
+   "id": "so-68947700",
+   "title": "Hadoop: How can i resolve the error &quot;Could&#39;n upload the file&quot; in docker container",
+   "url": "https://stackoverflow.com/questions/68947700",
+   "created": "2021-08-27"
+  },
+  {
+   "id": "so-77421625",
+   "title": "Unable to create kafka connect source &amp; sink connector for CSV to Kafka using SpoolDirCsvSourceConnector in Windows 11",
+   "url": "https://stackoverflow.com/questions/77421625",
+   "created": "2023-11-04"
+  },
+  {
+   "id": "so-75082970",
+   "title": "Django application running inside of a container but cannoct resolve DB outside of it",
+   "url": "https://stackoverflow.com/questions/75082970",
+   "created": "2023-01-11"
+  },
+  {
+   "id": "so-71885441",
+   "title": "Next.js getServerSideProps is not working using docker",
+   "url": "https://stackoverflow.com/questions/71885441",
+   "created": "2022-04-15"
+  },
+  {
+   "id": "so-70487135",
+   "title": "docker-compose, WordPress and MariaDB, PHP Fatal error: Uncaught mysqli_sql_exception: Connection refused",
+   "url": "https://stackoverflow.com/questions/70487135",
+   "created": "2021-12-26"
+  },
+  {
+   "id": "so-77245746",
+   "title": "AWS Fargate Connection Refused on Local Loopback 127.0.0.1",
+   "url": "https://stackoverflow.com/questions/77245746",
+   "created": "2023-10-06"
+  },
+  {
+   "id": "so-67318078",
+   "title": "why Nginx container cannot resolve redis container by name?",
+   "url": "https://stackoverflow.com/questions/67318078",
+   "created": "2021-04-29"
+  },
+  {
+   "id": "so-71009368",
+   "title": "Docker container getting connection refused from postgres container in docker-compose",
+   "url": "https://stackoverflow.com/questions/71009368",
+   "created": "2022-02-06"
+  },
+  {
+   "id": "so-67454473",
+   "title": "failed to initialize database, got error dial tcp 127.0.0.1:3306: connect: connection refused Problem",
+   "url": "https://stackoverflow.com/questions/67454473",
+   "created": "2021-05-09"
+  },
+  {
+   "id": "so-77781451",
+   "title": "Portainer server unable to connect with any Portainer agents",
+   "url": "https://stackoverflow.com/questions/77781451",
+   "created": "2024-01-08"
+  },
+  {
+   "id": "so-79384396",
+   "title": "Cannot connect to mysql in 2 database containers docker-compose setup",
+   "url": "https://stackoverflow.com/questions/79384396",
+   "created": "2025-01-24"
+  },
+  {
+   "id": "so-71158469",
+   "title": "Spring Security 5 OAuth2 App with Keycloack 17 gets &quot;Connection Refused&quot; when run in Docker container with docker-compose",
+   "url": "https://stackoverflow.com/questions/71158469",
+   "created": "2022-02-17"
+  },
+  {
+   "id": "so-79514213",
+   "title": "Docker connection between Kafka and Bytewax refused",
+   "url": "https://stackoverflow.com/questions/79514213",
+   "created": "2025-03-17"
+  },
+  {
+   "id": "so-72543365",
+   "title": "Docker-compose - Cannot connect to Postgres",
+   "url": "https://stackoverflow.com/questions/72543365",
+   "created": "2022-06-08"
+  },
+  {
+   "id": "so-75197330",
+   "title": "Node.js refusing to connect to MySQL Docker container using knex",
+   "url": "https://stackoverflow.com/questions/75197330",
+   "created": "2023-01-21"
+  },
+  {
+   "id": "so-66674328",
+   "title": "Unable to connect to MongoDB using Spring Boot in Docker-Compose",
+   "url": "https://stackoverflow.com/questions/66674328",
+   "created": "2021-03-17"
+  },
+  {
+   "id": "so-74225802",
+   "title": "How can I connect to a locally hosted site within a docker container?",
+   "url": "https://stackoverflow.com/questions/74225802",
+   "created": "2022-10-27"
+  },
+  {
+   "id": "so-65956529",
+   "title": "Docker build failed ERR CONREFUSSED, MERN",
+   "url": "https://stackoverflow.com/questions/65956529",
+   "created": "2021-01-29"
+  },
+  {
+   "id": "so-78652900",
+   "title": "How do I resolve a Next.js static app Dockerfile build error, &quot;Error: Cannot find module [X]&quot; error?",
+   "url": "https://stackoverflow.com/questions/78652900",
+   "created": "2024-06-21"
+  },
+  {
+   "id": "so-74906549",
+   "title": "Docker Compose service is making request to another service with IP",
+   "url": "https://stackoverflow.com/questions/74906549",
+   "created": "2022-12-24"
+  },
+  {
+   "id": "so-68666233",
+   "title": "Quarkus can&#39;t connect to kafka from inside docker",
+   "url": "https://stackoverflow.com/questions/68666233",
+   "created": "2021-08-05"
+  },
+  {
+   "id": "so-65638493",
+   "title": "How to connect to a postgres database when having two docker-compose files?",
+   "url": "https://stackoverflow.com/questions/65638493",
+   "created": "2021-01-09"
+  },
+  {
+   "id": "so-73469526",
+   "title": "how to connect local symfony project to remote docker service",
+   "url": "https://stackoverflow.com/questions/73469526",
+   "created": "2022-08-24"
+  },
+  {
+   "id": "so-76594296",
+   "title": "docker nginx reverse proxy to gitlab container with built-in nginx give Connection refused",
+   "url": "https://stackoverflow.com/questions/76594296",
+   "created": "2023-07-01"
+  },
+  {
+   "id": "so-78384829",
+   "title": "MongoNetworkError: connect ECONNREFUSED using Docker",
+   "url": "https://stackoverflow.com/questions/78384829",
+   "created": "2024-04-25"
+  },
+  {
+   "id": "so-77209598",
+   "title": "docker compose configuration not able to connect to mongodb container",
+   "url": "https://stackoverflow.com/questions/77209598",
+   "created": "2023-10-01"
+  },
+  {
+   "id": "so-76846971",
+   "title": "Caused by: org.flywaydb.core.internal.exception.FlywaySqlException: Unable to obtain connection from database: Connection to localhost:5432 ?refused",
+   "url": "https://stackoverflow.com/questions/76846971",
+   "created": "2023-08-06"
+  },
+  {
+   "id": "so-75626093",
+   "title": "FastAPI + NGINX + Docker connection refused",
+   "url": "https://stackoverflow.com/questions/75626093",
+   "created": "2023-03-03"
+  },
+  {
+   "id": "so-75120754",
+   "title": "How to connect to Docker service UI via LAN on local network",
+   "url": "https://stackoverflow.com/questions/75120754",
+   "created": "2023-01-14"
+  },
+  {
+   "id": "so-75536396",
+   "title": "docker-compose service cannot connect to mysql container in springboot",
+   "url": "https://stackoverflow.com/questions/75536396",
+   "created": "2023-02-22"
+  },
+  {
+   "id": "so-73540128",
+   "title": "K8s Error: ImagePullBackOff || read: connection refused",
+   "url": "https://stackoverflow.com/questions/73540128",
+   "created": "2022-08-30"
+  },
+  {
+   "id": "so-70841076",
+   "title": "Connect to Azurite from .NET App via Docker",
+   "url": "https://stackoverflow.com/questions/70841076",
+   "created": "2022-01-24"
+  },
+  {
+   "id": "so-69739891",
+   "title": "Cassandra ERROR: java.io.IOException: failed to connect to /127.0.0.1:7000 for streaming data",
+   "url": "https://stackoverflow.com/questions/69739891",
+   "created": "2021-10-27"
+  },
+  {
+   "id": "so-74988156",
+   "title": "Spring Boot MySQL Docker ConnectException: Connection refused",
+   "url": "https://stackoverflow.com/questions/74988156",
+   "created": "2023-01-03"
+  },
+  {
+   "id": "so-78520303",
+   "title": "Proxy Error in Containerizing FastAPI Backend and React Vite Frontend",
+   "url": "https://stackoverflow.com/questions/78520303",
+   "created": "2024-05-22"
+  },
+  {
+   "id": "so-70500438",
+   "title": "docker spring boot application not able to connect to dockerized mysqldb",
+   "url": "https://stackoverflow.com/questions/70500438",
+   "created": "2021-12-27"
+  },
+  {
+   "id": "so-79561875",
+   "title": "Redigo: Redis connection refused panic",
+   "url": "https://stackoverflow.com/questions/79561875",
+   "created": "2025-04-08"
+  },
+  {
+   "id": "so-67940204",
+   "title": "How can I connect to docker Postgres server from PGAdmin4",
+   "url": "https://stackoverflow.com/questions/67940204",
+   "created": "2021-06-11"
+  },
+  {
+   "id": "so-73748215",
+   "title": "Kafka cannot connect to zookeeper - connection refused",
+   "url": "https://stackoverflow.com/questions/73748215",
+   "created": "2022-09-16"
+  },
+  {
+   "id": "so-74835400",
+   "title": "Docker Connection Issue in Spring Boot Microservice - nested exception is java.net.ConnectException: Connection refused : configserver",
+   "url": "https://stackoverflow.com/questions/74835400",
+   "created": "2022-12-17"
+  },
+  {
+   "id": "so-74462450",
+   "title": "connect docker container to local site",
+   "url": "https://stackoverflow.com/questions/74462450",
+   "created": "2022-11-16"
+  },
+  {
+   "id": "so-72333471",
+   "title": "Api Gateway not see other services in docker container",
+   "url": "https://stackoverflow.com/questions/72333471",
+   "created": "2022-05-21"
+  },
+  {
+   "id": "so-70525923",
+   "title": "Connection refused : mariaDB on a webapp running on Jetty on docker-compose",
+   "url": "https://stackoverflow.com/questions/70525923",
+   "created": "2021-12-29"
+  },
+  {
+   "id": "so-72959915",
+   "title": "Apache Airflow can&#39;t connect to localhost database",
+   "url": "https://stackoverflow.com/questions/72959915",
+   "created": "2022-07-13"
+  },
+  {
+   "id": "so-65995723",
+   "title": "How does NGINX resolve the Docker DNS hostnames?",
+   "url": "https://stackoverflow.com/questions/65995723",
+   "created": "2021-02-01"
+  },
+  {
+   "id": "so-66210339",
+   "title": "How to connect to a local SQL Server Express database from a Docker-Composed C# application?",
+   "url": "https://stackoverflow.com/questions/66210339",
+   "created": "2021-02-15"
+  },
+  {
+   "id": "so-68257708",
+   "title": "Postgresql Connection Refused in docker container, But Success on server",
+   "url": "https://stackoverflow.com/questions/68257708",
+   "created": "2021-07-05"
+  },
+  {
+   "id": "so-77241797",
+   "title": "Python QuasarDB connection refused",
+   "url": "https://stackoverflow.com/questions/77241797",
+   "created": "2023-10-06"
+  },
+  {
+   "id": "so-77012136",
+   "title": "Why can&#39;t I use mapped ports to connect two containers in docker compose?",
+   "url": "https://stackoverflow.com/questions/77012136",
+   "created": "2023-08-30"
+  },
+  {
+   "id": "so-65629715",
+   "title": "Docker on java sockets : java.net.ConnectException: Connection refused (Connection refused)",
+   "url": "https://stackoverflow.com/questions/65629715",
+   "created": "2021-01-08"
+  },
+  {
+   "id": "so-65829960",
+   "title": "SQL Alchemy connection refused when trying to connect db and web containers",
+   "url": "https://stackoverflow.com/questions/65829960",
+   "created": "2021-01-21"
+  },
+  {
+   "id": "so-66242695",
+   "title": "My docker-compose is running, but I cannot reach from host",
+   "url": "https://stackoverflow.com/questions/66242695",
+   "created": "2021-02-17"
+  },
+  {
+   "id": "so-66448777",
+   "title": "Redis on Docker: Error 111 connecting to 0.0.0.0:6379. Connection refused",
+   "url": "https://stackoverflow.com/questions/66448777",
+   "created": "2021-03-02"
+  },
+  {
+   "id": "so-73405762",
+   "title": "Unable to build docker Image, connection refused",
+   "url": "https://stackoverflow.com/questions/73405762",
+   "created": "2022-08-18"
+  },
+  {
+   "id": "so-66576905",
+   "title": "Connect Kafka topics to elasticsearch using fast-data-dev using docker",
+   "url": "https://stackoverflow.com/questions/66576905",
+   "created": "2021-03-11"
+  },
+  {
+   "id": "so-70463926",
+   "title": "How to fix SQLSTATE[HY000] [2002] Connection refused, when running : php artisan migrate in docker bash?",
+   "url": "https://stackoverflow.com/questions/70463926",
+   "created": "2021-12-23"
+  },
+  {
+   "id": "so-71799951",
+   "title": "Trying to add FluentD to my workflow but it fails to connect",
+   "url": "https://stackoverflow.com/questions/71799951",
+   "created": "2022-04-08"
+  },
+  {
+   "id": "so-71625983",
+   "title": "Could not connect to local postgres DB from docker using pgadmin4",
+   "url": "https://stackoverflow.com/questions/71625983",
+   "created": "2022-03-26"
+  },
+  {
+   "id": "so-75696646",
+   "title": "Connection refused with NGINX and php-pfm with docker compose",
+   "url": "https://stackoverflow.com/questions/75696646",
+   "created": "2023-03-10"
+  },
+  {
+   "id": "so-65627791",
+   "title": "Connect to multiple pre-existing external networks in docker",
+   "url": "https://stackoverflow.com/questions/65627791",
+   "created": "2021-01-08"
+  },
+  {
+   "id": "so-68270491",
+   "title": "Unable to connect to the mongodb instance running in a docker container from inside the container",
+   "url": "https://stackoverflow.com/questions/68270491",
+   "created": "2021-07-06"
+  },
+  {
+   "id": "so-79050888",
+   "title": "Unable to connect to correct redis host from application",
+   "url": "https://stackoverflow.com/questions/79050888",
+   "created": "2024-10-03"
+  },
+  {
+   "id": "so-79110208",
+   "title": "Connection Refused Error in OpenSearch with FastAPI and Docker Compose Setup",
+   "url": "https://stackoverflow.com/questions/79110208",
+   "created": "2024-10-21"
+  },
+  {
+   "id": "so-79485962",
+   "title": "SQLSTATE[HY000] [2002] Connection refused web | web | web | In PDOConnection.php line 27: web | web | SQLSTATE[HY000] [2002] Connection refused",
+   "url": "https://stackoverflow.com/questions/79485962",
+   "created": "2025-03-05"
+  },
+  {
+   "id": "so-71170080",
+   "title": "Java.net.ConnectException: Keycloak&#39;s Client gets Connection refused on Docker while Auth routing",
+   "url": "https://stackoverflow.com/questions/71170080",
+   "created": "2022-02-18"
+  },
+  {
+   "id": "so-70081819",
+   "title": "Docker compose in Azure: Can&#39;t connect to database",
+   "url": "https://stackoverflow.com/questions/70081819",
+   "created": "2021-11-23"
+  },
+  {
+   "id": "so-78409615",
+   "title": "How can I connect to a service that is UP from docker compose inside GitLab CI/CD?",
+   "url": "https://stackoverflow.com/questions/78409615",
+   "created": "2024-04-30"
+  },
+  {
+   "id": "so-78136623",
+   "title": "Keep getting the Error: getaddrinfo ENOTFOUND postgres when I try to connect to docker container",
+   "url": "https://stackoverflow.com/questions/78136623",
+   "created": "2024-03-10"
+  },
+  {
+   "id": "so-78722573",
+   "title": "&quot;Connection Refused&quot; Http calls between dotnet controllers running on docker containers",
+   "url": "https://stackoverflow.com/questions/78722573",
+   "created": "2024-07-08"
+  },
+  {
+   "id": "so-66777388",
+   "title": "Nestjs Docker returns connection refused when accessing microservice",
+   "url": "https://stackoverflow.com/questions/66777388",
+   "created": "2021-03-24"
+  },
+  {
+   "id": "so-77022432",
+   "title": "How to connect to CockroachDB with docker-compose?",
+   "url": "https://stackoverflow.com/questions/77022432",
+   "created": "2023-09-01"
+  },
+  {
+   "id": "so-76316402",
+   "title": "Docker connect to TCP port 1433 Erratically throws error &quot;1433 An attempt was made to access a socket in a way forbidden by its access permissions &quot;",
+   "url": "https://stackoverflow.com/questions/76316402",
+   "created": "2023-05-23"
+  },
+  {
+   "id": "so-75371223",
+   "title": "Nestjs microservices with docker compose not working",
+   "url": "https://stackoverflow.com/questions/75371223",
+   "created": "2023-02-07"
+  },
+  {
+   "id": "so-74510098",
+   "title": "Error: getaddrinfo ENOTFOUND trying to connect to mongo from container",
+   "url": "https://stackoverflow.com/questions/74510098",
+   "created": "2022-11-20"
+  },
+  {
+   "id": "so-71717395",
+   "title": "Getting Error: connect ECONNREFUSED 127.0.0.1:6379 in docker-compose while connecting redis",
+   "url": "https://stackoverflow.com/questions/71717395",
+   "created": "2022-04-02"
+  },
+  {
+   "id": "so-71595308",
+   "title": "OperationalError: (pymysql.err.OperationalError) (2003, &quot;Can&#39;t connect to MySQL server on &#39;0.0.0.0&#39; ([Errno 111] Connection refused)&quot;)",
+   "url": "https://stackoverflow.com/questions/71595308",
+   "created": "2022-03-23"
+  },
+  {
+   "id": "so-67078880",
+   "title": "Nginx on docker, curl get Connection refused",
+   "url": "https://stackoverflow.com/questions/67078880",
+   "created": "2021-04-13"
+  },
+  {
+   "id": "so-75604158",
+   "title": "Connecting to Solr using pysolr gives Errno 111: Connection refused",
+   "url": "https://stackoverflow.com/questions/75604158",
+   "created": "2023-03-01"
+  },
+  {
+   "id": "so-75497856",
+   "title": "Cant connect to docker container port of some images",
+   "url": "https://stackoverflow.com/questions/75497856",
+   "created": "2023-02-19"
+  },
+  {
+   "id": "so-72218489",
+   "title": "Phpmyadmin won&#39;t connect to mysql database on macOS (docker-compose.yml)",
+   "url": "https://stackoverflow.com/questions/72218489",
+   "created": "2022-05-12"
+  },
+  {
+   "id": "so-74728480",
+   "title": "why Flink kafka client is trying to connect to localhost:9092 while It is set up to connect to 172.17.0.1:9092?",
+   "url": "https://stackoverflow.com/questions/74728480",
+   "created": "2022-12-08"
+  },
+  {
+   "id": "so-77506152",
+   "title": "Why does master node in redis cannot connect to port 6379 when running it in docker container?",
+   "url": "https://stackoverflow.com/questions/77506152",
+   "created": "2023-11-18"
+  },
+  {
+   "id": "so-71829173",
+   "title": "Does docker use service name or container name to resolve service reference in docker compose?",
+   "url": "https://stackoverflow.com/questions/71829173",
+   "created": "2022-04-11"
+  },
+  {
+   "id": "so-68456004",
+   "title": "Can&#39;t connect to a docker container using its IP address",
+   "url": "https://stackoverflow.com/questions/68456004",
+   "created": "2021-07-20"
+  },
+  {
+   "id": "so-73375247",
+   "title": "My frontend (REACTJS) doesn&#39;t connect with backend(FLASK PYTHON) in docker",
+   "url": "https://stackoverflow.com/questions/73375247",
+   "created": "2022-08-16"
+  },
+  {
+   "id": "so-67130378",
+   "title": "Docker compose selenium connect to another app localhost",
+   "url": "https://stackoverflow.com/questions/67130378",
+   "created": "2021-04-16"
+  },
+  {
+   "id": "so-70230721",
+   "title": "Can&#39;t access service2.localhost from a different docker container with traefik load balancer",
+   "url": "https://stackoverflow.com/questions/70230721",
+   "created": "2021-12-05"
+  },
+  {
+   "id": "so-78937528",
+   "title": "Connection refused when calling Postgres container from another docker container",
+   "url": "https://stackoverflow.com/questions/78937528",
+   "created": "2024-09-01"
+  },
+  {
+   "id": "so-65972471",
+   "title": "Docker-Compose Connection Refused with ASP-NET Core 5",
+   "url": "https://stackoverflow.com/questions/65972471",
+   "created": "2021-01-30"
+  },
+  {
+   "id": "so-79198733",
+   "title": "Consistent Access Denied error when trying to connect to MySQL DB with PDO",
+   "url": "https://stackoverflow.com/questions/79198733",
+   "created": "2024-11-18"
+  },
+  {
+   "id": "so-76754883",
+   "title": "Django container unable to connect to other container on the same network",
+   "url": "https://stackoverflow.com/questions/76754883",
+   "created": "2023-07-24"
+  },
+  {
+   "id": "so-78706578",
+   "title": "JupyterHub OAuth2 integration with Django and DockerSpawner failing to connect to OAuth server",
+   "url": "https://stackoverflow.com/questions/78706578",
+   "created": "2024-07-04"
+  },
+  {
+   "id": "so-76002741",
+   "title": "How to run mongo docker instance at specific port",
+   "url": "https://stackoverflow.com/questions/76002741",
+   "created": "2023-04-13"
+  },
+  {
+   "id": "so-78373579",
+   "title": "Opentelemetry Collector - Connection refused problem",
+   "url": "https://stackoverflow.com/questions/78373579",
+   "created": "2024-04-23"
+  },
+  {
+   "id": "so-79749620",
+   "title": "Python in a Docker Container refused connection to Postgres in a networked Docker Container",
+   "url": "https://stackoverflow.com/questions/79749620",
+   "created": "2025-08-28"
+  },
+  {
+   "id": "so-78605802",
+   "title": "Unable to connect to Postgres running in docker",
+   "url": "https://stackoverflow.com/questions/78605802",
+   "created": "2024-06-11"
+  },
+  {
+   "id": "so-70316424",
+   "title": "Spring cannot connect to postgres when using docker",
+   "url": "https://stackoverflow.com/questions/70316424",
+   "created": "2021-12-11"
+  },
+  {
+   "id": "so-78643564",
+   "title": "dial tcp 192.168.48.2:3306: connect: connection refused",
+   "url": "https://stackoverflow.com/questions/78643564",
+   "created": "2024-06-19"
+  },
+  {
+   "id": "so-75280641",
+   "title": "Redis connection refused with nodejs/docker and docker networks",
+   "url": "https://stackoverflow.com/questions/75280641",
+   "created": "2023-01-30"
+  },
+  {
+   "id": "so-78051111",
+   "title": "mysqli::real_connect(): (HY000/2002): Connection refused while running multiple instances of MariaDB container in docker",
+   "url": "https://stackoverflow.com/questions/78051111",
+   "created": "2024-02-24"
+  },
+  {
+   "id": "so-68589288",
+   "title": "How to connect to named networks in docker-compose",
+   "url": "https://stackoverflow.com/questions/68589288",
+   "created": "2021-07-30"
+  },
+  {
+   "id": "so-68696746",
+   "title": "Couldn&#39;t connect to Docker daemon",
+   "url": "https://stackoverflow.com/questions/68696746",
+   "created": "2021-08-07"
+  },
+  {
+   "id": "so-67105970",
+   "title": "Can&#39;t connect to Docker Container on Windows",
+   "url": "https://stackoverflow.com/questions/67105970",
+   "created": "2021-04-15"
+  },
+  {
+   "id": "so-77122992",
+   "title": "I cannot connect to postgres using pgAdmin. they both run in docker containers",
+   "url": "https://stackoverflow.com/questions/77122992",
+   "created": "2023-09-17"
+  },
+  {
+   "id": "so-73126882",
+   "title": "Laravel artisan cannot access ENV variables (causing: db connection refused)",
+   "url": "https://stackoverflow.com/questions/73126882",
+   "created": "2022-07-26"
+  },
+  {
+   "id": "so-78946241",
+   "title": "Docker container on Mac cannot reach local network devices",
+   "url": "https://stackoverflow.com/questions/78946241",
+   "created": "2024-09-03"
+  },
+  {
+   "id": "so-66552954",
+   "title": "Unable to connect to Redis; nested exception is io.lettuce.core.RedisConnectionException:",
+   "url": "https://stackoverflow.com/questions/66552954",
+   "created": "2021-03-09"
+  },
+  {
+   "id": "so-75926230",
+   "title": "how to connect Docker compose container to mongoDB compass using thunder client",
+   "url": "https://stackoverflow.com/questions/75926230",
+   "created": "2023-04-04"
+  },
+  {
+   "id": "so-70650923",
+   "title": "Panic : Could not connect : Dial TCP X.X.X.X:5432 : Connect : Connection refused",
+   "url": "https://stackoverflow.com/questions/70650923",
+   "created": "2022-01-10"
+  },
+  {
+   "id": "so-75951656",
+   "title": "Docker-compose two service cannot access each other. Connection refused",
+   "url": "https://stackoverflow.com/questions/75951656",
+   "created": "2023-04-06"
+  },
+  {
+   "id": "so-75526060",
+   "title": "Connection Refused to Django test server when run in github actions",
+   "url": "https://stackoverflow.com/questions/75526060",
+   "created": "2023-02-21"
+  },
+  {
+   "id": "so-71270538",
+   "title": "Unable to connect to postgres DB running in container on wsl 2 from one of the service running on wsl 2",
+   "url": "https://stackoverflow.com/questions/71270538",
+   "created": "2022-02-25"
+  },
+  {
+   "id": "so-69498540",
+   "title": "Expose additional port on Kafka Connect for thread listener port",
+   "url": "https://stackoverflow.com/questions/69498540",
+   "created": "2021-10-08"
+  },
+  {
+   "id": "so-76083286",
+   "title": "How to reach Laravel Sail working directory from terminal?",
+   "url": "https://stackoverflow.com/questions/76083286",
+   "created": "2023-04-23"
+  },
+  {
+   "id": "so-68653262",
+   "title": "How to connect distro elasticsearch service to another service defined in docker compose",
+   "url": "https://stackoverflow.com/questions/68653262",
+   "created": "2021-08-04"
+  },
+  {
+   "id": "so-76667030",
+   "title": "How do I connect to Xdebug running inside a Docker container on a remote server from my local machine?",
+   "url": "https://stackoverflow.com/questions/76667030",
+   "created": "2023-07-12"
+  },
+  {
+   "id": "so-75191926",
+   "title": "Application not able to connect to PostgreSQL in docker compose",
+   "url": "https://stackoverflow.com/questions/75191926",
+   "created": "2023-01-21"
+  },
+  {
+   "id": "so-75996928",
+   "title": "ActiveMQ - Docker version - Connection refused: no further information",
+   "url": "https://stackoverflow.com/questions/75996928",
+   "created": "2023-04-12"
+  },
+  {
+   "id": "so-73588664",
+   "title": "econnrefused rabbitMQ between docker containers",
+   "url": "https://stackoverflow.com/questions/73588664",
+   "created": "2022-09-02"
+  },
+  {
+   "id": "so-65777297",
+   "title": "How to connect to postgres from within a docker file?",
+   "url": "https://stackoverflow.com/questions/65777297",
+   "created": "2021-01-18"
+  },
+  {
+   "id": "so-73646622",
+   "title": "Permission Denied | Got permission denied while trying to connect to the Docker daemon socket",
+   "url": "https://stackoverflow.com/questions/73646622",
+   "created": "2022-09-08"
+  },
+  {
+   "id": "so-78759022",
+   "title": "Using Docker for I receive - java.net.ConnectException: Connection refused - applications running on 8088,8089 and DB running on 5432",
+   "url": "https://stackoverflow.com/questions/78759022",
+   "created": "2024-07-17"
+  },
+  {
+   "id": "so-72105324",
+   "title": "NestJS app build with docker can&#39;t access postgres database in the same docker network: ECONNREFUSED 127.0.0.1:5432",
+   "url": "https://stackoverflow.com/questions/72105324",
+   "created": "2022-05-03"
+  },
+  {
+   "id": "so-74855892",
+   "title": "dockerized django application cannot connect to mysql server on localhost",
+   "url": "https://stackoverflow.com/questions/74855892",
+   "created": "2022-12-19"
+  },
+  {
+   "id": "so-74837723",
+   "title": "When deployment I got this error [error] 9#9: *1 connect() failed (111: Connection refused) while connecting to upstream Nginx 502 Bad Gateway",
+   "url": "https://stackoverflow.com/questions/74837723",
+   "created": "2022-12-17"
+  },
+  {
+   "id": "so-79334517",
+   "title": "Redis Error 111: Connection Refused in Docker Compose with FastAPI",
+   "url": "https://stackoverflow.com/questions/79334517",
+   "created": "2025-01-06"
+  },
+  {
+   "id": "so-73632276",
+   "title": "mongo-express | Could not connect to database using connectionString: mongodb://127.0.0.1:27017/&quot;",
+   "url": "https://stackoverflow.com/questions/73632276",
+   "created": "2022-09-07"
+  },
+  {
+   "id": "so-75840026",
+   "title": "Issue connecting Node server to MySQL when both images are running on docker-compose",
+   "url": "https://stackoverflow.com/questions/75840026",
+   "created": "2023-03-25"
+  },
+  {
+   "id": "so-72375508",
+   "title": "Bitnami docker image |&#160;MongoNetworkError: connect ECONNREFUSED 172.20.0.2:27017",
+   "url": "https://stackoverflow.com/questions/72375508",
+   "created": "2022-05-25"
+  },
+  {
+   "id": "so-71645628",
+   "title": "Should the official Hasura docker-compose.yml connect to postgress straight away?",
+   "url": "https://stackoverflow.com/questions/71645628",
+   "created": "2022-03-28"
+  },
+  {
+   "id": "so-67348733",
+   "title": "Unable to connect to mysql container on Asp.Net Core",
+   "url": "https://stackoverflow.com/questions/67348733",
+   "created": "2021-05-01"
+  },
+  {
+   "id": "so-70180614",
+   "title": "docker pgadmin connect to Postgres failing",
+   "url": "https://stackoverflow.com/questions/70180614",
+   "created": "2021-12-01"
+  },
+  {
+   "id": "so-78388082",
+   "title": "Why when building image for backend it cannot connect to mysql",
+   "url": "https://stackoverflow.com/questions/78388082",
+   "created": "2024-04-26"
+  },
+  {
+   "id": "so-72535215",
+   "title": "How to solve Laravel cant connect with mysql through docker",
+   "url": "https://stackoverflow.com/questions/72535215",
+   "created": "2022-06-07"
+  },
+  {
+   "id": "so-65858946",
+   "title": "An exception occurred in driver: SQLSTATE[HY000] [2002] Connection refused Symfony Docker",
+   "url": "https://stackoverflow.com/questions/65858946",
+   "created": "2021-01-23"
+  },
+  {
+   "id": "so-66366162",
+   "title": "Docker compose flask-app fails to connect to ES exit with code 1",
+   "url": "https://stackoverflow.com/questions/66366162",
+   "created": "2021-02-25"
+  },
+  {
+   "id": "so-73316362",
+   "title": "connect container to host local network using docker compose",
+   "url": "https://stackoverflow.com/questions/73316362",
+   "created": "2022-08-11"
+  },
+  {
+   "id": "so-79124877",
+   "title": "RabbitMQ/MassTransit connection refused while running docker",
+   "url": "https://stackoverflow.com/questions/79124877",
+   "created": "2024-10-25"
+  },
+  {
+   "id": "so-66697861",
+   "title": "docker-compose unable to connect mysql",
+   "url": "https://stackoverflow.com/questions/66697861",
+   "created": "2021-03-18"
+  },
+  {
+   "id": "so-79656174",
+   "title": "Flutter web + flask_socketio: flutter app can&#39;t connect to flask socketio",
+   "url": "https://stackoverflow.com/questions/79656174",
+   "created": "2025-06-06"
+  },
+  {
+   "id": "so-72933716",
+   "title": "Refused to connect local ip address by using docker while running ok without docker",
+   "url": "https://stackoverflow.com/questions/72933716",
+   "created": "2022-07-11"
+  },
+  {
+   "id": "so-68691904",
+   "title": "Using a URL instead of service name to connect services with docker compose",
+   "url": "https://stackoverflow.com/questions/68691904",
+   "created": "2021-08-07"
+  },
+  {
+   "id": "so-76975994",
+   "title": "Failure to connect to postgres docker container running From Host Machine",
+   "url": "https://stackoverflow.com/questions/76975994",
+   "created": "2023-08-25"
+  },
+  {
+   "id": "so-70266738",
+   "title": "ECONNREFUSED error trying migration with NestJS, TypeORM, Docker, Postgres",
+   "url": "https://stackoverflow.com/questions/70266738",
+   "created": "2021-12-07"
+  },
+  {
+   "id": "so-75213027",
+   "title": "error during connect: This error may indicate that the docker daemon is not running in cmd",
+   "url": "https://stackoverflow.com/questions/75213027",
+   "created": "2023-01-23"
+  },
+  {
+   "id": "so-77656257",
+   "title": "How can I get cAdvisor and Node Exporter to connect to Prometheus in a docker-compose environment?",
+   "url": "https://stackoverflow.com/questions/77656257",
+   "created": "2023-12-13"
+  },
+  {
+   "id": "so-66186108",
+   "title": "I cannot connect the mysql container from server container using the docker-compose",
+   "url": "https://stackoverflow.com/questions/66186108",
+   "created": "2021-02-13"
+  },
+  {
+   "id": "so-71679081",
+   "title": "How can I connect mlflow server via nginx ssl authentication?",
+   "url": "https://stackoverflow.com/questions/71679081",
+   "created": "2022-03-30"
+  },
+  {
+   "id": "so-78360876",
+   "title": "Communications link failure when trying to connect a Spring Boot app to a MySQL when both of them run in Docker containers, using docker-compose",
+   "url": "https://stackoverflow.com/questions/78360876",
+   "created": "2024-04-21"
+  },
+  {
+   "id": "so-76383655",
+   "title": "docker compose 3.3 cannot reach other containers",
+   "url": "https://stackoverflow.com/questions/76383655",
+   "created": "2023-06-01"
+  },
+  {
+   "id": "so-73382612",
+   "title": "Docker-compose not starting all services",
+   "url": "https://stackoverflow.com/questions/73382612",
+   "created": "2022-08-17"
+  },
+  {
+   "id": "so-65655916",
+   "title": "&#39;Connection refused&#39; when running django/postgres project in docker",
+   "url": "https://stackoverflow.com/questions/65655916",
+   "created": "2021-01-10"
+  }
+ ]
+}
