@@ -123,7 +123,8 @@ def forum(cases):
         time.sleep(1)
         posts = [p.strip() for p in raw.split("\n-------------------------\n")]
         first = t["post_stream"]["posts"][0]
-        accepted = (t.get("accepted_answer") or {}).get("post_number")
+        # The solved plugin marks the chosen post itself (accepted_answer).
+        accepted = next((p["post_number"] for p in t["post_stream"]["posts"] if p.get("accepted_answer")), None)
         question = f"# {t['title']}\n\nAsked on the Docker Community Forums by {first['username']}, {t['created_at'][:10]}.\n\n{posts[0]}\n"
         thread = [question]
         for n, p in enumerate(posts[1:], start=2):

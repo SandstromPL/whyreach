@@ -1,0 +1,1105 @@
+quotas:
+  stackoverflow: 12
+  forum: 4
+  github: 4
+labelled_past_the_quota:
+  stackoverflow: 26
+  forum: 8
+  github: 38
+cases:
+- source: stackoverflow
+  position: 1
+  url: https://stackoverflow.com/questions/73415151
+  case: so-73415151
+  decision: in
+  cause: 'The backend container used the host-published port 27018 to reach the second mongo container
+    by its service name; inside the network that container listens on its container port 27017 (ports:
+    ''27018:27017'').'
+  connection:
+    from: the backend-showcase container
+    to: mongo-db-showcase-db:27018
+    symptom: refused
+  rule: WR006
+  fix: 'Use the container port: mongodb://...@mongo-db-showcase-db:27017/.'
+  fix_source: accepted answer by Hoàng Huy Khánh
+  label_confidence: high
+  notes: Error is ECONNREFUSED 172.20.0.6:27018. The mongo image only matters for where it listens (0.0.0.0:27017).
+    The sibling pair (backend-manager to mongo-db-admin-manager-db:27017) works and is the control.
+  selected: true
+- source: stackoverflow
+  position: 2
+  url: https://stackoverflow.com/questions/69437475
+  case: so-69437475
+  decision: in
+  cause: The Node.js app in the api container connected to localhost:22 to reach the SSH server of the
+    machine running Docker (the asker's WSL distro); inside the container localhost is the container itself,
+    where nothing listens on 22.
+  connection:
+    from: the api container (node-ssh client)
+    to: localhost:22
+    symptom: refused
+  rule: WR007
+  fix: Connect to host.docker.internal:22 instead of localhost (the asker also dropped the attempt to
+    run sshd in the container and switched node:alpine to node:latest).
+  fix_source: 'comment by the asker (rewrewty1): ''Now I can connect WSL''s SSH from docker container
+    with host.docker.internal'', following a comment by Stefan Golubović; also the [SOLUTION] update in
+    the question'
+  label_confidence: medium
+  notes: 'Asker is on WSL2 (host.docker.internal worked out of the box and Windows'' netstat showed 22
+    held by wslhost.exe, so Docker Desktop''s WSL integration); the cause, localhost inside a container,
+    is the same on Linux, where the fix also needs extra_hosts host.docker.internal:host-gateway and an
+    sshd on 0.0.0.0:22. The asker''s comments: 0.0.0.0 failed the same way, the WSL VM''s own address
+    (172.30.x.x) worked, and host.docker.internal fixed it. They also call the accepted answer''s point
+    (sshd doesn''t start on alpine) their ''first problem'', from a detour where they tried running sshd
+    in the container; the final Dockerfile runs no sshd, and the connection that failed and was fixed
+    is the one to WSL''s sshd. A ''Permission denied'' login error on the way was auth over a working
+    connection. Rebuild: a host listener on the port (stand-in for sshd), the container connecting to
+    localhost.'
+  selected: true
+- source: stackoverflow
+  position: 3
+  url: https://stackoverflow.com/questions/71877179
+  case: so-71877179
+  decision: in
+  cause: 'On the droplet the images were started one by one with plain docker run: every container sat
+    only on Docker''s default bridge (no name resolution) and got a random name, so the name dbcontainer
+    (the image''s tag and the Compose container_name, not any running container''s name) did not resolve
+    from the server container.'
+  connection:
+    from: the node-express server container (started with docker run, random name)
+    to: dbcontainer:3306
+    symptom: name-not-found
+  rule: WR009
+  also: WR005
+  fix: Run the stack on the droplet with docker-compose (images referenced from the registry), which puts
+    the containers on the user-defined network mynetwork and names the database container dbcontainer.
+  fix_source: the asker's own answer (accepted)
+  label_confidence: medium
+  notes: 'Both causes had to go and the fix removed both at once: the default bridge (WR009) and no container
+    named dbcontainer (WR005; both layer 3, WR009 earlier in evaluation order). WR009''s page assumes
+    the name matches a container on the bridge; here it matched only an image tag (docker ps shows friendly_ardinghelli
+    for the db), and WR005''s page says it does not fire for a source on the default bridge only, so a
+    faithful rebuild may leave whyreach with no matching rule. Rebuild from the docker ps output: docker
+    run -d -p 3307:3306 <db image>, docker run -d -p 4000:4000 <server image>, phpmyadmin -p 8183:80,
+    all without --name or --network. mysql client default port 3306 (no port in the pool config). Docker
+    19.03.12 on Ubuntu. phpMyAdmin''s PMA_PORT 3307 is a separate WR006 leftover, not the failing connection.'
+  selected: true
+- source: stackoverflow
+  position: 4
+  url: https://stackoverflow.com/questions/75237114
+  case: so-75237114
+  decision: in
+  cause: container_1 (Django) called the accounts service at 127.0.0.1:8001, the address and published
+    port the host uses; inside container_1, 127.0.0.1 is container_1 itself, and container_2 listens on
+    its container port 8000.
+  connection:
+    from: the container_1 (Django web app) container
+    to: 127.0.0.1:8001
+    symptom: refused
+  rule: WR007
+  also: WR006
+  fix: Use host = 'http://container_2:8000' (service name and container port).
+  fix_source: the asker's own answer (accepted), quoting a comment by jordanm
+  label_confidence: high
+  notes: 'The fix changed both the host and the port: container_2:8001 would still be refused (host-published
+    port 8001 used between containers, ports 8001:8000), so WR006 is the second, same-layer cause. container_1
+    itself listens on 8000, not 8001. Both are on network web. The Compose snippet''s container_2 block
+    is mis-indented (missing build:), a paste error.'
+  selected: true
+- source: stackoverflow
+  position: 5
+  url: https://stackoverflow.com/questions/75500996
+  case: so-75500996
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: Flower ran with --url_prefix=flower, so its metrics were served under /flower/metrics while Prometheus
+    scraped /metrics; the TCP connection worked (ping and telnet celery-flower 5555 succeeded).
+  connection:
+    from: the prometheus container
+    to: celery-flower:5555
+    symptom: other
+  fix: 'Remove --url_prefix=flower from Flower''s command (another answer: set metrics_path: /flower/metrics).'
+  fix_source: the asker's own answer (accepted)
+  notes: An HTTP path problem against a working server; the shared external network flower was already
+    correct.
+  selected: false
+- source: stackoverflow
+  position: 6
+  url: https://stackoverflow.com/questions/78901825
+  case: so-78901825
+  decision: in
+  cause: nginx in the ki-ui container proxied /ai to http://localhost:8000; inside the nginx container
+    localhost ([::1] and 127.0.0.1) is nginx's own container, where nothing listens on 8000. The backend
+    runs in ki-backend.
+  connection:
+    from: the ki-ui container (nginx)
+    to: localhost:8000
+    symptom: refused
+  rule: WR007
+  fix: proxy_pass http://ki-backend:8000 (the service name and its container port), then rebuild/restart
+    the nginx container.
+  fix_source: accepted answer by Suresh Chikkam, confirmed by the asker's comment ('Yup, fixed my problem!')
+  label_confidence: high
+  notes: nginx logged upstream [::1]:8000 refused; nothing in the nginx container listens on 8000 in either
+    family, so this is not WR014. ki-backend publishes 8080:8000 and listens on 8000 (its image is private;
+    a stand-in on 0.0.0.0:8000 fits). Hosted on an Azure VM (Linux).
+  selected: true
+- source: stackoverflow
+  position: 7
+  url: https://stackoverflow.com/questions/65766633
+  case: so-65766633
+  decision: in
+  cause: The Angular app runs in the browser on the host, not in a container, so its call to the Compose
+    service name files-service:8080 is resolved by the host, which does not know container names.
+  connection:
+    from: the host (a browser running the Angular app served by nginx-files-ui)
+    to: files-service:8080
+    symptom: name-not-found
+  rule: WR019
+  fix: From browser code, call the API through the port the service publishes on the host (localhost:6060,
+    which already worked), or a name that resolves to the host.
+  fix_source: accepted answer by Duc Trung Mai, confirmed by the asker's comment (calls it the explanation
+    he missed)
+  label_confidence: high
+  notes: 'The asker''s own EDIT already reaches the same conclusion. files-service''s Compose block isn''t
+    shown: localhost:6060 worked and the service listens on 8080, so it publishes 6060:8080 on the external
+    network files-net (a Spring Boot stand-in on 0.0.0.0:8080 is enough). The nginx resolver change was
+    irrelevant.'
+  selected: true
+- source: stackoverflow
+  position: 8
+  url: https://stackoverflow.com/questions/78371447
+  case: so-78371447
+  decision: out
+  out_reason: not-rebuildable
+  cause: A Spring Boot container on an EC2 instance timed out connecting to an AWS RDS MySQL instance;
+    most likely the RDS security group (or VPC routing) didn't admit the instance.
+  connection:
+    from: the backend container on EC2
+    to: the RDS MySQL endpoint (3306)
+    symptom: timeout
+  fix: 'General advice: open the RDS security group to the EC2 instance, check subnets and routing, test
+    from the instance first.'
+  fix_source: accepted answer by Chris; not confirmed (the asker's comments say opening 3306 to all traffic
+    still failed and 'I still can't find the solution', then that the EC2 instance itself connected but
+    hung under docker compose up)
+  notes: Needs AWS RDS and security groups; no Compose file given. The accepted answer is a checklist,
+    and the asker's comments never say what made the container connect, so the fix is unconfirmed as well.
+  selected: false
+- source: stackoverflow
+  position: 9
+  url: https://stackoverflow.com/questions/65596446
+  case: so-65596446
+  decision: in
+  cause: The mysql container's initialisation died because MYSQL_USER was root (it conflicts with the
+    root user the image creates), so the database container wasn't running and its name didn't resolve
+    from the app, in the same Compose project. Behind it, the app also used the host-published port 3307
+    between containers (ports 3307:3306).
+  connection:
+    from: the cth-docker-container (Tomcat/Spring MVC) container
+    to: mysql-standalone:3307
+    symptom: name-not-found
+  rule: WR008
+  also: WR006
+  fix: 'A rewritten Compose file: MYSQL_USER cth instead of root (Zeitounator''s advice), port 3306 instead
+    of 3307, and also service renamed to mysqldb (container_name mysqldb), image mysql/mysql-server:5.7,
+    env var names changed (…_SERVERNAME to …_HOST), init scripts kept.'
+  fix_source: the asker's own answer (accepted), applying the change in comments by Zeitounator
+  label_confidence: medium
+  notes: 'Zeitounator''s comment: MYSQL_USER= root conflicts with the default root user, and the init
+    process is ''either dead or endlessly looping''; check the db log. An UnknownHostException for a service
+    in the same Compose project fits only a db container that isn''t running (exited: WR008). The asker
+    never posted the db log, and the fix changed several things at once (the image too), so this rests
+    on the commenter''s diagnosis plus the fix containing it: medium. Rebuild: mysql:5.7 with the question''s
+    env (MYSQL_USER= root with the leading space, two MYSQL_DATABASE entries) and the init scripts; check
+    that the db container really exits, or the name will resolve and only WR006 remains.'
+  selected: true
+- source: stackoverflow
+  position: 10
+  url: https://stackoverflow.com/questions/78230180
+  case: so-78230180
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: A RUN step (wget) in docker build segfaulted (exit 139) under emulation of the amd64 openjdk:8-jdk-alpine
+    image on an Apple Silicon Mac.
+  fix: Built on a Windows PC instead (and tried openjdk:19-alpine); no network change.
+  fix_source: the asker's own answer (accepted)
+  notes: Build-time crash, not a connection failure; also Mac-only (platform).
+  selected: false
+- source: stackoverflow
+  position: 11
+  url: https://stackoverflow.com/questions/73146566
+  case: so-73146566
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: 'No failure: a request for a Compose file connecting WordPress, MySQL and nginx.'
+  fix: Pointer to an article on running nginx, WordPress and MySQL in containers.
+  fix_source: accepted answer by BertC
+  notes: How-to question with no setup and no error.
+  selected: false
+- source: stackoverflow
+  position: 12
+  url: https://stackoverflow.com/questions/78873209
+  case: so-78873209
+  decision: in
+  cause: 'The Spring Boot app, in its own Compose project, used https://localhost to reach Authentik,
+    which runs in a separate Compose project: localhost inside the app container is the app container
+    itself, and the two projects share no network, so Authentik''s container name could not be used until
+    the app joined authentik_default.'
+  connection:
+    from: the Spring Boot service container (its own Compose project)
+    to: https://localhost/application/o/{name}/.well-known/openid-configuration (localhost:443)
+    symptom: refused
+  rule: WR007
+  also: WR004
+  fix: Attach the app's container to Authentik's network (authentik_default, declared external in the
+    app's Compose file) and use Authentik's server container name instead of localhost in application.yaml.
+  fix_source: the asker's own answer (accepted)
+  label_confidence: medium
+  notes: 'Both causes had to go: localhost (layer 2) and no shared network (layer 3). No Compose files
+    are given; the setup is described in words, and Authentik''s Compose file is the public stock one
+    (server container, ports published on the host''s 80/443; the stock file maps them to 9000/9443 inside).
+    The port the fixed app used isn''t stated: a rebuild should give the stand-in server the container
+    port the fixed URL implies, or it adds a WR006 that the asker didn''t report. Authentik matters only
+    for where it listens.'
+  selected: true
+- source: stackoverflow
+  position: 13
+  url: https://stackoverflow.com/questions/69061621
+  case: so-69061621
+  decision: in
+  cause: The Node.js app connected to db:5433, the port postgres is published on for the host (ports 5433:5432);
+    between containers postgres listens on 5432.
+  connection:
+    from: the be container (Node.js, TypeORM)
+    to: db:5433
+    symptom: refused
+  rule: WR006
+  fix: Use port 5432 in the connection URL (postgres://...@db:5432/dbname).
+  fix_source: accepted answer by Mesar ali, confirmed by the asker's own answer
+  label_confidence: high
+  notes: Error ECONNREFUSED 172.20.0.2:5433. Official postgres image. pgAdmin's failure is presumably
+    the same port mistake. All on the user-defined network postgres.
+  selected: true
+- source: stackoverflow
+  position: 14
+  url: https://stackoverflow.com/questions/70088535
+  case: so-70088535
+  decision: in
+  cause: nestcloud's bootstrap-development.yaml pointed consul.host at localhost, so test-service connected
+    to 127.0.0.1:8500 in its own container instead of the consul container.
+  connection:
+    from: the test-service container (NestJS)
+    to: localhost:8500
+    symptom: refused
+  rule: WR007
+  fix: Set consul.host to ${{CONSUL_HOST}} (CONSUL_HOST=consul from the Compose file) and rebuild the
+    container.
+  fix_source: accepted answer by Raz Luvaton, confirmed by the asker's comment ('Yup, looks like it. Thank
+    you!')
+  label_confidence: high
+  notes: 'Error ECONNREFUSED 127.0.0.1:8500. Consul runs with -client 0.0.0.0, so it listens on 0.0.0.0:8500;
+    it matters only for where it listens (a stand-in on 8500 works). discoveryHost: localhost is a separate
+    later concern (consul''s health check), not the failing connection.'
+  selected: true
+- source: stackoverflow
+  position: 15
+  url: https://stackoverflow.com/questions/78151189
+  case: so-78151189
+  decision: in
+  cause: Laravel runs on the host and connects to 127.0.0.1:6379, but the redis container was started
+    with docker run --name local-redis -d redis, without publishing its port.
+  connection:
+    from: the host (Laravel / php artisan)
+    to: 127.0.0.1:6379
+    symptom: refused
+  rule: WR019
+  fix: 'Publish the port: docker run --name local-redis -p 127.0.0.1:6379:6379 -d redis.'
+  fix_source: accepted answer by Teemu Risikko
+  label_confidence: high
+  notes: 'The asker''s comment gives the setup: docker pull redis, docker run --name local-redis -d redis,
+    docker start local-redis. The asker accepted the answer but didn''t comment after it. Official redis
+    image. Nothing else on the host must listen on 6379 in the rebuild.'
+  selected: true
+- source: stackoverflow
+  position: 16
+  url: https://stackoverflow.com/questions/71090070
+  case: so-71090070
+  decision: out
+  out_reason: platform
+  cause: Redis Cluster nodes advertise their container addresses (10.0.0.11-16:6379) in the cluster topology;
+    Lettuce on the host follows that topology after the seed connect to localhost:7001 and cannot reach
+    those addresses.
+  connection:
+    from: the Java (Lettuce) app on the host
+    to: 10.0.0.12:6379 (and the other nodes' container addresses, learned from the cluster topology; seeds
+      were localhost:7001-7003)
+    symptom: timeout
+  fix: Switched to bitnami/redis-cluster with REDIS_CLUSTER_ANNOUNCE_IP set to the host's LAN address
+    and announce ports equal to the published ports, so the topology advertises addresses the host can
+    reach.
+  fix_source: the asker's own answer (accepted)
+  label_confidence: medium
+  notes: The class of cause is the planned WR025 (advertised-address redirect). But on Linux Docker Engine
+    the host routes to a bridge network's subnet (10.0.0.0/16 here) and reaches container addresses directly,
+    so the host's connects to 10.0.0.x:6379 would succeed; timeouts from the host to container addresses
+    are Docker Desktop behaviour. The asker's LAN is 192.168.0.x, so no subnet overlap explains it. The
+    asker's OS is not stated, hence medium.
+  selected: false
+- source: stackoverflow
+  position: 17
+  url: https://stackoverflow.com/questions/65710881
+  case: so-65710881
+  decision: out
+  out_reason: not-rebuildable
+  cause: Laravel's config/database.php had 'read' and 'write' host entries with IP addresses, which override
+    DB_HOST=mysql, so the app connected to those IPs instead of the mysql container.
+  connection:
+    from: the Laravel (laradock php-fpm/workspace) container
+    to: the read/write IPs in database.php, port 3306 (instead of mysql:3306)
+    symptom: refused
+  fix: Removed the read/write IPs from database.php so DB_HOST=mysql is used.
+  fix_source: the asker's own answer (accepted)
+  label_confidence: medium
+  notes: The IPs themselves are never given (if they were 127.0.0.1 it would be WR007; Laravel's docs
+    example uses 192.168.1.x LAN addresses), and the Compose setup is laradock's, with its .env only behind
+    a gist link. The cause's key detail is missing, so it cannot be rebuilt faithfully. Confirmed fix
+    exists.
+  selected: false
+- source: stackoverflow
+  position: 18
+  url: https://stackoverflow.com/questions/66725899
+  case: so-66725899
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: 'The reported error is Spark''s ''Failed to find data source: kafka'': the spark-sql-kafka package
+    is not loaded, so no connection is ever attempted.'
+  connection:
+    from: the pyspark container
+    to: localhost:9092
+    symptom: other
+  fix: Add the spark-sql-kafka package (spark.jars.packages); the answer also says to use the broker's
+    service name instead of localhost inside the container.
+  fix_source: accepted answer by Alex Ott
+  label_confidence: high
+  notes: 'A latent WR007 is present (kafka.bootstrap.servers=localhost:9092 inside the pyspark container),
+    and behind it the broker''s advertised listener PLAINTEXT_HOST://localhost:9092 (planned WR025: only
+    broker:29092 would work). But the failure the asker reports is a missing Spark package, not a failed
+    connect: the asker commented that changing localhost to broker gave the same error, and the answerer
+    replied that the second point can''t work until the package is added. The asker only said they would
+    try; no comment confirms a connection fix.'
+  selected: false
+- source: stackoverflow
+  position: 19
+  url: https://stackoverflow.com/questions/69356818
+  case: so-69356818
+  decision: in
+  cause: The Kafka brokers' ports are not published to the host, and the brokers do not advertise a listener
+    the host can use (default advertised listener is the container's own hostname).
+  connection:
+    from: the host (kafka-python producer/consumer)
+    to: localhost:9092
+    symptom: unknown
+  rule: WR019
+  also: WR025
+  fix: Publish each broker's port (9092:9092, 9093, 9094) and add a host listener advertised as localhost:<port>
+    (PLAINTEXT_HOST://localhost:9092) next to the internal kafka-1:29092 listener.
+  fix_source: accepted answer by clarj
+  needs_other_image: kafka
+  label_confidence: low
+  notes: 'A how-to question: the asker gives no error, only that the host cannot reach Kafka; no ports
+    are published in the Compose file. OneCricketeer''s comment asks what the asker has tried and what
+    the configs look like, unanswered. The asker''s only comment on the accepted answer says they will
+    try it, not that it worked; it counts as confirmed only because it is accepted. The images are built
+    from undisclosed Dockerfiles with mounted server.properties that are not shown: rebuild with Apache
+    Kafka 2.7 defaults (listeners on :9092, advertised as the container hostname). WR025 in also is planned,
+    not built.'
+  selected: true
+- source: forum
+  position: 1
+  url: https://forums.docker.com/t/148741
+  case: forum-148741
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: 'Containers fail to start after the VM reboots (OCI runtime exec failed: error starting setns
+    process: fork/exec /proc/self/fd/7), after the data-root had been copied with cp -R to a new location;
+    single-node Swarm with Portainer. No network connection is involved.'
+  fix: Purge Docker, reinstall a pinned older version (27.0.3) that Portainer supports, and leave the
+    data root in its default place. The asker says some errors remain but all containers now start after
+    a reboot.
+  fix_source: solution post by the asker (#17)
+  label_confidence: high
+  notes: 'A container start/runtime problem on Swarm, not a failing connection. The registry ''connection
+    refused'' mentioned in #10 is an image pull at boot, also out of scope.'
+  selected: false
+- source: forum
+  position: 2
+  url: https://forums.docker.com/t/127844
+  case: forum-127844
+  decision: out
+  out_reason: no-confirmed-fix
+  cause: Unknown. Redmine's connection to the MySQL service timed out (errno 110) on a fresh Ubuntu 22.04
+    VirtualBox VM with ufw inactive, while mysqld was up and listening on [::]:3306; the same Compose
+    file works elsewhere.
+  connection:
+    from: the redmine container
+    to: 'db:3306 (REDMINE_DB_MYSQL: db)'
+    symptom: timeout
+  fix: 'None identified: the asker built another VM, where it worked, and does not know what changed.'
+  fix_source: solution post by rimelek (#8), which names no fix; the asker's own post (#10)
+  label_confidence: high
+  notes: The marked post only says the problem must be in the environment (it floats, and doubts, a VM
+    address in the containers' range); the asker then says he doesn't know what changed. The timeout points
+    at the path (VM networking or a host firewall), but nothing in the thread confirms a cause.
+  selected: false
+- source: forum
+  position: 3
+  url: https://forums.docker.com/t/142192
+  case: forum-142192
+  decision: out
+  out_reason: host-change
+  cause: The host's WireGuard client (AllowedIPs 0.0.0.0/0) carried the containers' traffic into the tunnel,
+    where TLS handshakes to some sites stalled after the Client Hello (TCP connected); the host itself
+    was fine.
+  connection:
+    from: any container on the host
+    to: hnrss.org:443 (also get.jenkins.io:443)
+    symptom: other
+  fix: 'Change the host''s WireGuard client config: AllowedIPs from 0.0.0.0/0 to 0.0.0.0/1.'
+  fix_source: solution post by the asker (#5)
+  label_confidence: high
+  notes: Reproducing needs a VPN on the host. The stall after a large Client Hello looks like an MTU problem
+    (planned WR017), but the thread never confirms MTU; the fix just routes those addresses outside the
+    tunnel.
+  selected: false
+- source: forum
+  position: 4
+  url: https://forums.docker.com/t/147588
+  case: forum-147588
+  decision: in
+  cause: 'The container''s /etc/resolv.conf was not readable by the image''s non-root user (cat: Permission
+    denied in curlimages/curl), so its resolver could not read the configured nameservers and every outside
+    name failed to resolve; images that run as root (alpine) resolved fine on the same host.'
+  connection:
+    from: the curlimages/curl container (non-root user, default bridge; daemon dns 8.8.8.8 and 1.1.1.1)
+    to: google.com:443 (https://google.com)
+    symptom: name-not-found
+  rule: outside
+  fix: 'Make the container''s resolv.conf world-readable: chmod 644 /etc/resolv.conf.'
+  fix_source: solution post by the asker (#5)
+  label_confidence: medium
+  notes: 'Why Docker''s generated resolv.conf was not world-readable is not stated (dockerd''s umask,
+    or a Docker version bug; the version is not given). A rebuild that leaves the daemon alone: bind-mount
+    a root-owned 0600 resolv.conf and run the client as a non-root user. Not WR020: the upstream servers
+    answer, the client never gets to ask them. If the mode came from a Docker bug fixed later, this would
+    be OUT (not-a-connection-failure).'
+  selected: true
+- source: forum
+  position: 5
+  url: https://forums.docker.com/t/147494
+  case: forum-147494
+  decision: out
+  out_reason: not-rebuildable
+  cause: 'The reverse tunnel pointed at the wrong port: with ssh -R 60001:localhost:2222, host1''s ssh
+    client connected to port 2222 on host1 itself, where nothing listens (refused), so sshd in the container
+    reset the forwarded connection. host1 is a separate machine (a Raspberry Pi) outside Docker.'
+  connection:
+    from: a shell in the sshd container
+    to: localhost:60001 (the reverse tunnel)
+    symptom: reset-or-closed
+  fix: Open the tunnel with ssh -R 60001:localhost:22, so host1 forwards to its own sshd on port 22.
+  fix_source: solution post by the asker (#3)
+  label_confidence: medium
+  notes: 'The refused TCP connect happens on host1 (its localhost:2222), not in Docker; inside the container
+    the connect to localhost:60001 is accepted by sshd and then reset. Needs a second machine: on a single
+    machine port 2222 is the published port and the original command works. The asker''s own explanation
+    of why (the container''s port 22) is muddled, but the changed command is clear.'
+  selected: false
+- source: forum
+  position: 6
+  url: https://forums.docker.com/t/130073
+  case: forum-130073
+  decision: in
+  cause: Traefik picked port 80 for the backend (its detected default for the container), but the Apache
+    server in my.service listens on port 801 only, so Traefik's connections to the container's address
+    on 80 were refused (502 Bad Gateway).
+  connection:
+    from: the traefik container
+    to: 192.168.160.4:80 (Traefik's backend URL for my.service, on the shared custom-network)
+    symptom: refused
+  rule: WR003
+  fix: Tell Traefik the right port with the label traefik.http.services.my-service.loadbalancer.server.port=801
+    (later the asker moved the services back to their standard ports).
+  fix_source: solution post by the asker (#11), following meyay's reply (#9)
+  label_confidence: high
+  notes: 'The 404 in between was a typo in that label (colon instead of equals), a Traefik config error,
+    not a connection failure. Rebuild: a server listening on 801 only, and a client on a shared network
+    connecting to its port 80 (Traefik, or any client).'
+  selected: true
+- source: forum
+  position: 7
+  url: https://forums.docker.com/t/150611
+  case: forum-150611
+  decision: in
+  cause: The my-8.cnf bind-mounted over the mysql image's /etc/mysql/my.cnf set bind-address = 127.0.0.1,
+    so mysqld (on port 3307) listened only on loopback inside its container and phpMyAdmin's connection
+    to it was refused.
+  connection:
+    from: the phpmyadmin container
+    to: 'db:3307 (PMA_HOST: db, PMA_PORT: 3307)'
+    symptom: refused
+  rule: WR002
+  fix: 'Remove the my-8.cnf bind mount (MYSQL_TCP_PORT: 3307 still sets the port), so mysqld listens on
+    all interfaces.'
+  fix_source: the asker's own post (#18)
+  label_confidence: medium
+  notes: 'Long thread with earlier, different failures: ''getaddrinfo for db failed'' while the mysql
+    container kept failing to start (data dir and Portainer bind paths; likely WR008) and PMA_HOST 127.0.0.1:db
+    (localhost; WR007). The confirmed final fix addresses the refused connect to db:3307. The cnf posted
+    in #9 has bind-address = 127.0.0.1; the ''adapted'' cnf in use when the refusal happened (#12) was
+    not shown, though the log shows mysqld up on port 3307. The same edit changed ports to 3307:3306,
+    which only affects host access.'
+  selected: true
+- source: forum
+  position: 8
+  url: https://forums.docker.com/t/147343
+  case: forum-147343
+  decision: out
+  out_reason: no-confirmed-fix
+  cause: Not settled by the thread. The FUOTA server dialled [::1]:5432, its own container's loopback,
+    instead of the postgres service; most likely its config file's default DSN (TEST_POSTGRES_DSN is not
+    what the server reads), which would be WR007.
+  connection:
+    from: the chirpstack-fuota-server container
+    to: '[::1]:5432'
+    symptom: refused
+  fix: 'Not stated: the asker only says the problem was in docker-compose.yml and is solved.'
+  fix_source: solution post by the asker (#3)
+  label_confidence: high
+  notes: The marked post is this one and says nothing about what changed, so there is no confirmed fix.
+    of what changed, so no confirmed fix.
+  selected: false
+- source: forum
+  position: 9
+  url: https://forums.docker.com/t/123318
+  case: forum-123318
+  decision: out
+  out_reason: not-rebuildable
+  cause: The container's request to a host service on port 8000 through host.docker.internal (mapped to
+    host-gateway, the docker0 address) was refused, while the machine's LAN address worked. The host service,
+    and the address it listens on, are never described.
+  connection:
+    from: the web container
+    to: host.docker.internal:8000
+    symptom: refused
+  fix: Map host.docker.internal to the machine's LAN IP instead of host-gateway in extra_hosts.
+  fix_source: solution post by the asker (#2)
+  label_confidence: medium
+  notes: 'A host service bound to the LAN address only would explain it (no built rule: WR012 is loopback-only,
+    which the working LAN address rules out), but the cause lies entirely on the undescribed host side.
+    The quoted error names host=''localhost'', inconsistent with the URL in the question.'
+  selected: false
+- source: forum
+  position: 10
+  url: https://forums.docker.com/t/138080
+  case: forum-138080
+  decision: out
+  out_reason: platform
+  cause: 'Swarm routing mesh: overlay (VXLAN, UDP 4789) traffic between the nodes, VMs on VMware vSphere,
+    was dropped by the virtualization layer, so a published port answered only on nodes running a replica.'
+  connection:
+    from: a client of the swarm
+    to: <any node IP>:8080 (published, target 80)
+    symptom: timeout
+  fix: Re-create the swarm with a different data path port (--data-path-port 7789).
+  fix_source: solution post by meyay (#6), which points to another topic; the asker's own post (#7) names
+    the fix
+  label_confidence: high
+  notes: Swarm overlay networking across several VMs.
+  selected: false
+- source: forum
+  position: 11
+  url: https://forums.docker.com/t/135427
+  case: forum-135427
+  decision: out
+  out_reason: platform
+  cause: 'Swarm overlay: the leader node had two IP addresses and answered VXLAN traffic from a different
+    source address than the one the peer had used, so the replies were lost.'
+  connection:
+    from: a container on the attachable overlay network on another node
+    to: whoami:80
+    symptom: timeout
+  fix: Re-join the nodes (promote/demote to rebuild the manager set) with explicit advertise/data-path
+    addresses.
+  fix_source: 'solution post by meyay (#8: set --advertise-addr / --data-path-addr), confirmed by the
+    asker''s own post (#11)'
+  label_confidence: high
+  notes: Swarm overlay across nodes on a LAN; also needs a second host address.
+  selected: false
+- source: forum
+  position: 12
+  url: https://forums.docker.com/t/137037
+  case: forum-137037
+  decision: out
+  out_reason: not-rebuildable
+  cause: 'WordPress''s loopback requests to its own public domain (https://mysite.com) failed from inside
+    the container: refused by default, a timeout with the host''s IP in extra_hosts. Resolving the domain
+    to the Traefik container inside Docker made them work.'
+  connection:
+    from: the wordpress container
+    to: mysite.com:443
+    symptom: refused
+  fix: Give the traefik service a network alias mysite.com on the shared network (a hard-coded extra_hosts
+    entry with Traefik's container IP also worked).
+  fix_source: 'solution post by rimelek (#2), confirmed by the asker (#3 and #7)'
+  label_confidence: medium
+  notes: Production VPS with a public domain and public IP; why the default lookup's connect was refused
+    (public DNS, the VPS's public address and the hairpin path) is never settled. Needs outside infrastructure;
+    no built rule describes it.
+  selected: false
+- source: forum
+  position: 13
+  url: https://forums.docker.com/t/125873
+  case: forum-125873
+  decision: out
+  out_reason: platform
+  cause: 'Swarm overlay between nodes: ufw on the nodes did not allow the Swarm ports (7946 tcp/udp, 4789
+    udp, 2377 tcp), so a container on another node timed out connecting to the postgres task.'
+  connection:
+    from: a container on the worker node (overlay network backend)
+    to: db:5432
+    symptom: timeout
+  fix: 'Open the Swarm ports in ufw on all nodes: 2377/tcp, 7946/tcp, 7946/udp, 4789/udp.'
+  fix_source: solution post by the asker (#2)
+  label_confidence: high
+  notes: Swarm across machines; the fix is also a host firewall change.
+  selected: false
+- source: forum
+  position: 14
+  url: https://forums.docker.com/t/150339
+  case: forum-150339
+  decision: out
+  out_reason: not-rebuildable
+  cause: Docker Model Runner's pull from index.docker.io:443 timed out behind a corporate firewall; the
+    asker found the company's (outdated) proxy mishandled the downloads.
+  connection:
+    from: the Docker Model Runner container
+    to: index.docker.io:443
+    symptom: timeout
+  fix: Bypass the corporate proxy for the download.
+  fix_source: solution post by the asker (#5)
+  label_confidence: medium
+  notes: Needs the corporate proxy and firewall. The log shows a direct dial, so proxy settings not reaching
+    the runner (planned WR018) may be involved, but the thread doesn't settle it.
+  selected: false
+- source: forum
+  position: 15
+  url: https://forums.docker.com/t/152440
+  case: forum-152440
+  decision: out
+  out_reason: platform
+  cause: 'Swarm: etcd peers reached each other through the services'' virtual IPs (endpoint_mode vip),
+    and the connects to those VIPs on 2380 were refused.'
+  connection:
+    from: each etcd task
+    to: the other etcd services on :2380 (resolved to their VIPs)
+    symptom: refused
+  fix: 'Deploy the services with endpoint_mode: dnsrr, so the names resolve to the tasks'' own addresses.'
+  fix_source: solution post by rimelek (#3), confirmed by the asker (#5)
+  label_confidence: high
+  notes: Swarm service VIPs and endpoint modes.
+  selected: false
+- source: forum
+  position: 16
+  url: https://forums.docker.com/t/150788
+  case: forum-150788
+  decision: out
+  out_reason: platform
+  cause: 'Docker Desktop on Windows with its WSL2 integration: host.docker.internal (192.168.65.254) reaches
+    the host over IPv4, and the Spring Boot API running in the WSL distro listened on IPv6 only, so the
+    connect was refused.'
+  connection:
+    from: a curl (or Prometheus) container
+    to: host.docker.internal:8081
+    symptom: refused
+  fix: 'In Docker Desktop''s settings, use dual IPv4/IPv6 networking with ''No filtering'' for DNS resolution
+    (no post is marked as the solution; the asker confirmed this one in #29); the asker''s own workaround,
+    -Djava.net.preferIPv4Stack=true for the app, also worked.'
+  fix_source: reply by rimelek (#28), confirmed by the asker (#29)
+  label_confidence: high
+  notes: The path (Docker Desktop's host.docker.internal forwarding into WSL) and the marked fix are Docker
+    Desktop's. An IPv6-only, non-loopback host listener reached over IPv4 would be refused on Linux Engine
+    too, but how it came to be v6-only isn't shown, and no built rule covers that case.
+  selected: false
+- source: forum
+  position: 17
+  url: https://forums.docker.com/t/151317
+  case: forum-151317
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: Inside a Docker Sandbox (a Docker Desktop microVM with its own engine), containers and builds
+    must go through the sandbox's HTTP proxy; apt-get in a docker build connected directly to deb.debian.org:80
+    and the sandbox's forwarder refused it.
+  connection:
+    from: a build container (RUN apt-get) inside the sandbox's Docker engine
+    to: deb.debian.org:80
+    symptom: refused
+  fix: 'Pass the proxy variables to builds and containers: --build-arg http_proxy/https_proxy/no_proxy
+    (and -e for docker run).'
+  fix_source: solution post by meyay (#11), confirmed by the asker (#12)
+  label_confidence: high
+  notes: A build-time (RUN) failure, and also platform-specific (Docker Desktop sandboxes). Proxy settings
+    relate to planned WR018.
+  selected: false
+- source: forum
+  position: 18
+  url: https://forums.docker.com/t/150418
+  case: forum-150418
+  decision: out
+  out_reason: host-change
+  cause: 'A daemon.json copied from a guide set "bridge": "none", so dockerd created no default bridge
+    (no docker0, `docker network ls` shows only host and none). A container started with plain `docker
+    run` had only loopback, so its DNS queries to 9.9.9.9 failed with ''Network unreachable'' and Node
+    reported getaddrinfo EAI_AGAIN.'
+  connection:
+    from: the bot container (plain docker run, no --network)
+    to: lemmy.zip:443 (lookup through the host's resolver 9.9.9.9:53)
+    symptom: name-not-found
+  fix: 'Deleted the custom /etc/docker/daemon.json (removing "bridge": "none") and restarted Docker, so
+    the default bridge exists again.'
+  fix_source: solution post by meyay (#10), with the asker's own post (#11) saying what changed
+  label_confidence: medium
+  notes: 'Reproducing needs the machine''s Docker daemon reconfigured (bridge none) and restarted, or
+    a separate daemon such as dind with --bridge=none; `network_mode: none` gives the same in-container
+    state but a different cause in the metadata. The lookup itself failed with ENETUNREACH (alpine nslookup:
+    ''Network unreachable''). If counted in, rule would be outside: no built rule covers a container with
+    no network at all (WR015 is internal networks only; planned WR022 is NAT/forwarding, close but not
+    this). ip_forward was off too; turning it on did not help.'
+  selected: false
+- source: forum
+  position: 19
+  url: https://forums.docker.com/t/151108
+  case: forum-151108
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: 'docker pull stalled at ''Pulling fs layer'': the office router''s nfqws (DPI-bypass) module
+    broke the TCP streams to the registry with injected packets.'
+  connection:
+    from: the Docker daemon (image pull)
+    to: Docker Hub's registry and blob CDN
+    symptom: other
+  fix: Disabled the nfqws-keenetic module on the router.
+  fix_source: the asker's own post (#10)
+  label_confidence: high
+  notes: An image pull failure caused by outside infrastructure (the router); no container connection
+    involved.
+  selected: false
+- source: forum
+  position: 20
+  url: https://forums.docker.com/t/144581
+  case: forum-144581
+  decision: out
+  out_reason: host-change
+  cause: On QNAP Container Station, spanning tree was enabled on the virtual switch the containers' network
+    attaches to (QNAP's qnet static network on eth1), so a newly started container forwarded no traffic
+    for roughly 30 to 60 s; outside lookups (plex.tv, Cloudflare for the ACME challenge) failed during
+    that time.
+  connection:
+    from: the traefik container (also a plex container)
+    to: outside names such as plex.tv:443
+    symptom: name-not-found
+  fix: Disabled spanning tree (STP) on the QNAP virtual switch for the affected physical interfaces.
+  fix_source: solution post by jdaumeri (#10), confirmed by the asker (#11)
+  label_confidence: medium
+  notes: Transient failure only in the first minute after start. QNAP's own Docker integration and network
+    driver (qnet); reproducing needs a host bridge with STP on, a change to the host's network setup.
+    Could also be called platform (QNAP).
+  selected: false
+- source: forum
+  position: 21
+  url: https://forums.docker.com/t/130165
+  case: forum-130165
+  decision: out
+  out_reason: not-rebuildable
+  cause: Containers on an ipvlan L3 network (192.168.20.0/24 and 192.168.30.0/24, parent wlan0 at 192.168.10.2)
+    are reached through static routes on the upstream router, but the router (the internet gateway) doesn't
+    route and NAT those subnets to the internet, so the containers reach each other and the LAN but nothing
+    beyond it.
+  connection:
+    from: the ipvlan L3 containers
+    to: internet hosts (ping)
+    symptom: unknown
+  fix: Configure the internet gateway (the router) with routes and NAT for the containers' subnets. This
+    is the marked solution, which is general advice; the asker didn't say what changed.
+  fix_source: solution post by alishah730 (#2), marked by the asker
+  label_confidence: medium
+  notes: 'Reproducing needs the upstream router''s static routes and NAT (outside infrastructure), on
+    top of an ipvlan L3 network over wlan0. Before the re-fetch this was no-confirmed-fix: the marked
+    post is a general guess.'
+  selected: false
+- source: forum
+  position: 22
+  url: https://forums.docker.com/t/123780
+  case: forum-123780
+  decision: out
+  out_reason: platform
+  cause: 'Docker Swarm routing mesh: a service''s published port answered only on the node running the
+    task; ingress traffic forwarded over the VXLAN overlay to that node was lost. Later posters with the
+    same symptom on VMware traced it to checksum offload on the VM NIC.'
+  connection:
+    from: an outside client
+    to: 192.168.7.237:25565 (a swarm node without the task)
+    symptom: timeout
+  fix: The asker's post (#11) only links an external VMware Photon issue; other posters fixed the same
+    symptom with `ethtool -K <iface> tx-checksum-ip-generic off`.
+  fix_source: the asker's own post (#11), link only
+  label_confidence: high
+  notes: Swarm ingress and overlay networking across several VMs; the fix itself isn't stated in the thread.
+  selected: false
+- source: forum
+  position: 23
+  url: https://forums.docker.com/t/138925
+  case: forum-138925
+  decision: out
+  out_reason: platform
+  cause: Docker Engine runs inside an Ubuntu WSL2 distro on Windows Server. A port bound in WSL2 is forwarded
+    only to Windows' localhost, not to its LAN or Internet-facing interfaces, so nginx's published port
+    80 timed out from the Internet.
+  connection:
+    from: clients on the Internet
+    to: the Windows host's public address, port 80 (nginx publishes 80:80)
+    symptom: timeout
+  fix: Forwarded the port from Windows to the WSL2 VM (Windows port proxy, per the blog post meyay linked).
+  fix_source: solution post by meyay (#2), confirmed by the asker (#3)
+  label_confidence: high
+  notes: WSL2's own port forwarding (Docker Engine in WSL2, not Docker Desktop); it doesn't exist on Linux,
+    and the connection comes from outside the machine. The odd /2 subnet in the Compose file was not the
+    cause.
+  selected: false
+- source: forum
+  position: 24
+  url: https://forums.docker.com/t/146503
+  case: forum-146503
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: docker pull on an OVH VPS got HTTP 429 'Too Many Requests (HAP429)' from Docker Hub over IPv6
+    (a limit on a shared IPv6 range).
+  connection:
+    from: the Docker daemon (image pull)
+    to: Docker Hub's registry
+    symptom: other
+  fix: Blocked outbound traffic to Docker Hub's IPv6 range with ufw (`ufw deny out from any to 2600:1f18:2148:bc00::/56`)
+    so pulls go over IPv4.
+  fix_source: the asker's own post (#4)
+  label_confidence: high
+  notes: Image pull, HTTP status from a working server.
+  selected: false
+- source: forum
+  position: 25
+  url: https://forums.docker.com/t/127146
+  case: forum-127146
+  decision: in
+  cause: The Dockerfile copied the haproxy config to /usr/local/etc/haproxy/haproxy.conf, but haproxy
+    reads haproxy.cfg, so it ran the image's default config, whose backends (static/static1-2, app/app1-4)
+    are not the asker's services; their health checks were refused at once. The asker's backends app1-app3:8001
+    were never tried.
+  connection:
+    from: the haproxy container
+    to: app1:8001, app2:8001, app3:8001 as the asker wrote them; in fact the default haproxy.cfg's backends
+    symptom: refused
+  rule: outside
+  fix: Renamed the file to haproxy.cfg so haproxy loaded the asker's config (backends app1:8001, app2:8001,
+    app3:8001).
+  fix_source: the asker's own post (#8)
+  needs_other_image: haproxytech/haproxy-alpine:2.4 (its config path and its default haproxy.cfg)
+  label_confidence: medium
+  notes: 'The network was fine: the connection the asker meant works once haproxy reads the right file
+    (so the Node apps listen on 0.0.0.0:8001, and meyay''s guess of a loopback bind, WR002, was wrong).
+    The refused-in-0-ms checks suggest the default config''s backends are 127.0.0.1 addresses (check the
+    image): haproxy''s actual connection would then show WR007''s pattern, and a reviewer may prefer WR007.
+    I label outside because the cause the fix addressed is which config file haproxy read.'
+  selected: true
+- source: github
+  position: 1
+  url: https://github.com/jt-mchorse/agent-orchestration-platform/issues/271
+  case: gh-jt-mchorse-agent-orchestration-platform-271
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: A wrong sample DATABASE_URL and a false comment in .env.example (port 5432 and database agent_traces,
+    while the compose database publishes 5433 as agent_trace).
+  fix: 'Reworded .env.example and set the sample to the compose URL; added tests pinning it (PR #274).'
+  fix_source: 'the owner''s session-close comment (PR #274)'
+  label_confidence: high
+  notes: A docs task. The ECONNREFUSED 127.0.0.1:5433 in the reproduction came from a host process run
+    with no database started at all; nothing about a Docker setup was fixed.
+  selected: false
+- source: github
+  position: 2
+  url: https://github.com/wallabag/docker/issues/318
+  case: gh-wallabag-docker-318
+  decision: out
+  out_reason: no-confirmed-fix
+  cause: Unknown. wallabag connects to mariadb:32768, the MariaDB container's host-published port (likely
+    a host port used between containers), but nobody confirmed it.
+  label_confidence: high
+  notes: No comments; closed not_planned. Would probably be WR006 if confirmed, but the shared network
+    and MariaDB's setup are not shown.
+  selected: false
+- source: github
+  position: 3
+  url: https://github.com/onlyonee1/PaymentFlow/issues/323
+  case: gh-onlyonee1-PaymentFlow-323
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: 'None: a request to write a Docker troubleshooting guide.'
+  label_confidence: high
+  notes: Docs task.
+  selected: false
+- source: github
+  position: 4
+  url: https://github.com/takwerx/infra-TAK/issues/372
+  case: gh-takwerx-infra-TAK-372
+  decision: in
+  cause: CloudTAK v13.117.0's compose file passed no API_URL to the tiles service, so tiles fell back
+    to localhost:5001, which inside the tiles container is tiles itself; every basemap lookup to the API
+    was refused.
+  connection:
+    from: the tiles container
+    to: localhost:5001
+    symptom: refused
+  rule: WR007
+  fix: 'Give the tiles service API_URL: "http://api:5000" (the reporter''s docker-compose.custom.yml,
+    then infra-TAK''s generated override; upstream CloudTAK PR #1997 passes API_URL through).'
+  fix_source: 'the reporter (workaround verified: 0 errors, all tile requests 200) and the collaborator''s
+    comments (fixed in v10.3.4-alpha)'
+  label_confidence: medium
+  notes: The refused connect is the v13.117.0 failure the reporter describes and fixed upstream; the infra-TAK
+    change itself guards against an untested second path (API_URL set to the public URL, hairpin NAT).
+    The fallback port 5001 differs from api's container port 5000 (perhaps the host-published port). The
+    target comes from the tiles image's default; a stand-in client connecting to localhost:5001 reproduces
+    it.
+  selected: true
+- source: github
+  position: 5
+  url: https://github.com/thekim1/fors/issues/106
+  case: gh-thekim1-fors-106
+  decision: out
+  out_reason: no-confirmed-fix
+  cause: 'Suspected: a gateway container closes a keep-alive connection, or stops accepting, during a
+    rolling replacement, and nginx does not retry the POST.'
+  label_confidence: high
+  notes: Intermittent 502 in an e2e test; closed with no fix described. Also app-level shutdown behaviour.
+  selected: false
+- source: github
+  position: 6
+  url: https://github.com/Anagamedina/ft_transcendence/issues/309
+  case: gh-Anagamedina-ft_transcendence-309
+  decision: in
+  cause: nginx resolved the backend name once at startup (static proxy_pass); the Makefile then recreated
+    the backend container, which got a new address (172.20.0.3), and nginx kept sending to the old one
+    (172.20.0.4).
+  connection:
+    from: the gateway (nginx) container
+    to: backend:8000
+    symptom: refused
+  rule: outside
+  planned_rule: WR024
+  fix: 'Make nginx re-resolve backend through Docker''s DNS: resolver 127.0.0.11 and a variable in proxy_pass
+    (PR #310). Workaround: restart the gateway.'
+  fix_source: 'comment by flperez-si14 (collaborator): resolved in #310, merged'
+  label_confidence: high
+  notes: WR024's unbuilt second half (an app that looked a name up once; needs the source's socket table).
+    A fresh lookup of backend gives the current address, so nothing a fresh check sees is wrong. The old
+    address answered with a refusal, so something else held it then.
+  selected: true
+- source: github
+  position: 7
+  url: https://github.com/xibodev/release-harness/issues/12
+  case: gh-xibodev-release-harness-12
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: The issue is the harness's exit-code mapping (a health-check failure reported as a harness error).
+    The anecdotal refused connect (127.0.0.1:3000) came from an app that crashed at start (MODULE_NOT_FOUND,
+    a bind mount masking the build output).
+  fix: Map a health-check failure to a product-failure exit code.
+  fix_source: the issue's suggested fix; closed completed
+  label_confidence: medium
+  notes: If the anecdote were taken as the case it would be WR008 (destination exited), but the setup
+    isn't given and it ran on Windows (Git Bash); the closing fix is about exit codes, not the connection.
+  selected: false
+- source: github
+  position: 8
+  url: https://github.com/hs3180/disclaude/issues/4608
+  case: gh-hs3180-disclaude-4608
+  decision: in
+  cause: After the Unix-socket IPC was removed, the primary node starts its REST server (HttpApiServer)
+    only with --api-port, and the compose command didn't pass it; the MCP tools in the same container
+    connect to localhost:9200, where nothing listens.
+  connection:
+    from: the MCP tool processes inside the disclaude-primary container
+    to: localhost:9200
+    symptom: refused
+  rule: WR001
+  fix: Add --api-port 9200 to the primary service's compose command and recreate the container.
+  fix_source: the owner's issue body (root cause and fix), closed completed
+  label_confidence: medium
+  notes: Source and destination are the same container, so localhost is the right address here; the server
+    just never listened on the port (not WR007, which is localhost used to reach another container or
+    the host). The fix is stated by the owner, with no closing PR described. The owner flags a possible
+    WR014 risk afterwards (server on localhost binding ::1 only), not observed.
+  selected: true
+- source: github
+  position: 9
+  url: https://github.com/DataTalksClub/faq/issues/441
+  case: gh-DataTalksClub-faq-441
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: 'A FAQ entry: Grafana in Compose posting a webhook to a responder on the host, failing as localhost
+    (the container), as host.docker.internal not resolving on Linux without host-gateway, or as a responder
+    bound to 127.0.0.1.'
+  label_confidence: medium
+  notes: 'A docs contribution accepted into the FAQ, not one user''s failure with a confirmed fix. If
+    taken, it would be ambiguous between WR007, WR011 and WR012: the answer lists all three fixes.'
+  selected: false
+- source: github
+  position: 10
+  url: https://github.com/SikamikanikoBG/homelab-monitor/issues/369
+  case: gh-SikamikanikoBG-homelab-monitor-369
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: 'A UI bug: the sidebar hid the GPU and AI Models tabs when the hub had no GPU.'
+  label_confidence: high
+  notes: The probe_wyoming refusals are a dead custom server on the user's LAN, not the issue; tracked
+    separately (#371).
+  selected: false
+- source: github
+  position: 11
+  url: https://github.com/DNikulshin/hair-lab/issues/125
+  case: gh-DNikulshin-hair-lab-125
+  decision: out
+  out_reason: not-a-connection-failure
+  cause: A CD setup task; the bot's SSH to the remote staging host was refused on port 22 (sshd on 2222),
+    then denied a key.
+  label_confidence: high
+  notes: Planning task about a remote host, nothing in Docker.
+  selected: false
+- source: github
+  position: 12
+  url: https://github.com/coryfinnegan/CollectionMaxxing/issues/819
+  case: gh-coryfinnegan-CollectionMaxxing-819
+  decision: in
+  cause: After the whole machine restarted, every container started in the same second; the backup container's
+    catch-up ran at once while Postgres was still starting, and its connection was refused.
+  connection:
+    from: the backup container
+    to: postgres:5432
+    symptom: refused
+  rule: WR010
+  fix: Make the backup container wait for Postgres (or retry the catch-up a few times) before giving up
+    until the next schedule (#821); in the meantime a recreate with Postgres already up let the backup
+    run.
+  fix_source: 'the owner''s diagnosis and clearing comments (fix in #821)'
+  label_confidence: high
+  notes: 'Transient: the failure exists only while Postgres starts. The port is psql''s default (not written
+    in the thread). Compose file not shown; postgres plus a psql client started together rebuilds it.'
+  selected: true

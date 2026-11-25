@@ -10,7 +10,7 @@ Every case links the question or issue it was rebuilt from and names its author.
 
 A case is rebuilt from the question alone, as the asker set it up, broken. The aim is the asker's failure, not a working setup.
 
-- **Images.** Only these official images, as they ship: `postgres`, `mysql`, `redis`, `nginx`, `node` and `python`, by tag (the harness pins the digests). No `build:`, and no package installs (`pip`, `npm`, `apt`) at build or start. Anything else runs the lab's stand-in (below).
+- **Images.** Only these official images, at these tags, as they ship: `postgres:17`, `mysql:8.4`, `redis:7-alpine`, `nginx:stable-alpine`, `node:22-alpine` and `python:3.13-slim`, whatever version the question used. No `build:`, and no package installs (`pip`, `npm`, `apt`) at build or start. Anything else runs the lab's stand-in (below).
 - **When to use a real image.** When the server's own defaults could matter (where it listens, how it starts), use its real image with the question's settings (environment, command, config passed on the command line). An app the asker wrote, or a framework that isn't in those images (Flask, Express, Spring), becomes either the stand-in listening where that app or framework listens by default, or a one-line program in the `node` or `python` image that does the same with the standard library. Say which in `stubbed`.
 - **The stand-in** is the lab's server, a static binary on an empty image, with no shell:
   - `image: ${WHYREACH_LAB_IMAGE:?set by the lab harness}` and `pull_policy: never`;

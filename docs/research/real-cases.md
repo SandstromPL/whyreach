@@ -101,6 +101,17 @@ Missing either doesn't stop a release. It says where the work goes next.
 - Linux with Docker Engine only; one Engine version (29.9.3).
 - 20 cases measure orders of magnitude, not percentages to the point.
 
+## What happened while sampling and labelling (2026-11-25)
+
+Recorded as it happened, before whyreach ran on any case.
+
+- **The pools.** Stack Overflow 649 questions, the forums 33 topics, GitHub 494 issues. GitHub's search counted 7,207 and 750 for the two queries but returned 494 distinct issues in all (it serves at most 1,000 per query, and fewer when its results are incomplete): the pool is what it returned.
+- **Labelling ran in parallel.** To save time, seven labelers took the first 45 Stack Overflow, all 33 forum and the first 50 GitHub cases in chunks, in the shuffled order. The sample is still the first cases labelled `in`, in that order (`labels.py`); labels past the last case taken are counted in `labels.yaml`, not used. The second GitHub chunk (cases 26 to 50) was stopped once the first chunk had filled the quota.
+- **Missing comments.** The Stack Exchange API returned the comments nested in each question without their text, so the first Stack Overflow labels were made without them. `fetch.py` now fetches comments per post; every Stack Overflow labeler re-read its threads with the comments and updated its labels. One label changed (so-65596446, from ambiguous to WR008), and several confirmations now rest on the asker's own comment.
+- **Missing solution marks.** The forums mark the chosen post on the post, not the topic, so the forum threads first showed no solution. `fetch.py` was fixed; both forum labelers re-read their threads with the marks. No decision or rule changed.
+- **GitHub isn't blind.** An issue is often opened after its reporter found the cause, so the issue's own text may state it, and the reproducer reads it. The rebuilds of the GitHub cases follow the issue as opened, without its comments, but can't be blind.
+- **CLAUDE.md.** Every agent in this repository is given its CLAUDE.md, which describes whyreach's rules in a few words. The reproducers are told not to read the rule pages; they still had that summary.
+
 ## Decisions (2026-11-25, before sampling)
 
 The owner settled the plan's four open decisions as proposed:

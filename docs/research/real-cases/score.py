@@ -47,7 +47,7 @@ def main():
     results = {r["case"]: r for r in json.loads(results_path.read_text())["cases"]}
     rows, tally = [], {c: Counter() for c in CONFIGS}
     for case, label in labels.items():
-        if label.get("decision") != "in":
+        if not label.get("selected"):
             continue
         r = results.get(case)
         row = {"case": case, "label": label["rule"]}
