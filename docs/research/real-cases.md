@@ -1,7 +1,7 @@
 # Real cases: whyreach on setups people actually broke
 
 > **What this is:** a check of whyreach against broken Docker setups taken from Stack Overflow, the Docker Community Forums and GitHub issues, each rebuilt here and diagnosed without knowing the answer. `INITIAL.md` §6.5.
-> **Status:** planned on 2026-11-25. The method below is a draft: it is fixed, and committed, only once the owner has settled the open decisions at the end. Nothing has run.
+> **Status:** method fixed on 2026-11-25, before any sampling, once the owner had settled the open decisions (see "Decisions"). Nothing has run yet.
 
 ## Why
 
@@ -88,7 +88,7 @@ The results are reported as they come out of the first run. Bugs it finds are fi
 
 ## Expected, before the run
 
-Proposed, for the owner to settle:
+Settled by the owner on 2026-11-25:
 - no wrong cause at high confidence;
 - right on at least 80% of covered cases with probe containers on.
 
@@ -101,9 +101,16 @@ Missing either doesn't stop a release. It says where the work goes next.
 - Linux with Docker Engine only; one Engine version (29.9.3).
 - 20 cases measure orders of magnitude, not percentages to the point.
 
-## Open decisions for the owner
+## Decisions (2026-11-25, before sampling)
 
-1. **Images:** the rebuilds pull official images from Docker Hub (Postgres, MySQL, Redis, nginx, Node.js and Python), about 1 to 2 GB. Pull them?
-2. **The expectations** above.
-3. **The split** of 12 Stack Overflow, 4 forum and 4 GitHub cases.
-4. **Reading the labels** before the run: the plan has the owner do it.
+The owner settled the plan's four open decisions as proposed:
+1. **Images:** the rebuilds may pull these official images from Docker Hub: Postgres, MySQL, Redis, nginx, Node.js and Python.
+2. **Expectations:** as above.
+3. **The split:** 12 Stack Overflow, 4 forum and 4 GitHub cases.
+4. **The labels:** the owner reads them before the run.
+
+Settled with them, before any case was looked at:
+- **No package installs.** A rebuild runs the approved images as they ship: no `pip`, `npm` or `apt` at build or start. A framework that isn't in them (Flask, Express) becomes a stand-in that listens where that framework listens by default, and `case.yaml` says so. Any other server (MongoDB, RabbitMQ, Kafka) becomes the lab's stand-in, listening where its official image listens by default; when the case's cause depends on more of that server's own behaviour than its listen address, the owner is asked before its image is pulled.
+- **Where things live.** The pools and the shuffled order: `docs/research/real-cases/pool-*.json`, from `docs/research/real-cases/sample.py`. What the labeler and the reproducer read (questions, answers, comments), fetched once: `bin/realcases/raw/`, outside git, since it's other people's text. The labels: `docs/research/real-cases/labels.yaml`, every case looked at, in order. The rebuilds: `test/realcases/<case>/`.
+- **Blind by instruction.** The agents can read files, so the reproducer is told to read only its case's question and `test/realcases/README.md`; nothing enforces it. Each reproducer's report lists the files it read.
+- **The symptom check** connects with the lab's server binary (`labserver check`, a 1-second connect) from a container that shares the source's network namespace, named `whyreach-lab-*` and labelled `io.whyreach.lab=1`, or from the harness itself when the source is the host.
