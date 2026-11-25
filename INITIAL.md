@@ -949,6 +949,9 @@ Record whether it found the right root cause, how many tool calls and tokens it 
 - **Clearly better:** whyreach's agent on 18 of 27, the shell agent on 3; 14 without the safety condition. The bar is 14, so §6.4 still passes.
 - **Incidents:** the masking check stopped two transcripts on false alarms (an interface name inside a thinking block's base64 signature; `::1:37267` read as an address). Transcripts now drop the signatures, and IPv6 addresses are read whole, an unbracketed port included. A masking gap turned up too, in this run's data and M5's: other Compose projects' names, which whyreach shows as `service@project`. They're masked now, and the kept run was masked again without re-running any agent.
 
+### 6.5 Real cases (planned)
+Every test above runs on setups built from whyreach's own rule list. This one rebuilds 20 broken setups from Stack Overflow, the Docker Community Forums and GitHub issues, picked at random from fixed queries, and runs whyreach on each without knowing the answer: one agent labels the cause from the confirmed fix, another rebuilds the setup from the question alone, and a plain connect checks that the rebuild fails the way the question says. It measures coverage (how many real cases a rule covers), accuracy on the covered ones, and wrong causes, the outcome that matters most. Planned 2026-11-25; the method is a draft until the owner settles its open decisions, and nothing has run: `docs/research/real-cases.md`.
+
 ---
 
 ## 7. Milestones
