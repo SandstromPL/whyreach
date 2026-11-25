@@ -11,7 +11,10 @@ import (
 // WR009: the source and the destination share only Docker's default bridge
 // network, which has no embedded DNS: container names and Compose services
 // don't resolve on it. The network name settles it (rule experiments, E7).
-// Frequency rank 12.
+// Frequency rank 12. A source only on the default bridge that looks up a
+// short name no container answers to gets it too, at medium: there no name
+// resolves at all, and the name matches nothing either (so-71877179 in the
+// real-case check, where WR005 stays out on the default bridge).
 type wr009 struct{}
 
 func (wr009) ID() string                { return "WR009" }
@@ -33,8 +36,14 @@ func (r wr009) Evaluate(v evidence.View) []Finding {
 		return nil
 	}
 	d := v.Destinations()
-	if d.HostsEntry != "" || d.Host != nil || len(d.OnSourceNets) == 0 {
+	if d.HostsEntry != "" || d.Host != nil {
 		return nil
+	}
+	if len(d.OnSourceNets) == 0 {
+		if len(d.All()) > 0 {
+			return nil // it answers on a network the source isn't on: WR004
+		}
+		return r.unknown(v, src, owner)
 	}
 	var m *evidence.Match
 	for i, c := range d.OnSourceNets {
@@ -83,6 +92,42 @@ func (r wr009) Evaluate(v evidence.View) []Finding {
 	}
 	f.Fix = fmt.Sprintf("Put both on a user-defined network: docker network create app; docker network connect app %s; docker network connect app %s. Then %s resolves.%s",
 		m.C.Name, owner.C.Name, hostPort(q.To.Host, q.To.Port), compose)
+	return []Finding{f}
+}
+
+// unknown is a short name looked up from a container only on the default
+// bridge, where no name resolves, and which no container answers to.
+func (r wr009) unknown(v evidence.View, src, owner evidence.ContainerEv) []Finding {
+	q := v.Question()
+	name := evidence.NormalizeName(q.To.Host)
+	if strings.Contains(name, ".") || evidence.IsHostDockerInternal(name) || len(owner.C.UserDefinedNetworks()) > 0 || linked(owner.C, name) || connectedByName(v) {
+		return nil
+	}
+	if _, ok := owner.C.Attachment(evidence.NetworkBridge); !ok {
+		return nil
+	}
+	f := Finding{
+		RuleID: r.ID(), Layer: r.Layer(), DocURL: DocURL(r.ID()), Confidence: Medium,
+		Supporting: []string{src.ID, owner.ID},
+	}
+	looked := ""
+	if dns, ok := v.SourceDNS(q.To.Host); ok {
+		if len(dns.P.Answers) > 0 {
+			return nil
+		}
+		f.Supporting = append(f.Supporting, dns.ID)
+		looked = fmt.Sprintf(" Its lookup of %s found nothing.", q.To.Host)
+	}
+	if v.Incomplete() {
+		f.Confidence = f.Confidence.Lower()
+		looked += " Some containers' metadata could not be read, so one of them might answer to the name."
+	}
+	f.Supporting = ids(f.Supporting...)
+	srcName := owner.C.DisplayName()
+	f.Title = fmt.Sprintf("%s is only on Docker's default bridge, where names don't resolve, and no container answers to %s", srcName, q.To.Host)
+	f.Explanation = fmt.Sprintf("%s is only on Docker's default bridge network (\"bridge\"), which has no embedded DNS: container names and Compose service names don't resolve there at all. No container answers to %s either, by name, Compose service or alias.%s",
+		srcName, q.To.Host, looked)
+	f.Fix = fmt.Sprintf("Run the containers on a user-defined network: docker network create app, then docker network connect app for each (or docker run --network app, or Compose, which does it for you). Then connect by the container's name as given with --name, or the Compose service name: no container is named %s now (docker ps lists the names).", q.To.Host)
 	return []Finding{f}
 }
 

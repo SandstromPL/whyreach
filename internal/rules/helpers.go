@@ -265,3 +265,38 @@ func contradictedByPath(v evidence.View, f *Finding) {
 	f.Contradicting = ids(append(f.Contradicting, against...)...)
 	f.Explanation += fmt.Sprintf(" But %s's connect %s rather than being refused, so something on the path (a firewall, say) stops it too: fixing this alone may not be enough.", sourceName(v), how)
 }
+
+// loneLoopback is a container source whose own localhost nothing answers on
+// the target's port, and where nothing else could have been meant: the
+// source's sockets, the host's and every running container's were read,
+// none listens on the port, no container publishes it, and no other
+// container shares a network or a Compose project with the source. Its own
+// server isn't running (WR001); WR007, localhost meant for somewhere else,
+// stays out (the real-case check, docs/research/real-cases.md).
+func loneLoopback(v evidence.View) (owner evidence.ContainerEv, local, host evidence.ListenersEv, ok bool) {
+	q := v.Question()
+	if q.To.Class != evidence.TargetLoopback || v.Incomplete() || v.UnreadContainerListeners() || connectedByName(v) {
+		return owner, local, host, false
+	}
+	src, okSrc := v.Source()
+	owner, okOwner := v.NetnsOwner()
+	if !okSrc || !okOwner || owner.C.ID != src.C.ID || owner.C.HostNetwork() {
+		return owner, local, host, false
+	}
+	port := q.To.Port
+	local, okLocal := v.ListenersIn(owner.C.ID)
+	host, okHost := v.HostListeners()
+	if !okLocal || !okHost || len(local.L.OnPort(port)) > 0 || len(host.L.OnPort(port)) > 0 {
+		return owner, local, host, false
+	}
+	for _, c := range v.Containers() {
+		if c.C.ID == owner.C.ID || c.C.NetnsOwner() == owner.C.ID {
+			continue // its sockets are the source's own
+		}
+		sameProject := c.C.Compose != nil && owner.C.Compose != nil && c.C.Compose.Project == owner.C.Compose.Project
+		if sameProject || len(sharedNetworks(owner.C, c.C)) > 0 || len(c.C.PublishedAs(port)) > 0 {
+			return owner, local, host, false
+		}
+	}
+	return owner, local, host, true
+}

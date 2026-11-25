@@ -7,7 +7,9 @@ import (
 )
 
 // WR001: nothing listens on the port in the destination's network
-// namespace: a container's, or the host's when the target is the host.
+// namespace: a container's, or the host's when the target is the host, or
+// the source's own when it connects to its own localhost and nothing else
+// could have been meant (loneLoopback).
 // Its listeners settle it; a refused connect confirms it. Many rules
 // explain the same refusal better and supersede it: the destination is
 // down or starting (WR008, WR010), the client aims at the wrong place
@@ -22,6 +24,9 @@ func (wr001) Supersedes() []string      { return nil }
 func (r wr001) Evaluate(v evidence.View) []Finding {
 	if connectedByName(v) {
 		return nil
+	}
+	if owner, local, host, ok := loneLoopback(v); ok {
+		return []Finding{r.lone(v, owner, local, host)}
 	}
 	d := v.Destinations()
 	matches := d.All()
@@ -94,6 +99,24 @@ func (r wr001) Evaluate(v evidence.View) []Finding {
 	contradictedByPath(v, &f)
 	f.Fix = fmt.Sprintf("Start the service on %s, or check its port. If the service runs in a container, publish its port (ports: [\"%d:<container port>\"]) or connect to the container directly.", v.HostLabel(), port)
 	return []Finding{f}
+}
+
+// lone is the source's own localhost, where its own server should listen:
+// nothing in it listens on the port, and nothing else around could have
+// been meant.
+func (r wr001) lone(v evidence.View, owner evidence.ContainerEv, local, host evidence.ListenersEv) Finding {
+	q := v.Question()
+	port, name := q.To.Port, owner.C.DisplayName()
+	f := Finding{
+		RuleID: r.ID(), Layer: r.Layer(), DocURL: DocURL(r.ID()), Confidence: High,
+		Supporting: ids(append([]string{owner.ID, local.ID, host.ID}, sourceConnects(v, evidence.OutcomeRefused)...)...),
+		Title:      fmt.Sprintf("nothing in %s listens on port %d", name, port),
+	}
+	f.Explanation = fmt.Sprintf("%s inside %s is %s's own network namespace, and nothing in it listens on TCP port %d. Nothing else whyreach can see does either: %s shares no network or Compose project with another container, no container publishes port %d, and nothing on %s listens on it. The server %s's client expects there isn't listening.",
+		hostPort(q.To.Host, port), name, name, port, name, port, v.HostLabel(), name)
+	f.Fix = fmt.Sprintf("Check that the server meant to run in %s started and listens on port %d: docker logs %s, and the command or setting that starts it and sets its port. If the server runs on another machine, connect to that machine's address instead of %s.",
+		name, port, owner.C.Name, q.To.Host)
+	return f
 }
 
 // loopbackElsewhere lists loopback-only listeners on other ports.

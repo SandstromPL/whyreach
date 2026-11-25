@@ -12,7 +12,10 @@ the run:
 - wrong: a cause other than the label (for an `outside` case, any cause).
 `ambiguous` labels are reported, not scored.
 
-    python3 docs/research/real-cases/score.py [results.json]
+    python3 docs/research/real-cases/score.py [results.json [suffix]]
+
+A suffix writes scores-<suffix>.json and table-<suffix>.md instead, for a
+re-run reported next to the first.
 """
 
 import json
@@ -43,6 +46,7 @@ def outcome(label, run):
 
 def main():
     results_path = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE.parents[2] / "bin" / "realcases" / "results.json"
+    suffix = "-" + sys.argv[2] if len(sys.argv) > 2 else ""
     labels = {l["case"]: l for l in yaml.safe_load((HERE / "labels.yaml").read_text())["cases"]}
     results = {r["case"]: r for r in json.loads(results_path.read_text())["cases"]}
     rows, tally = [], {c: Counter() for c in CONFIGS}
@@ -73,7 +77,7 @@ def main():
                 tally[run["config"]]["covered" if label["rule"] != "outside" else "outside"] += 1
         rows.append(row)
     summary = {c: dict(sorted(tally[c].items())) for c in CONFIGS}
-    (HERE / "scores.json").write_text(json.dumps({"summary": summary, "cases": rows}, indent=1) + "\n")
+    (HERE / f"scores{suffix}.json").write_text(json.dumps({"summary": summary, "cases": rows}, indent=1) + "\n")
     lines = ["| Case | Label | Probe containers on | Default config | Status |", "|---|---|---|---|---|"]
     for row in rows:
         cells = []
@@ -81,7 +85,7 @@ def main():
             x = row.get(c)
             cells.append(f"{x['outcome']}: {x['said']}" + (f" (also {', '.join(x['also'])})" if x and x["also"] else "") if x else "")
         lines.append(f"| {row['case']} | {row['label']} | {cells[0]} | {cells[1]} | {row['status']} |")
-    (HERE / "table.md").write_text("\n".join(lines) + "\n")
+    (HERE / f"table{suffix}.md").write_text("\n".join(lines) + "\n")
     print(json.dumps(summary, indent=1))
 
 

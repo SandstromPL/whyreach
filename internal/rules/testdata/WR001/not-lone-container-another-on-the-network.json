@@ -1,0 +1,193 @@
+{
+  "description": "primary's localhost:9200 is empty, but api shares its network: WR007's case, not WR001's",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:bot-primary-1",
+      "container_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "to": {
+      "host": "localhost",
+      "port": 9200,
+      "proto": "tcp",
+      "class": "loopback"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "primary"
+      },
+      "subject": "container:bot-primary-1",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 1.0,
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "bot-primary-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 4242,
+        "started_at": "2026-11-25T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "bot_default",
+        "networks": [
+          {
+            "network": "bot_default",
+            "network_id": "bot_default-id",
+            "names": [
+              "primary",
+              "bot-primary-1"
+            ],
+            "ipv4": "172.22.0.50"
+          }
+        ],
+        "compose": {
+          "project": "bot",
+          "service": "primary"
+        }
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-01"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "primary"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 0.3,
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "127.0.0.11:38381"
+          }
+        ]
+      },
+      "source": "/proc/<pid>/net/tcp{,6}",
+      "id": "ev-02"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 0.3,
+      "source": "/proc/net/tcp{,6}",
+      "id": "ev-03",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:22"
+          },
+          {
+            "proto": "tcp",
+            "local": "127.0.0.1:631"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "probe.tcp",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "primary",
+        "executor": "probe-container"
+      },
+      "subject": "localhost:9200",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 0.2,
+      "data": {
+        "target": "localhost:9200",
+        "addr": "127.0.0.1:9200",
+        "via": "hosts",
+        "outcome": "refused",
+        "errno": "ECONNREFUSED",
+        "error": "dial tcp 127.0.0.1:9200: connect: connection refused"
+      },
+      "source": "probe",
+      "id": "ev-04"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "api"
+      },
+      "subject": "container:bot-api-1",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 1.0,
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "bot-api-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 4242,
+        "started_at": "2026-11-25T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "bot_default",
+        "networks": [
+          {
+            "network": "bot_default",
+            "network_id": "bot_default-id",
+            "names": [
+              "api",
+              "bot-api-1"
+            ],
+            "ipv4": "172.22.0.49"
+          }
+        ],
+        "compose": {
+          "project": "bot",
+          "service": "api"
+        }
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-05"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "api"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 0.3,
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:5000"
+          }
+        ]
+      },
+      "source": "/proc/<pid>/net/tcp{,6}",
+      "id": "ev-06"
+    }
+  ],
+  "want": []
+}

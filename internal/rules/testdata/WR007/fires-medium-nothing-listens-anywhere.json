@@ -1,0 +1,252 @@
+{
+  "description": "tiles uses localhost:5001; nothing in tiles, the other containers or the host listens on 5001, while api listens on 5000",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:tak-tiles-1",
+      "container_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "to": {
+      "host": "localhost",
+      "port": 5001,
+      "proto": "tcp",
+      "class": "loopback"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "tiles"
+      },
+      "subject": "container:tak-tiles-1",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 1.0,
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "tak-tiles-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 4242,
+        "started_at": "2026-11-25T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "tak_default",
+        "networks": [
+          {
+            "network": "tak_default",
+            "network_id": "tak_default-id",
+            "names": [
+              "tiles",
+              "tak-tiles-1"
+            ],
+            "ipv4": "172.22.0.50"
+          }
+        ],
+        "compose": {
+          "project": "tak",
+          "service": "tiles"
+        }
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-01"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "tiles"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 0.3,
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:5002"
+          }
+        ]
+      },
+      "source": "/proc/<pid>/net/tcp{,6}",
+      "id": "ev-02"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "api"
+      },
+      "subject": "container:tak-api-1",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 1.0,
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "tak-api-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 4242,
+        "started_at": "2026-11-25T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "tak_default",
+        "networks": [
+          {
+            "network": "tak_default",
+            "network_id": "tak_default-id",
+            "names": [
+              "api",
+              "tak-api-1"
+            ],
+            "ipv4": "172.22.0.49"
+          }
+        ],
+        "compose": {
+          "project": "tak",
+          "service": "api"
+        }
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-03"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "api"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 0.3,
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:5000"
+          }
+        ]
+      },
+      "source": "/proc/<pid>/net/tcp{,6}",
+      "id": "ev-04"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "cccccccccccc",
+        "name": "events"
+      },
+      "subject": "container:tak-events-1",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 1.0,
+      "data": {
+        "id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "name": "tak-events-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 4242,
+        "started_at": "2026-11-25T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "tak_default",
+        "networks": [
+          {
+            "network": "tak_default",
+            "network_id": "tak_default-id",
+            "names": [
+              "events",
+              "tak-events-1"
+            ],
+            "ipv4": "172.22.0.51"
+          }
+        ],
+        "compose": {
+          "project": "tak",
+          "service": "events"
+        }
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-05"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "cccccccccccc",
+        "name": "events"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 0.3,
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:5003"
+          },
+          {
+            "proto": "tcp",
+            "local": "127.0.0.1:9000"
+          }
+        ]
+      },
+      "source": "/proc/<pid>/net/tcp{,6}",
+      "id": "ev-06"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 0.3,
+      "source": "/proc/net/tcp{,6}",
+      "id": "ev-07",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:22"
+          },
+          {
+            "proto": "tcp",
+            "local": "127.0.0.1:631"
+          }
+        ]
+      }
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR007",
+      "confidence": "medium",
+      "supporting": [
+        "ev-01",
+        "ev-02",
+        "ev-03",
+        "ev-04",
+        "ev-05",
+        "ev-06",
+        "ev-07"
+      ],
+      "fix_contains": "api:5000"
+    }
+  ]
+}

@@ -1,0 +1,201 @@
+{
+  "description": "container_1 uses 127.0.0.1:8001, which is container_2's port 8000 published on the host; they share a network",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:site-container_1-1",
+      "container_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "to": {
+      "host": "127.0.0.1",
+      "port": 8001,
+      "proto": "tcp",
+      "class": "loopback",
+      "addr": "127.0.0.1"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "container_1"
+      },
+      "subject": "container:site-container_1-1",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 1.0,
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "site-container_1-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 4242,
+        "started_at": "2026-11-25T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "site_web",
+        "networks": [
+          {
+            "network": "site_web",
+            "network_id": "site_web-id",
+            "names": [
+              "container_1",
+              "site-container_1-1"
+            ],
+            "ipv4": "172.22.0.50"
+          }
+        ],
+        "compose": {
+          "project": "site",
+          "service": "container_1"
+        }
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-01"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "container_1"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 0.3,
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:8000"
+          }
+        ]
+      },
+      "source": "/proc/<pid>/net/tcp{,6}",
+      "id": "ev-02"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "container_2"
+      },
+      "subject": "container:site-container_2-1",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 1.0,
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "site-container_2-1",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 4242,
+        "started_at": "2026-11-25T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "site_web",
+        "networks": [
+          {
+            "network": "site_web",
+            "network_id": "site_web-id",
+            "names": [
+              "container_2",
+              "site-container_2-1"
+            ],
+            "ipv4": "172.22.0.49"
+          }
+        ],
+        "compose": {
+          "project": "site",
+          "service": "container_2"
+        },
+        "ports": [
+          {
+            "container_port": 8000,
+            "proto": "tcp",
+            "host_ip": "0.0.0.0",
+            "host_port": 8001
+          }
+        ]
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-03"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "container_2"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 0.3,
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:8000"
+          }
+        ]
+      },
+      "source": "/proc/<pid>/net/tcp{,6}",
+      "id": "ev-04"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "host",
+        "name": "host"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 0.3,
+      "source": "/proc/net/tcp{,6}",
+      "id": "ev-05",
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:22"
+          },
+          {
+            "proto": "tcp",
+            "local": "127.0.0.1:631"
+          },
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:8001"
+          },
+          {
+            "proto": "tcp6",
+            "local": "[::]:8001"
+          }
+        ]
+      }
+    }
+  ],
+  "want": [
+    {
+      "rule_id": "WR007",
+      "confidence": "high",
+      "supporting": [
+        "ev-01",
+        "ev-02",
+        "ev-03",
+        "ev-04",
+        "ev-05"
+      ],
+      "fix_contains": "container_2:8000",
+      "fix_lacks": "host.docker.internal"
+    }
+  ]
+}

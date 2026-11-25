@@ -509,15 +509,15 @@ Sources for the columns:
 
 | ID | Pitfall | Layer | Key evidence | Probe? | Rank | Release |
 |---|---|---|---|---|---|---|
-| WR001 | Nothing is listening on the port in the destination's netns | 5 | listeners (no match) + refused | no | — | v0.1 · **M2** |
+| WR001 | Nothing is listening on the port in the destination's netns; also a lone container's own `localhost`, when nothing else could have been meant (the real-case check, §6.5) | 5 | listeners (no match) + refused | no | — | v0.1 · **M2** |
 | WR002 | Service bound to loopback only (127.0.0.1 or ::1) | 5 | loopback-only listeners | no | 11 | v0.1 · **M1** |
 | WR003 | Service listens on a different port (suggest that port) | 5 | listeners | no | — | v0.1 · **M2** |
 | WR004 | The two containers share no network (e.g. separate Compose projects) | 3 | network membership, Compose project labels | no | 2 | v0.1 · **M1** |
 | WR005 | The name matches no container, service or alias on the source's networks (suggest the closest), or is an alias only on a network the source doesn't share. Decided from metadata, **not** from the DNS rcode | 3 | network members (+ DNS view) | partly | 8 | v0.1 · **M2** |
 | WR006 | The host-published port is used between containers, or a port published only on the host's loopback is reached from a container through the host's address | 2 | port mappings + target | no | 17 | v0.1 · **M2** |
-| WR007 | `localhost`/127.0.0.1 (or a name `extra_hosts` map to loopback, or that resolves to loopback) used inside a container to reach another container or the host. The fix differs: the service name, or `host.docker.internal` | 2 | target + source listeners + other containers' and host listeners | no | **1** | v0.1 · **M1** |
+| WR007 | `localhost`/127.0.0.1 (or a name `extra_hosts` map to loopback, or that resolves to loopback) used inside a container to reach another container or the host. The fix differs: the service name, the name and own port of the container that publishes the port, or `host.docker.internal`; medium when nothing anywhere listens on the port, and WR001's when the source is alone as well (§6.5) | 2 | target + source listeners + other containers' and host listeners | no | **1** | v0.1 · **M1** |
 | WR008 | The destination is not running, is restarting, or is unhealthy. Checked before any probe | 1 | state, health, RestartCount | no | not measured | v0.1 · **M1** (moved from M2: the engine's gate needs it) |
-| WR009 | Default `bridge` network: containers can't resolve each other's names | 3 | network name (`bridge`) | no | 12 | v0.1 · **M2** |
+| WR009 | Default `bridge` network: containers can't resolve each other's names; also, at medium, a short name no container answers to from a source only on the bridge (§6.5) | 3 | network name (`bridge`) | no | 12 | v0.1 · **M2** |
 | WR010 | Startup race: the destination isn't ready yet | 1 | health `starting`, StartedAt, listeners | no | 4 | v0.1 · **M2** |
 | WR011 | `host.docker.internal` doesn't resolve on Docker Engine (no `host-gateway` mapping). Never fires on Docker Desktop | 2 | ExtraHosts + platform (+ DNS) | partly | 7 | v0.1 · **M2** |
 | WR012 | A host service is bound to 127.0.0.1, so containers can't reach it (Linux Engine, and WSL2 without Desktop) | 5 | host listeners + target is the host | no | 5 | v0.1 · **M2** |

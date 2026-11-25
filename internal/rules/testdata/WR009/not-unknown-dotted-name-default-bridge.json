@@ -1,0 +1,109 @@
+{
+  "description": "a name with a dot on the default bridge is an outside name, not a container's",
+  "question": {
+    "from": {
+      "kind": "container",
+      "ref": "container:eager_hopper",
+      "container_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "to": {
+      "host": "db.example.com",
+      "port": 3306,
+      "proto": "tcp",
+      "class": "name"
+    }
+  },
+  "evidence": [
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "bbbbbbbbbbbb",
+        "name": "eager_hopper"
+      },
+      "subject": "container:eager_hopper",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 1.0,
+      "data": {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "eager_hopper",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 4242,
+        "started_at": "2026-11-25T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "default",
+        "networks": [
+          {
+            "network": "bridge",
+            "network_id": "bridge-id",
+            "names": [],
+            "ipv4": "172.17.0.50"
+          }
+        ]
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-01"
+    },
+    {
+      "kind": "docker.container",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "brave_curie"
+      },
+      "subject": "container:brave_curie",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 1.0,
+      "data": {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "brave_curie",
+        "image": "whyreach-lab-server:dev",
+        "state": "running",
+        "exit_code": 0,
+        "pid": 4242,
+        "started_at": "2026-11-25T10:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z",
+        "restart_count": 0,
+        "network_mode": "default",
+        "networks": [
+          {
+            "network": "bridge",
+            "network_id": "bridge-id",
+            "names": [],
+            "ipv4": "172.17.0.49"
+          }
+        ]
+      },
+      "source": "docker GET /containers/{id}/json",
+      "id": "ev-02"
+    },
+    {
+      "kind": "netns.listeners",
+      "context": {
+        "kind": "container",
+        "container": "aaaaaaaaaaaa",
+        "name": "brave_curie"
+      },
+      "subject": "listeners",
+      "status": "ok",
+      "observed_at": "2026-11-25T10:05:00Z",
+      "duration_ms": 0.3,
+      "data": {
+        "sockets": [
+          {
+            "proto": "tcp",
+            "local": "0.0.0.0:3306"
+          }
+        ]
+      },
+      "source": "/proc/<pid>/net/tcp{,6}",
+      "id": "ev-03"
+    }
+  ],
+  "want": []
+}
