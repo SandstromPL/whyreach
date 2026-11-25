@@ -3,7 +3,7 @@ author: Hamza Jadid
 licence: CC BY-SA 4.0
 asked: >-
   A Node.js app in Compose (service `be`) connects to Postgres in the same
-  project with the URL postgres://agoodusername:astrongpassword@db:5433/dbname
+  project with the URL postgres://agoodusername:<password>@db:5433/dbname
   and keeps getting ECONNREFUSED on db's address, port 5433. pgAdmin in the
   same project can't connect to the database either. Run as separate
   containers without Compose, it worked.
@@ -20,6 +20,8 @@ stubbed:
     how: the stand-in, listening on 0.0.0.0:80, pgAdmin's default port, with the question's environment kept
     why: it only sits on the same network; its own failing connect to db isn't shown in enough detail to rebuild
 assumptions:
+  - >-
+    The question's own password values aren't repeated here: they are placeholders (lab-placeholder), which the failing connection doesn't depend on. Changed by the operator after the run, 2026-11-25.
   - The app's port 5433 is the host side of db's published mapping 5433:5432. That host port becomes ${LAB_PORT}, so the app's target becomes db:${LAB_PORT} to keep its relation to the mapping.
   - The other two fixed host ports (pgadmin's 5050:80, be's 3333:3333) can't all be ${LAB_PORT}, so they are published on host ports Docker picks ("80", "3333"), keeping the container sides.
   - The bind mount ./pgdata:/var/lib/postgresql/data became a named volume (pgdata) at the same path, so Postgres's files don't land in the repository; it starts empty, as a first run would.
