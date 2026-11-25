@@ -1,0 +1,92 @@
+[
+ {
+  "case": "so-73415151",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say to keep the container name and use the container port 27017 instead of the published one, which is exactly the confirmed fix."
+ },
+ {
+  "case": "so-69437475",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "The service ran on the host, and both say to use host.docker.internal instead of localhost (adding host-gateway on Engine), the change that fixed the connection; the image swap and dropping sshd in the container were incidental."
+ },
+ {
+  "case": "so-71877179",
+  "probe-containers": "no",
+  "default-config": "no",
+  "why": "The tool named no cause and gave no fix."
+ },
+ {
+  "case": "so-75237114",
+  "probe-containers": "no",
+  "default-config": "no",
+  "why": "The target was another container (container_2:8000), but both send the client to host.docker.internal on the condition that the service runs on the host. They never name container_2 or its container port."
+ },
+ {
+  "case": "so-78901825",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say ki-backend:8000 instead of localhost:8000, the same proxy_pass change. Restarting nginx is just how the change is applied."
+ },
+ {
+  "case": "so-65766633",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say to call the API through the port files-service publishes on localhost, which is the confirmed fix (the lab's port stands in for 6060)."
+ },
+ {
+  "case": "so-65596446",
+  "probe-containers": "partly",
+  "default-config": "partly",
+  "why": "Both correctly find that the MySQL container had stopped and point to its logs, where the cause would show. But starting it alone would not help: the needed config change (MYSQL_USER not root, and the 3306 port) is missing."
+ },
+ {
+  "case": "so-78873209",
+  "probe-containers": "no",
+  "default-config": "no",
+  "why": "Authentik ran in containers on another Compose network. The fix was to join that network and use the server's container name, but both point at a host service via host.docker.internal."
+ },
+ {
+  "case": "so-69061621",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say db:5432 instead of the published port, the confirmed fix."
+ },
+ {
+  "case": "so-70088535",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say consul:8500 instead of localhost:8500. That is what setting consul.host to CONSUL_HOST=consul did."
+ },
+ {
+  "case": "so-78151189",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say to publish the Redis port with -p (or Compose ports), the confirmed fix in substance. Binding to all interfaces rather than 127.0.0.1 is a detail."
+ },
+ {
+  "case": "so-69356818",
+  "probe-containers": "partly",
+  "default-config": "partly",
+  "why": "Both cover publishing kafka-1's port but miss the second needed part: the host listener advertised as localhost. Without it the Kafka client still gets the internal kafka-1:29092 address after bootstrap. They also do not mention the other brokers."
+ },
+ {
+  "case": "forum-121911",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say to use the postgres service name instead of localhost, exactly what was entered in pgAdmin."
+ },
+ {
+  "case": "gh-takwerx-infra-TAK-372",
+  "probe-containers": "partly",
+  "default-config": "partly",
+  "why": "The right change (the Compose service name instead of localhost) is offered next to a host.docker.internal alternative, without saying which applies. Neither names the api service or its port 5000 (the tool's text keeps 5001)."
+ },
+ {
+  "case": "gh-hs3180-disclaude-4608",
+  "probe-containers": "no",
+  "default-config": "no",
+  "why": "The fix was to make the primary service itself listen on 9200 (--api-port 9200). Both say to point the client at another container or the host instead, which would not create the missing listener."
+ }
+]

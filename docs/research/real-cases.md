@@ -1,7 +1,7 @@
 # Real cases: whyreach on setups people actually broke
 
 > **What this is:** a check of whyreach against broken Docker setups taken from Stack Overflow, the Docker Community Forums and GitHub issues, each rebuilt here and diagnosed without knowing the answer. `INITIAL.md` §6.5.
-> **Status:** method fixed on 2026-11-25, before any sampling, once the owner had settled the open decisions (see "Decisions"). Nothing has run yet.
+> **Status:** method fixed on 2026-11-25, before any sampling, once the owner had settled the open decisions (see "Decisions"); run the same day. **Result: whyreach named the confirmed cause in 13 of the 15 real cases it could run on, under both configs; it named no cause in 1 and a wrong cause at high confidence in 1. Its fix did what the confirmed fix did in 8, partly in 3.** See "Results".
 
 ## Why
 
@@ -100,6 +100,72 @@ Missing either doesn't stop a release. It says where the work goes next.
 - Each case is rebuilt once, by an agent, from the question alone. A rebuild can miss what really broke the asker's setup; the symptom check catches only part of that.
 - Linux with Docker Engine only; one Engine version (29.9.3).
 - 20 cases measure orders of magnitude, not percentages to the point.
+
+## Results (2026-11-25)
+
+whyreach at `5d5d0f6`, Docker Engine 29.9.3, `linux-engine`; `make lab-realcases` over the 15 runnable cases took 4.3 minutes. Masked results: `real-cases/results.json`; scores: `real-cases/scores.json` and `table.md` (`score.py`); the fix judge's verdicts: `real-cases/fix-verdicts.json`. Every symptom check matched again in the run.
+
+**The funnel.** 64 threads looked at in the shuffled order (Stack Overflow 19, the forums all 33, GitHub 12); 45 out:
+- not a connection failure: 15 (Stack Overflow 4, forums 5, GitHub 6);
+- platform: 10 (Swarm, Docker Desktop and its WSL2 integration; 9 of them on the forums): the share v0.3 and later are for;
+- not rebuildable: 8 (outside infrastructure, missing setup), plus 3 forum cases whose question showed a different setup from the one the fix was for;
+- host change: 5, two of them a host firewall turning away container-to-host traffic, which is WR021's case but can't be rebuilt without changing this machine's firewall;
+- no confirmed fix: 4.
+
+19 cases were selected (12, 3 and 4: the forums held only 3). 4 couldn't be rebuilt as a failing connection (an address nginx cached in memory, a stale backup, an HTTP 503, a HAProxy alert about a backend the question doesn't show), so 15 were run and scored.
+
+**Coverage.** All 15 scored cases have a built rule as their label: WR007 7, WR019 3, WR006 2, WR001, WR008 and WR009 one each. The two `outside` labels in the sample were both among the cases that couldn't be rebuilt, so this run says nothing about how whyreach behaves on a cause it has no rule for.
+
+**Accuracy.** Probe containers on and the default config gave the same answers on every case:
+
+| | Cases |
+|---|---|
+| right: the labelled rule is the primary finding | 13 of 15 (87%) |
+| no cause named | 1 (so-71877179) |
+| a wrong cause, at high confidence | 1 (gh-hs3180-disclaude-4608) |
+
+**The fix.** A fresh agent compared whyreach's fix with the confirmed one, without rule IDs: yes 8, partly 3, no 4, the same under both configs. Two of the four "no" verdicts are cases whyreach got right (below).
+
+**Expected, before the run:** right on at least 80% of covered cases with probe containers on: met (87%). No wrong cause at high confidence: missed, by one.
+
+| Case | Label | whyreach (both configs) | Outcome | Fix |
+|---|---|---|---|---|
+| [so-73415151](https://stackoverflow.com/questions/73415151) | WR006 | WR006 (high) | right | yes |
+| [so-69437475](https://stackoverflow.com/questions/69437475) | WR007 | WR007 (high) | right | yes |
+| [so-71877179](https://stackoverflow.com/questions/71877179) | WR009 | inconclusive | no cause named | no |
+| [so-75237114](https://stackoverflow.com/questions/75237114) | WR007 | WR007 (high) | right | no |
+| [so-78901825](https://stackoverflow.com/questions/78901825) | WR007 | WR007 (high) | right | yes |
+| [so-65766633](https://stackoverflow.com/questions/65766633) | WR019 | WR019 (high) | right | yes |
+| [so-65596446](https://stackoverflow.com/questions/65596446) | WR008 | WR008 (high), also WR006 | right | partly |
+| [so-78873209](https://stackoverflow.com/questions/78873209) | WR007 | WR007 (high) | right | no |
+| [so-69061621](https://stackoverflow.com/questions/69061621) | WR006 | WR006 (high) | right | yes |
+| [so-70088535](https://stackoverflow.com/questions/70088535) | WR007 | WR007 (high) | right | yes |
+| [so-78151189](https://stackoverflow.com/questions/78151189) | WR019 | WR019 (high) | right | yes |
+| [so-69356818](https://stackoverflow.com/questions/69356818) | WR019 | WR019 (medium) | right | partly |
+| [forum-127146](https://forums.docker.com/t/127146) | outside | not run | not reproduced | |
+| [forum-139130](https://forums.docker.com/t/139130) | ambiguous | not run | not reproduced | |
+| [forum-121911](https://forums.docker.com/t/121911) | WR007 | WR007 (high) | right | yes |
+| [gh-takwerx-infra-TAK-372](https://github.com/takwerx/infra-TAK/issues/372) | WR007 | WR007 (high) | right | partly |
+| [gh-Anagamedina-ft_transcendence-309](https://github.com/Anagamedina/ft_transcendence/issues/309) | outside | not run | not reproduced | |
+| [gh-hs3180-disclaude-4608](https://github.com/hs3180/disclaude/issues/4608) | WR001 | WR007 (high) | wrong | no |
+| [gh-coryfinnegan-CollectionMaxxing-819](https://github.com/coryfinnegan/CollectionMaxxing/issues/819) | WR010 | not run | not reproduced | |
+
+### What it found wrong in whyreach
+
+1. **WR007 fires when nothing listens on the port anywhere** (gh-hs3180-disclaude-4608). A container's app connects to `localhost:9200`, where a server in the same container should listen but was never started (a missing `--api-port`). Nothing on the host or in another container listens on 9200 either. WR007 still fires at high confidence and supersedes WR001, as its rule page says, and its fix sends the user to look for another container. The answer should be WR001 (nothing listens), or WR007 at most medium with "if the server should run here, it isn't listening".
+2. **WR007's fix goes through the host when the port is another container's published port** (so-75237114, so-78873209). The host listener on the port is `docker-proxy` for another container's published port; WR007 tells the client to use `host.docker.internal:<port>`. That works on Docker Engine with `host-gateway`, but the confirmed fix was the container's name and container port (`container_2:8000`), which whyreach could name from the published-port bindings it already reads (WR006 does). In so-78873209 the target is in another Compose project, so the name also needs a shared network (the label's WR004), which the fix doesn't mention.
+3. **WR007's fix offers two routes without choosing** (gh-takwerx-infra-TAK-372): the service name or `host.docker.internal`, when nothing listens on 5001 anywhere and the API another container runs listens on 5000.
+4. **A name that resolves to nothing on Docker's default bridge gets no rule** (so-71877179). WR009 needs the name to match a container and WR005 doesn't fire for a source on the default bridge only, so `docker run` containers looking up a name no container has get "inconclusive", with the two facts that explain it.
+5. **The fix for a container that isn't running stops at "start it"** (so-65596446, partly): right cause (WR008, with the port's WR006 also found), but the confirmed fix was the setting that made MySQL's startup fail.
+
+Fixes for these go through the rule checklist (a fixture and a lab scenario each). A re-run after them is reported next to this one, never in its place.
+
+### Reading it
+
+- The sample is small and lopsided: 7 of the 15 scored cases are `localhost` inside a container, the most common pitfall in the research too (`failure-signatures.md`).
+- Probe containers changed nothing here: every scored case was decided from metadata and listeners.
+- Most of what people bring isn't a reproducible connection failure on Linux Docker Engine: 15 of 64 threads made it to a run. Platforms whyreach doesn't support yet (10) and causes above the connection (15) are the biggest groups.
+- Every rebuild is one agent's reading of one question, and the GitHub rebuilds weren't blind.
 
 ## What happened while sampling and labelling (2026-11-25)
 
