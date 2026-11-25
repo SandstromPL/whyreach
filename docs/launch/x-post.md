@@ -55,3 +55,19 @@ github.com/SandstromPL/whyreach/blob/main/docs/research/agent-benchmark.md
 - "half the steps, under half the tokens": medians of 3 tool calls against 6, and 20.2k tokens against 49.7k (41%).
 - "0 tries at docker exec or sudo (shell agent: 21)": the shell agent's 21 refused attempts, one per run, were 19 `docker exec` (one behind `sudo`) and 2 `sudo`.
 - The benchmark numbers are the summary of the v0.2 run (`docs/research/agent-benchmark.md`, "The v0.2 run").
+
+# A standalone post: `localhost` in a container
+
+A short post on its own, not part of the thread: the most common mistake, which the demo GIF shows. 247 of 280 characters.
+
+```
+localhost inside a Docker container isn't your machine. It's the container itself.
+
+It trips up a lot of people. whyreach catches it, plus 19 other Docker network mistakes, and tells you the fix. It never changes anything.
+
+github.com/SandstromPL/whyreach
+```
+
+**Media:** `docs/assets/demo.gif`, with the alt text of post 1. With media attached, X shows the GIF instead of a link card.
+
+**Cards, if a post goes out without media:** a GitHub link shows the repository's card (its description, and its counts of contributors, issues, stars and forks); an MCPRush link shows that listing's card ("not scanned", 4 tools, v0.2.0), which doesn't say what whyreach does. Link GitHub, with the GIF or the chart attached.
