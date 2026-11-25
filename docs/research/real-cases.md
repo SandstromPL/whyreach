@@ -1,7 +1,7 @@
 # Real cases: whyreach on setups people actually broke
 
 > **What this is:** a check of whyreach against broken Docker setups taken from Stack Overflow, the Docker Community Forums and GitHub issues, each rebuilt here and diagnosed without knowing the answer. `INITIAL.md` §6.5.
-> **Status:** method fixed on 2026-11-25, before any sampling, once the owner had settled the open decisions (see "Decisions"); run the same day. **Result: whyreach named the confirmed cause in 13 of the 15 real cases it could run on, under both configs; it named no cause in 1 and a wrong cause at high confidence in 1. Its fix did what the confirmed fix did in 8, partly in 3.** See "Results".
+> **Status:** method fixed on 2026-11-25, before any sampling, once the owner had settled the open decisions (see "Decisions"); run the same day. **Result: whyreach named the confirmed cause in 13 of the 15 real cases it could run on, under both configs; it named no cause in 1 and a wrong cause at high confidence in 1. Its fix did what the confirmed fix did in 8, partly in 3.** See "Results". The findings were fixed the same day; on the same 15 cases whyreach then named the confirmed cause in all 15, and its fix matched in 11 and partly in 4 ("After the fixes"): a check that the fixes work, not a new measure of accuracy.
 
 ## Why
 
@@ -166,6 +166,45 @@ Fixes for these go through the rule checklist (a fixture and a lab scenario each
 - Probe containers changed nothing here: every scored case was decided from metadata and listeners.
 - Most of what people bring isn't a reproducible connection failure on Linux Docker Engine: 15 of 64 threads made it to a run. Platforms whyreach doesn't support yet (10) and causes above the connection (15) are the biggest groups.
 - Every rebuild is one agent's reading of one question, and the GitHub rebuilds weren't blind.
+
+## After the fixes (2026-11-25)
+
+The findings were fixed the same day (commits `aac4cf6` and `dddf4f4`; ADR 0002's amendment of 2026-11-25):
+- a lone container's own `localhost` with nothing anywhere on the port is WR001's, and WR007 stays out;
+- WR007 drops to medium when nothing anywhere listens on the port, and its fix lists what the containers on the source's networks listen on;
+- WR007's fix names the container whose published port it is, with its own port and the network to join; for that, the engine now inspects the containers that publish a `localhost` target's port, on any network (before, a publisher in another Compose project was never seen);
+- WR009 covers a short name no container answers to, from a source only on the default bridge.
+
+The fifth finding stays: the fix for a container that isn't running points at its logs and exit code, and the cause in so-65596446 was an environment variable's value, which whyreach never reads (`CLAUDE.md`, non-negotiable 6).
+
+`make test`, `make lint`, `make cross`, `make lab` and `make lab-desktop` pass, the 27 lab scenarios unchanged. Then the same 15 cases ran again (`results-after-fixes.json`; scores in `scores-after-fixes.json` and `table-after-fixes.md`). The run's records name `aac4cf6`: it ran with the engine change of `dddf4f4` in the working tree, committed right after. A fresh judge, given the same instructions and no rule IDs, judged the new fixes (`fix-verdicts-after-fixes.json`).
+
+| | First run | After the fixes |
+|---|---|---|
+| right (both configs alike) | 13 of 15 | 15 of 15 |
+| no cause named | 1 | 0 |
+| a wrong cause, at high confidence | 1 | 0 |
+| fix: yes / partly / no | 8 / 3 / 4 | 11 / 4 / 0 |
+
+| Case | Label | First run | Fix | After the fixes | Fix |
+|---|---|---|---|---|---|
+| so-73415151 | WR006 | WR006 (high) | yes | WR006 (high) | yes |
+| so-69437475 | WR007 | WR007 (high) | yes | WR007 (high) | yes |
+| so-71877179 | WR009 | inconclusive | no | WR009 (medium) | yes |
+| so-75237114 | WR007 | WR007 (high) | no | WR007 (high) | yes |
+| so-78901825 | WR007 | WR007 (high) | yes | WR007 (high) | yes |
+| so-65766633 | WR019 | WR019 (high) | yes | WR019 (high) | yes |
+| so-65596446 | WR008 | WR008 (high) | partly | WR008 (high) | partly |
+| so-78873209 | WR007 | WR007 (high) | no | WR007 (high) | yes |
+| so-69061621 | WR006 | WR006 (high) | yes | WR006 (high) | yes |
+| so-70088535 | WR007 | WR007 (high) | yes | WR007 (high) | yes |
+| so-78151189 | WR019 | WR019 (high) | yes | WR019 (high) | yes |
+| so-69356818 | WR019 | WR019 (medium) | partly | WR019 (medium) | partly |
+| forum-121911 | WR007 | WR007 (high) | yes | WR007 (high) | yes |
+| gh-takwerx-infra-TAK-372 | WR007 | WR007 (high) | partly | WR007 (medium) | partly |
+| gh-hs3180-disclaude-4608 | WR001 | WR007 (high) | no | WR001 (high) | partly |
+
+**This isn't a new measure of accuracy.** The fixes were written knowing these cases and their labels, so passing them shows the fixes do what they were meant to, no more. The first run's numbers stand as the check's result; a fresh sample from the pools, labelled and rebuilt the same way, is what would measure the fixed whyreach. The four "partly" fixes: so-65596446 (the logs, not the environment variable), so-69356818 (publish the port, but not Kafka's advertised listener, the planned WR025), gh-takwerx-infra-TAK-372 (`api:5000` among three candidates, at medium: the evidence can't choose) and gh-hs3180-disclaude-4608 (the server's start command and port setting, but not the missing `--api-port`). In the first run of so-71877179, this machine's DNS server answered NXDOMAIN; in one of the re-runs it timed out, and WR020 was found as well.
 
 ## What happened while sampling and labelling (2026-11-25)
 

@@ -1,0 +1,92 @@
+[
+ {
+  "case": "so-73415151",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both configurations say to connect to mongo-db-showcase-db on the container port 27017, which is exactly the confirmed fix."
+ },
+ {
+  "case": "so-69437475",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say to use host.docker.internal instead of localhost to reach the service on the host, which is the change that fixed it. The port is the lab's stand-in, and the extra_hosts note only adds what Docker Engine needs."
+ },
+ {
+  "case": "so-71877179",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "The confirmed fix put the containers on a user-defined network with the DB container named dbcontainer. The tool says to use a user-defined network (or Compose), connect by container name, and points out that no container is named dbcontainer, which covers both parts."
+ },
+ {
+  "case": "so-75237114",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say to use container_2:8000 (the service name and container port) instead of the published host port, the same as the confirmed fix."
+ },
+ {
+  "case": "so-78901825",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say to use ki-backend:8000 instead of localhost:8000, the same as the confirmed proxy_pass change. Restarting nginx is implied."
+ },
+ {
+  "case": "so-65766633",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say to call the API through localhost on the port files-service publishes on the host, which is the confirmed fix. 32831 is the lab's stand-in for 6060."
+ },
+ {
+  "case": "so-65596446",
+  "probe-containers": "partly",
+  "default-config": "partly",
+  "why": "The tool correctly finds that the MySQL container has stopped and points to its logs, which would show the cause. It does not name the change that fixed it (MYSQL_USER root to a regular user), and just starting the container again would fail the same way."
+ },
+ {
+  "case": "so-78873209",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say to attach app to authentik_default (external: true) and connect to the server container by name instead of localhost, covering both parts of the confirmed fix. The host.docker.internal alternative is offered as also valid, not as a competing guess."
+ },
+ {
+  "case": "so-69061621",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say to connect to db:5432 instead of the published port, exactly the confirmed fix."
+ },
+ {
+  "case": "so-70088535",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say to use consul:8500 instead of localhost:8500, the same as setting consul.host to the consul service name."
+ },
+ {
+  "case": "so-78151189",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say to publish local-redis's port, which is the confirmed fix. The port number is the lab's stand-in, and binding to 127.0.0.1 or not makes no difference to the substance."
+ },
+ {
+  "case": "so-69356818",
+  "probe-containers": "partly",
+  "default-config": "partly",
+  "why": "The tool covers publishing the broker's port but not adding a host listener advertised as localhost:<port>. Kafka needs both for a client on the host to work, since the advertised kafka-1:29092 isn't reachable from the host."
+ },
+ {
+  "case": "forum-121911",
+  "probe-containers": "yes",
+  "default-config": "yes",
+  "why": "Both say to use the postgres service name instead of localhost, which is what fixed pgAdmin's connection."
+ },
+ {
+  "case": "gh-takwerx-infra-TAK-372",
+  "probe-containers": "partly",
+  "default-config": "partly",
+  "why": "The tool lists api:5000 (the right target) next to events:5003 and media:9997, plus an in-container branch, without saying which applies. It never names api:5000 as the fix."
+ },
+ {
+  "case": "gh-hs3180-disclaude-4608",
+  "probe-containers": "partly",
+  "default-config": "partly",
+  "why": "The tool points at the right place: the server in primary isn't listening on 9200, so check the command or setting that sets its port. It does not say to add --api-port 9200, and it also offers a wrong branch (another machine)."
+ }
+]

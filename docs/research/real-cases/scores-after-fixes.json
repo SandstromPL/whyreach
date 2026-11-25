@@ -1,0 +1,263 @@
+{
+ "summary": {
+  "probe-containers": {
+   "covered": 15,
+   "right": 15
+  },
+  "default-config": {
+   "covered": 15,
+   "right": 15
+  }
+ },
+ "cases": [
+  {
+   "case": "so-73415151",
+   "label": "WR006",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR006 (high)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR006 (high)",
+    "also": []
+   }
+  },
+  {
+   "case": "so-69437475",
+   "label": "WR007",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR007 (high)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR007 (high)",
+    "also": []
+   }
+  },
+  {
+   "case": "so-71877179",
+   "label": "WR009",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR009 (medium)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR009 (medium)",
+    "also": []
+   }
+  },
+  {
+   "case": "so-75237114",
+   "label": "WR007",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR007 (high)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR007 (high)",
+    "also": []
+   }
+  },
+  {
+   "case": "so-78901825",
+   "label": "WR007",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR007 (high)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR007 (high)",
+    "also": []
+   }
+  },
+  {
+   "case": "so-65766633",
+   "label": "WR019",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR019 (high)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR019 (high)",
+    "also": []
+   }
+  },
+  {
+   "case": "so-65596446",
+   "label": "WR008",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR008 (high)",
+    "also": [
+     "WR006"
+    ]
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR008 (high)",
+    "also": [
+     "WR006"
+    ]
+   }
+  },
+  {
+   "case": "so-78873209",
+   "label": "WR007",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR007 (high)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR007 (high)",
+    "also": []
+   }
+  },
+  {
+   "case": "so-69061621",
+   "label": "WR006",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR006 (high)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR006 (high)",
+    "also": []
+   }
+  },
+  {
+   "case": "so-70088535",
+   "label": "WR007",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR007 (high)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR007 (high)",
+    "also": []
+   }
+  },
+  {
+   "case": "so-78151189",
+   "label": "WR019",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR019 (high)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR019 (high)",
+    "also": []
+   }
+  },
+  {
+   "case": "so-69356818",
+   "label": "WR019",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR019 (medium)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR019 (medium)",
+    "also": []
+   }
+  },
+  {
+   "case": "forum-127146",
+   "label": "outside",
+   "status": "not reproduced: the question's only failure is HAProxy's alert that a backend named app (not in the config shown) has no server; the servers the question names were reachable, and after its one more try the reproducer found no connection in the question it could rebuild as failing"
+  },
+  {
+   "case": "forum-139130",
+   "label": "ambiguous",
+   "status": "not reproduced: the question's only failure is an HTTP 503 from the proxy, which accepted the connection; after its one more try the reproducer found no connection the question says failed (the label is ambiguous too)"
+  },
+  {
+   "case": "forum-121911",
+   "label": "WR007",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR007 (high)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR007 (high)",
+    "also": []
+   }
+  },
+  {
+   "case": "gh-takwerx-infra-TAK-372",
+   "label": "WR007",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR007 (medium)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR007 (medium)",
+    "also": []
+   }
+  },
+  {
+   "case": "gh-Anagamedina-ft_transcendence-309",
+   "label": "outside",
+   "status": "not reproduced: the failure lives in the address nginx cached at its start; Compose can't recreate the backend after nginx starts, and the rebuild's workaround (that address written into nginx's config, and to as an address) changes what the app named, against the rebuild rules"
+  },
+  {
+   "case": "gh-hs3180-disclaude-4608",
+   "label": "WR001",
+   "status": "scored",
+   "probe-containers": {
+    "outcome": "right",
+    "said": "WR001 (high)",
+    "also": []
+   },
+   "default-config": {
+    "outcome": "right",
+    "said": "WR001 (high)",
+    "also": []
+   }
+  },
+  {
+   "case": "gh-coryfinnegan-CollectionMaxxing-819",
+   "label": "WR010",
+   "status": "not reproduced: the issue as opened reports a stale backup, not a failing connection; the rebuild's backup reached Postgres, and after its one more try the reproducer found no connection the issue says failed (the label's startup race comes from a maintainer's later comment)"
+  }
+ ]
+}

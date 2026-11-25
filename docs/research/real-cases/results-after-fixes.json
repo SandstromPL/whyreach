@@ -1,0 +1,645 @@
+{
+ "case_count": 15,
+ "cases": [
+  {
+   "case": "forum-121911",
+   "source": "https://forums.docker.com/t/121911",
+   "symptom": {
+    "want": "refused",
+    "got": "refused",
+    "detail": "labserver: dial tcp [::1]:5432: connect: connection refused",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "cause_identified",
+     "summary": "pgadmin can't reach localhost:5432: localhost inside pgadmin is pgadmin itself, not postgres.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "high",
+       "fix": "Connect to postgres:5432 instead of localhost:5432: the Compose service name resolves on the shared network."
+      }
+     ],
+     "gaps": 0,
+     "side_effects": 2
+    },
+    {
+     "config": "default-config",
+     "verdict": "cause_identified",
+     "summary": "pgadmin can't reach localhost:5432: localhost inside pgadmin is pgadmin itself, not postgres.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "high",
+       "fix": "Connect to postgres:5432 instead of localhost:5432: the Compose service name resolves on the shared network."
+      }
+     ],
+     "gaps": 1,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "gh-hs3180-disclaude-4608",
+   "source": "https://github.com/hs3180/disclaude/issues/4608",
+   "symptom": {
+    "want": "refused",
+    "got": "refused",
+    "detail": "labserver: dial tcp [::1]:9200: connect: connection refused",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "cause_identified",
+     "summary": "primary can't reach localhost:9200: nothing in primary listens on port 9200.",
+     "findings": [
+      {
+       "rule": "WR001",
+       "confidence": "high",
+       "fix": "Check that the server meant to run in primary started and listens on port 9200: docker logs whyreach-lab-whyreach-lab-72bbe0c9-disclaude-primary, and the command or setting that starts it and sets its port. If the server runs on another machine, connect to that machine's address instead of localhost."
+      }
+     ],
+     "gaps": 0,
+     "side_effects": 1
+    },
+    {
+     "config": "default-config",
+     "verdict": "cause_identified",
+     "summary": "primary can't reach localhost:9200: nothing in primary listens on port 9200.",
+     "findings": [
+      {
+       "rule": "WR001",
+       "confidence": "high",
+       "fix": "Check that the server meant to run in primary started and listens on port 9200: docker logs whyreach-lab-whyreach-lab-72bbe0c9-disclaude-primary, and the command or setting that starts it and sets its port. If the server runs on another machine, connect to that machine's address instead of localhost."
+      }
+     ],
+     "gaps": 1,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "gh-takwerx-infra-TAK-372",
+   "source": "https://github.com/takwerx/infra-TAK/issues/372",
+   "symptom": {
+    "want": "refused",
+    "got": "refused",
+    "detail": "labserver: dial tcp [::1]:5001: connect: connection refused",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "likely_cause",
+     "summary": "tiles can't reach localhost:5001, probably because localhost inside tiles refers to tiles itself.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "medium",
+       "fix": "If the service runs in another container, connect to its name and the port its server listens on instead of localhost:5001; on tiles's networks, these listen: api:5000, events:5003, media:9997. If it should run in tiles itself, it isn't listening on 5001: check that it started (docker logs whyreach-lab-5b020585-tiles-1)."
+      }
+     ],
+     "gaps": 0,
+     "side_effects": 1
+    },
+    {
+     "config": "default-config",
+     "verdict": "likely_cause",
+     "summary": "tiles can't reach localhost:5001, probably because localhost inside tiles refers to tiles itself.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "medium",
+       "fix": "If the service runs in another container, connect to its name and the port its server listens on instead of localhost:5001; on tiles's networks, these listen: api:5000, events:5003, media:9997. If it should run in tiles itself, it isn't listening on 5001: check that it started (docker logs whyreach-lab-5b020585-tiles-1)."
+      }
+     ],
+     "gaps": 1,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "so-65596446",
+   "source": "https://stackoverflow.com/questions/65596446",
+   "symptom": {
+    "want": "name-not-found",
+    "got": "name-not-found",
+    "detail": "labserver: dial tcp: lookup mysql-standalone on 127.0.0.11:53: server misbehaving",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "cause_identified",
+     "summary": "cth-docker-container can't reach mysql-standalone:39105: mysql-standalone is not running.",
+     "findings": [
+      {
+       "rule": "WR008",
+       "confidence": "high",
+       "fix": "Start it (with Compose: docker compose up -d mysql-standalone) and check why it stopped: docker logs whyreach-lab-9736cb28-mysql-standalone-1."
+      },
+      {
+       "rule": "WR006",
+       "confidence": "medium",
+       "fix": "Connect to mysql-standalone:3306 instead of mysql-standalone:39105: containers on a shared network use the container port."
+      }
+     ],
+     "gaps": 0,
+     "side_effects": 0
+    },
+    {
+     "config": "default-config",
+     "verdict": "cause_identified",
+     "summary": "cth-docker-container can't reach mysql-standalone:39105: mysql-standalone is not running.",
+     "findings": [
+      {
+       "rule": "WR008",
+       "confidence": "high",
+       "fix": "Start it (with Compose: docker compose up -d mysql-standalone) and check why it stopped: docker logs whyreach-lab-9736cb28-mysql-standalone-1."
+      },
+      {
+       "rule": "WR006",
+       "confidence": "medium",
+       "fix": "Connect to mysql-standalone:3306 instead of mysql-standalone:39105: containers on a shared network use the container port."
+      }
+     ],
+     "gaps": 0,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "so-65766633",
+   "source": "https://stackoverflow.com/questions/65766633",
+   "symptom": {
+    "want": "name-not-found",
+    "got": "name-not-found",
+    "detail": "dial tcp: lookup files-service: no such host",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "cause_identified",
+     "summary": "the host can't reach files-service:8080: the host can't resolve files-service: container names resolve only inside Docker networks.",
+     "findings": [
+      {
+       "rule": "WR019",
+       "confidence": "high",
+       "fix": "Connect to localhost:32831: files-service publishes its port 8080 there."
+      }
+     ],
+     "gaps": 0,
+     "side_effects": 0
+    },
+    {
+     "config": "default-config",
+     "verdict": "cause_identified",
+     "summary": "the host can't reach files-service:8080: the host can't resolve files-service: container names resolve only inside Docker networks.",
+     "findings": [
+      {
+       "rule": "WR019",
+       "confidence": "high",
+       "fix": "Connect to localhost:32831: files-service publishes its port 8080 there."
+      }
+     ],
+     "gaps": 0,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "so-69061621",
+   "source": "https://stackoverflow.com/questions/69061621",
+   "symptom": {
+    "want": "refused",
+    "got": "refused",
+    "detail": "labserver: dial tcp 172.22.0.2:38251: connect: connection refused",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "cause_identified",
+     "summary": "be can't reach db:38251: 38251 is db's port on the host; between containers use 5432.",
+     "findings": [
+      {
+       "rule": "WR006",
+       "confidence": "high",
+       "fix": "Connect to db:5432 instead of db:38251: containers on a shared network use the container port."
+      }
+     ],
+     "suppressed": [
+      "WR003 by WR006"
+     ],
+     "gaps": 0,
+     "side_effects": 1
+    },
+    {
+     "config": "default-config",
+     "verdict": "cause_identified",
+     "summary": "be can't reach db:38251: 38251 is db's port on the host; between containers use 5432.",
+     "findings": [
+      {
+       "rule": "WR006",
+       "confidence": "high",
+       "fix": "Connect to db:5432 instead of db:38251: containers on a shared network use the container port."
+      }
+     ],
+     "suppressed": [
+      "WR003 by WR006"
+     ],
+     "gaps": 1,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "so-69356818",
+   "source": "https://stackoverflow.com/questions/69356818",
+   "symptom": {
+    "want": "failure",
+    "got": "refused",
+    "detail": "dial tcp 127.0.0.1:9092: connect: connection refused",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "likely_cause",
+     "summary": "the host can't reach localhost:9092, probably because kafka-1 listens on port 9092 but doesn't publish it.",
+     "findings": [
+      {
+       "rule": "WR019",
+       "confidence": "medium",
+       "fix": "Publish it: ports: [\"9092:9092\"] for kafka-1 in Compose (docker run -p 9092:9092), then docker compose up -d kafka-1. From the host it can also be reached directly at 172.22.0.3:9092."
+      }
+     ],
+     "suppressed": [
+      "WR001 by WR019"
+     ],
+     "gaps": 0,
+     "side_effects": 0
+    },
+    {
+     "config": "default-config",
+     "verdict": "likely_cause",
+     "summary": "the host can't reach localhost:9092, probably because kafka-1 listens on port 9092 but doesn't publish it.",
+     "findings": [
+      {
+       "rule": "WR019",
+       "confidence": "medium",
+       "fix": "Publish it: ports: [\"9092:9092\"] for kafka-1 in Compose (docker run -p 9092:9092), then docker compose up -d kafka-1. From the host it can also be reached directly at 172.22.0.3:9092."
+      }
+     ],
+     "suppressed": [
+      "WR001 by WR019"
+     ],
+     "gaps": 0,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "so-69437475",
+   "source": "https://stackoverflow.com/questions/69437475",
+   "symptom": {
+    "want": "refused",
+    "got": "refused",
+    "detail": "labserver: dial tcp [::1]:34109: connect: connection refused",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "cause_identified",
+     "summary": "api can't reach localhost:34109: localhost inside api refers to api itself.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "high",
+       "fix": "If the service runs on the host, connect to host.docker.internal:34109 (on Docker Engine, also give api extra_hosts: [\"host.docker.internal:host-gateway\"]) instead of localhost:34109."
+      }
+     ],
+     "gaps": 0,
+     "side_effects": 1
+    },
+    {
+     "config": "default-config",
+     "verdict": "cause_identified",
+     "summary": "api can't reach localhost:34109: localhost inside api refers to api itself.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "high",
+       "fix": "If the service runs on the host, connect to host.docker.internal:34109 (on Docker Engine, also give api extra_hosts: [\"host.docker.internal:host-gateway\"]) instead of localhost:34109."
+      }
+     ],
+     "gaps": 1,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "so-70088535",
+   "source": "https://stackoverflow.com/questions/70088535",
+   "symptom": {
+    "want": "refused",
+    "got": "refused",
+    "detail": "labserver: dial tcp [::1]:8500: connect: connection refused",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "cause_identified",
+     "summary": "test-service can't reach localhost:8500: localhost inside test-service is test-service itself, not consul.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "high",
+       "fix": "Connect to consul:8500 instead of localhost:8500: the Compose service name resolves on the shared network."
+      }
+     ],
+     "gaps": 0,
+     "side_effects": 1
+    },
+    {
+     "config": "default-config",
+     "verdict": "cause_identified",
+     "summary": "test-service can't reach localhost:8500: localhost inside test-service is test-service itself, not consul.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "high",
+       "fix": "Connect to consul:8500 instead of localhost:8500: the Compose service name resolves on the shared network."
+      }
+     ],
+     "gaps": 1,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "so-71877179",
+   "source": "https://stackoverflow.com/questions/71877179",
+   "symptom": {
+    "want": "name-not-found",
+    "got": "name-not-found",
+    "detail": "labserver: dial tcp: lookup dbcontainer on \u003cdns-1\u003e:53: no such host",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "likely_cause",
+     "summary": "server can't reach dbcontainer:3306, probably because server is only on Docker's default bridge, where names don't resolve, and no container answers to dbcontainer.",
+     "findings": [
+      {
+       "rule": "WR009",
+       "confidence": "medium",
+       "fix": "Run the containers on a user-defined network: docker network create app, then docker network connect app for each (or docker run --network app, or Compose, which does it for you). Then connect by the container's name as given with --name, or the Compose service name: no container is named dbcontainer now (docker ps lists the names)."
+      }
+     ],
+     "gaps": 0,
+     "side_effects": 1
+    },
+    {
+     "config": "default-config",
+     "verdict": "likely_cause",
+     "summary": "server can't reach dbcontainer:3306, probably because server is only on Docker's default bridge, where names don't resolve, and no container answers to dbcontainer.",
+     "findings": [
+      {
+       "rule": "WR009",
+       "confidence": "medium",
+       "fix": "Run the containers on a user-defined network: docker network create app, then docker network connect app for each (or docker run --network app, or Compose, which does it for you). Then connect by the container's name as given with --name, or the Compose service name: no container is named dbcontainer now (docker ps lists the names)."
+      }
+     ],
+     "gaps": 1,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "so-73415151",
+   "source": "https://stackoverflow.com/questions/73415151",
+   "symptom": {
+    "want": "refused",
+    "got": "refused",
+    "detail": "labserver: dial tcp 172.22.0.4:35845: connect: connection refused",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "cause_identified",
+     "summary": "backend-showcase can't reach mongo-db-showcase-db:35845: 35845 is mongo-db-showcase-db's port on the host; between containers use 27017.",
+     "findings": [
+      {
+       "rule": "WR006",
+       "confidence": "high",
+       "fix": "Connect to mongo-db-showcase-db:27017 instead of mongo-db-showcase-db:35845: containers on a shared network use the container port."
+      }
+     ],
+     "suppressed": [
+      "WR003 by WR006"
+     ],
+     "gaps": 0,
+     "side_effects": 1
+    },
+    {
+     "config": "default-config",
+     "verdict": "cause_identified",
+     "summary": "backend-showcase can't reach mongo-db-showcase-db:35845: 35845 is mongo-db-showcase-db's port on the host; between containers use 27017.",
+     "findings": [
+      {
+       "rule": "WR006",
+       "confidence": "high",
+       "fix": "Connect to mongo-db-showcase-db:27017 instead of mongo-db-showcase-db:35845: containers on a shared network use the container port."
+      }
+     ],
+     "suppressed": [
+      "WR003 by WR006"
+     ],
+     "gaps": 1,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "so-75237114",
+   "source": "https://stackoverflow.com/questions/75237114",
+   "symptom": {
+    "want": "refused",
+    "got": "refused",
+    "detail": "labserver: dial tcp 127.0.0.1:37273: connect: connection refused",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "cause_identified",
+     "summary": "container_1 can't reach 127.0.0.1:37273: 127.0.0.1 inside container_1 is container_1 itself, not container_2.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "high",
+       "fix": "Connect to container_2:8000 instead of 127.0.0.1:37273: port 37273 on the host is container_2's port 8000, published, and on the network you share (whyreach-lab-39d5f49b_web) container_2's own port reaches it directly."
+      }
+     ],
+     "gaps": 0,
+     "side_effects": 1
+    },
+    {
+     "config": "default-config",
+     "verdict": "cause_identified",
+     "summary": "container_1 can't reach 127.0.0.1:37273: 127.0.0.1 inside container_1 is container_1 itself, not container_2.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "high",
+       "fix": "Connect to container_2:8000 instead of 127.0.0.1:37273: port 37273 on the host is container_2's port 8000, published, and on the network you share (whyreach-lab-39d5f49b_web) container_2's own port reaches it directly."
+      }
+     ],
+     "gaps": 1,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "so-78151189",
+   "source": "https://stackoverflow.com/questions/78151189",
+   "symptom": {
+    "want": "refused",
+    "got": "refused",
+    "detail": "dial tcp 127.0.0.1:43855: connect: connection refused",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "cause_identified",
+     "summary": "the host can't reach 127.0.0.1:43855: local-redis listens on port 43855 but doesn't publish it.",
+     "findings": [
+      {
+       "rule": "WR019",
+       "confidence": "high",
+       "fix": "Publish it: ports: [\"43855:43855\"] for local-redis in Compose (docker run -p 43855:43855), then docker compose up -d local-redis. From the host it can also be reached directly at 172.17.0.2:43855."
+      }
+     ],
+     "suppressed": [
+      "WR001 by WR019"
+     ],
+     "gaps": 0,
+     "side_effects": 0
+    },
+    {
+     "config": "default-config",
+     "verdict": "cause_identified",
+     "summary": "the host can't reach 127.0.0.1:43855: local-redis listens on port 43855 but doesn't publish it.",
+     "findings": [
+      {
+       "rule": "WR019",
+       "confidence": "high",
+       "fix": "Publish it: ports: [\"43855:43855\"] for local-redis in Compose (docker run -p 43855:43855), then docker compose up -d local-redis. From the host it can also be reached directly at 172.17.0.2:43855."
+      }
+     ],
+     "suppressed": [
+      "WR001 by WR019"
+     ],
+     "gaps": 0,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "so-78873209",
+   "source": "https://stackoverflow.com/questions/78873209",
+   "symptom": {
+    "want": "refused",
+    "got": "refused",
+    "detail": "labserver: dial tcp [::1]:34789: connect: connection refused",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "cause_identified",
+     "summary": "app can't reach localhost:34789: localhost inside app is app itself, not server.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "high",
+       "fix": "Put app on a network server is on (whyreach-lab-88c9d2dc-authentik_default; in Compose, declare it under networks with external: true), then connect to server:9443 instead of localhost:34789: port 34789 on the host is server's port 9443, published. Going through the host also works: host.docker.internal:34789 (on Docker Engine, also give app extra_hosts: [\"host.docker.internal:host-gateway\"])."
+      }
+     ],
+     "gaps": 0,
+     "side_effects": 1
+    },
+    {
+     "config": "default-config",
+     "verdict": "cause_identified",
+     "summary": "app can't reach localhost:34789: localhost inside app is app itself, not server.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "high",
+       "fix": "Put app on a network server is on (whyreach-lab-88c9d2dc-authentik_default; in Compose, declare it under networks with external: true), then connect to server:9443 instead of localhost:34789: port 34789 on the host is server's port 9443, published. Going through the host also works: host.docker.internal:34789 (on Docker Engine, also give app extra_hosts: [\"host.docker.internal:host-gateway\"])."
+      }
+     ],
+     "gaps": 1,
+     "side_effects": 0
+    }
+   ]
+  },
+  {
+   "case": "so-78901825",
+   "source": "https://stackoverflow.com/questions/78901825",
+   "symptom": {
+    "want": "refused",
+    "got": "refused",
+    "detail": "labserver: dial tcp [::1]:8000: connect: connection refused",
+    "match": true
+   },
+   "runs": [
+    {
+     "config": "probe-containers",
+     "verdict": "cause_identified",
+     "summary": "ki-ui can't reach localhost:8000: localhost inside ki-ui is ki-ui itself, not ki-backend.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "high",
+       "fix": "Connect to ki-backend:8000 instead of localhost:8000: the Compose service name resolves on the shared network."
+      }
+     ],
+     "gaps": 0,
+     "side_effects": 1
+    },
+    {
+     "config": "default-config",
+     "verdict": "cause_identified",
+     "summary": "ki-ui can't reach localhost:8000: localhost inside ki-ui is ki-ui itself, not ki-backend.",
+     "findings": [
+      {
+       "rule": "WR007",
+       "confidence": "high",
+       "fix": "Connect to ki-backend:8000 instead of localhost:8000: the Compose service name resolves on the shared network."
+      }
+     ],
+     "gaps": 1,
+     "side_effects": 0
+    }
+   ]
+  }
+ ],
+ "date": "2026-11-25",
+ "docker_engine": "29.9.3",
+ "platform": "linux-engine",
+ "symptom_checks": "labserver check: a one-second TCP connect from the source's network namespace",
+ "symptoms_only": false,
+ "whyreach": "aac4cf6"
+}
